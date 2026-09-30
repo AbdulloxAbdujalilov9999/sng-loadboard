@@ -12,6 +12,87 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+    <!-- ================= FIREBASE (Auth + Firestore) =================
+         Thin bridge: this is a module script (its own scope), so it exposes what the rest of the
+         app needs on window.FB. The rest of the app is a classic script using inline onclick=""
+         handlers, which requires plain global functions — hence the bridge instead of converting
+         the whole file to a module. Google Sign-In needs the page served over http/https on a
+         domain listed in Firebase Console -> Authentication -> Settings -> Authorized domains
+         (localhost is allowed by default); it will fail with auth/unauthorized-domain when this
+         file is opened directly as file://. -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+        import {
+            getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+        } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+        import {
+            getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg",
+            authDomain: "sng-pro.firebaseapp.com",
+            projectId: "sng-pro",
+            storageBucket: "sng-pro.firebasestorage.app",
+            messagingSenderId: "194801948152",
+            appId: "1:194801948152:web:f8b39e34b9fc558c11b20d",
+            measurementId: "G-FZWV0WRCQE"
+        };
+
+        const fbApp = initializeApp(firebaseConfig);
+        const fbAuth = getAuth(fbApp);
+        const fbDb = getFirestore(fbApp);
+        const googleProvider = new GoogleAuthProvider();
+        const ACCOUNTS_COLLECTION = 'accounts';
+
+        window.FB = {
+            async signInWithGoogle() {
+                const result = await signInWithPopup(fbAuth, googleProvider);
+                return result.user;
+            },
+            async signOut() {
+                await signOut(fbAuth);
+            },
+            async getAccount(email) {
+                const snap = await getDoc(doc(fbDb, ACCOUNTS_COLLECTION, email.toLowerCase()));
+                return snap.exists() ? snap.data() : null;
+            },
+            async createAccountRequest(data) {
+                await setDoc(doc(fbDb, ACCOUNTS_COLLECTION, data.email.toLowerCase()), {
+                    ...data,
+                    status: 'pending',
+                    requestedAt: serverTimestamp(),
+                    reviewedAt: null
+                });
+            },
+            async listAllAccounts() {
+                const snap = await getDocs(collection(fbDb, ACCOUNTS_COLLECTION));
+                return snap.docs.map(d => d.data());
+            },
+            async setAccountStatus(email, status) {
+                await updateDoc(doc(fbDb, ACCOUNTS_COLLECTION, email.toLowerCase()), {
+                    status, reviewedAt: serverTimestamp()
+                });
+            },
+            async deleteAccount(email) {
+                await deleteDoc(doc(fbDb, ACCOUNTS_COLLECTION, email.toLowerCase()));
+            }
+        };
+
+        // Firebase always fires once with the currently-cached session on load. If that first fire is
+        // "nobody's signed in", ignore it so the page's own logged-in-by-default demo view stays up —
+        // only react once a real sign-in/sign-out actually happens (or a real session is restored).
+        let firstAuthCheck = true;
+        onAuthStateChanged(fbAuth, (user) => {
+            if (firstAuthCheck) {
+                firstAuthCheck = false;
+                if (!user) return;
+            }
+            window.dispatchEvent(new CustomEvent('fb-auth-changed', { detail: user }));
+        });
+    </script>
+
     <style>
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
@@ -96,87 +177,81 @@
             <div class="bg-[#071324] p-6 text-center text-white border-b border-slate-800">
                 <div class="w-12 h-12 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center font-black text-white text-2xl tracking-wider mx-auto mb-2 shadow-lg">S1</div>
                 <h2 class="text-lg font-bold tracking-tight">SNG <span class="text-sky-400">ONE</span> Freight Network</h2>
-                <p class="text-slate-400 text-[11px] mt-1" data-i18n="auth_gate_sub">Sign in or register to access live load boards, post equipment, and manage your freight.</p>
+                <p class="text-slate-400 text-[11px] mt-1" data-i18n="auth_gate_sub">Sign in with Google to access live load boards, post equipment, and manage your freight.</p>
             </div>
 
-            <div class="flex border-b border-slate-200 bg-slate-50 text-xs font-semibold">
-                <button onclick="switchAuthMode('login')" id="auth-tab-btn-login" class="flex-1 py-3 text-center border-b-2 border-blue-600 text-blue-600 bg-white" data-i18n="btn_login_submit">Sign In</button>
-                <button onclick="switchAuthMode('signup')" id="auth-tab-btn-signup" class="flex-1 py-3 text-center border-b-2 border-transparent text-slate-500 hover:text-slate-700" data-i18n="modal_signup_title">Create Account</button>
+            <!-- Start: single Google sign-in entry point for everyone (owner, returning members, new requests) -->
+            <div id="auth-pane-start" class="p-6 space-y-4">
+                <button type="button" id="google-signin-btn" onclick="handleGoogleSignIn()" class="w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-2.5 rounded text-xs transition shadow border border-slate-300 flex items-center justify-center space-x-2">
+                    <svg class="w-4 h-4" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.5 6 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.5 6 29.5 4 24 4 16.3 4 9.6 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-1.8 14-5l-6.5-5.4C29.5 35.2 26.9 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5c3.3 6.5 10 10.9 17.8 10.9z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.5 5.4C41.1 35.9 44 30.4 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
+                    <span id="google-signin-btn-label" data-i18n="btn_google_continue">Continue with Google</span>
+                </button>
+                <p class="text-[10px] text-slate-400 text-center leading-relaxed">New companies fill in a few details after signing in and wait for the platform owner to approve access. Returning members and the owner get in immediately.</p>
+                <p id="auth-start-error" class="hidden text-rose-600 bg-rose-50 border border-rose-200 rounded p-2 text-[11px] font-semibold"></p>
             </div>
 
-            <!-- Login Form -->
-            <div id="auth-pane-login" class="p-6 space-y-4">
-                <form onsubmit="handleLoginSubmit(event)" class="space-y-3">
-                    <div>
-                        <label class="block font-semibold text-slate-700 mb-1">Work Email</label>
-                        <input type="email" id="gate-login-email" required value="dispatch@kaztrans-logistics.kz" class="w-full border border-slate-300 rounded p-2.5 text-xs focus:border-blue-500 focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block font-semibold text-slate-700 mb-1">Password</label>
-                        <input type="password" id="gate-login-password" required placeholder="••••••••" class="w-full border border-slate-300 rounded p-2.5 text-xs focus:border-blue-500 focus:outline-none">
-                    </div>
-                    <button type="submit" class="w-full bg-[#0066cc] hover:bg-blue-700 text-white font-bold py-2.5 rounded text-xs transition shadow flex items-center justify-center space-x-2">
-                        <i data-lucide="log-in" class="w-4 h-4"></i>
-                        <span data-i18n="btn_login_submit">Sign In to Workspace</span>
-                    </button>
-                </form>
-            </div>
-
-            <!-- Sign Up Form -->
-            <div id="auth-pane-signup" class="hidden p-6 space-y-4">
-                <form onsubmit="handleSignupSubmit(event)" class="space-y-3">
+            <!-- New Google sign-in with no account yet: complete company profile to request access -->
+            <div id="auth-pane-complete-profile" class="hidden p-6 space-y-4">
+                <p class="text-[11px] text-slate-500" data-i18n="lbl_request_sub">You're signed in with Google. Add your company details to send an access request — you'll be able to use the platform once the owner approves it.</p>
+                <form onsubmit="handleAccessRequestSubmit(event)" class="space-y-3">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                            <label class="block font-semibold text-slate-700 mb-1">Company Name</label>
-                            <input type="text" id="gate-signup-company" required placeholder="SilkRoad Trans LLC" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                            <label class="block font-semibold text-slate-700 mb-1">Dispatcher Name (Google)</label>
+                            <input type="text" id="gate-request-name" required class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 text-slate-600" readonly>
                         </div>
                         <div>
-                            <label class="block font-semibold text-slate-700 mb-1">Dispatcher Name</label>
-                            <input type="text" id="gate-signup-name" required placeholder="Alisher Usmanov" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                            <label class="block font-semibold text-slate-700 mb-1">Google Email</label>
+                            <input type="email" id="gate-request-email" required class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 text-slate-600" readonly>
                         </div>
                     </div>
                     <div>
-                        <label class="block font-semibold text-slate-700 mb-1">Work Email</label>
-                        <input type="email" id="gate-signup-email" required placeholder="alisher@silkroad.uz" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                        <label class="block font-semibold text-slate-700 mb-1">Company Name</label>
+                        <input type="text" id="gate-request-company" required placeholder="SilkRoad Trans LLC" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block font-semibold text-slate-700 mb-1">Phone Number</label>
-                            <input type="text" id="gate-signup-phone" required placeholder="+998 (90) 123-45-67" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                            <input type="text" id="gate-request-phone" required placeholder="+998 (90) 123-45-67" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
                         </div>
                         <div>
                             <label class="block font-semibold text-slate-700 mb-1">Telegram Handle</label>
-                            <input type="text" id="gate-signup-tg" required placeholder="@alisher_disp" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                            <input type="text" id="gate-request-tg" required placeholder="@alisher_disp" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
                         </div>
                     </div>
-                    <div>
-                        <label class="block font-semibold text-slate-700 mb-1">Password</label>
-                        <input type="password" id="gate-signup-password" required placeholder="••••••••" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
-                    </div>
-                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded text-xs transition shadow flex items-center justify-center space-x-2">
-                        <i data-lucide="mail" class="w-4 h-4"></i>
-                        <span data-i18n="btn_signup_submit">Register & Send Verification Email</span>
+                    <p id="request-error" class="hidden text-rose-600 bg-rose-50 border border-rose-200 rounded p-2 text-[11px] font-semibold"></p>
+                    <button type="submit" id="request-submit-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded text-xs transition shadow flex items-center justify-center space-x-2">
+                        <i data-lucide="send" class="w-4 h-4"></i>
+                        <span data-i18n="btn_signup_submit">Submit Access Request</span>
                     </button>
+                    <button type="button" onclick="handleGateSignOut()" class="w-full text-slate-400 hover:text-slate-600 text-[11px] font-semibold">Use a different Google account</button>
                 </form>
             </div>
 
-            <!-- Email Verification Pane -->
-            <div id="auth-pane-verify" class="hidden p-6 space-y-4 text-center">
-                <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
-                    <i data-lucide="mail-check" class="w-6 h-6"></i>
+            <!-- Request Submitted / Pending Owner Approval -->
+            <div id="auth-pane-pending" class="hidden p-6 space-y-4 text-center">
+                <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+                    <i data-lucide="clock" class="w-6 h-6"></i>
                 </div>
                 <div>
-                    <h3 class="text-sm font-bold text-slate-800" data-i18n="modal_verify_title">Verify Your Email</h3>
-                    <p class="text-slate-500 text-[11px] mt-1">We sent a 6-digit confirmation code to <strong id="gate-verify-target" class="text-slate-800"></strong></p>
+                    <h3 class="text-sm font-bold text-slate-800" data-i18n="modal_pending_title">Request Submitted</h3>
+                    <p class="text-slate-500 text-[11px] mt-1">
+                        <span data-i18n="lbl_pending_sub">Your access request has been sent to the platform owner. You'll be able to sign in as soon as it's approved.</span>
+                        <strong id="pending-target-email" class="text-slate-800 block mt-1"></strong>
+                    </p>
                 </div>
-                <form onsubmit="handleVerificationSubmit(event)" class="space-y-3">
-                    <input type="text" id="gate-verify-code" maxlength="6" required placeholder="123456" class="w-full text-center tracking-widest text-lg font-mono font-bold border border-slate-300 rounded p-2.5 focus:border-blue-500 focus:outline-none">
-                    <button type="submit" class="w-full bg-[#0066cc] hover:bg-blue-700 text-white font-bold py-2.5 rounded text-xs transition shadow" data-i18n="btn_verify_submit">Confirm & Enter Workspace</button>
-                </form>
-                <div class="text-[11px] text-slate-400">
-                    <span>Didn't receive code?</span>
-                    <button type="button" onclick="resendVerificationCode()" class="text-blue-600 font-bold hover:underline ml-1">Resend Email</button>
+                <button type="button" onclick="handleGateSignOut()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded text-xs transition" data-i18n="btn_back_to_signin">Sign Out</button>
+            </div>
+
+            <!-- Request Declined -->
+            <div id="auth-pane-rejected" class="hidden p-6 space-y-4 text-center">
+                <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto">
+                    <i data-lucide="x-circle" class="w-6 h-6"></i>
                 </div>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-800">Access Request Declined</h3>
+                    <p class="text-slate-500 text-[11px] mt-1">The platform owner declined this access request. Contact <a href="mailto:abdujalilov7707@gmail.com" class="text-blue-600 hover:underline">abdujalilov7707@gmail.com</a> if you think this is a mistake.</p>
+                </div>
+                <button type="button" onclick="handleGateSignOut()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded text-xs transition">Sign Out</button>
             </div>
         </div>
     </div>
@@ -238,6 +313,14 @@
                 <button onclick="setTab('account-settings')" id="menu-account-settings" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
                     <i data-lucide="settings" class="w-4 h-4"></i>
                     <span class="flex-1 text-left" data-i18n="nav_settings">Account & Settings</span>
+                </button>
+
+                <div id="nav-admin-section" class="hidden pt-3 px-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider" data-i18n="nav_admin_sec">Administration</div>
+
+                <button onclick="setTab('approvals')" id="menu-approvals" class="hidden w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="user-check" class="w-4 h-4"></i>
+                    <span class="flex-1 text-left" data-i18n="nav_approvals">Users to Approve</span>
+                    <span class="hidden bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-mono" id="badge-approvals">0</span>
                 </button>
             </nav>
 
@@ -874,6 +957,29 @@
                 </div>
             </section>
 
+            <!-- ================= TAB: USERS TO APPROVE (OWNER ONLY) ================= -->
+            <section id="view-approvals" class="hidden flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100">
+                <div class="max-w-4xl mx-auto space-y-5">
+                    <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                        <h2 class="text-base font-bold text-slate-800 flex items-center space-x-2">
+                            <i data-lucide="shield-check" class="w-4 h-4 text-blue-600"></i>
+                            <span data-i18n="nav_approvals">Users to Approve</span>
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-1">New companies request access with Google sign-in. Approve or decline each request — approved companies can then sign in and use the platform.</p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Pending Requests (<span id="approvals-pending-count">0</span>)</h3>
+                        <div id="approvals-pending-list" class="space-y-3 text-xs"></div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Reviewed</h3>
+                        <div id="approvals-reviewed-list" class="space-y-2 text-xs"></div>
+                    </div>
+                </div>
+            </section>
+
         </div>
     </div>
 
@@ -1036,17 +1142,31 @@
         }
 
         // ================= AUTHENTICATION & USER PROFILE =================
+        // Real identity check: Firebase Auth verifies Google account ownership server-side, so comparing
+        // the signed-in user's email to OWNER_EMAIL is legitimate (nobody else can produce a valid
+        // Firebase session claiming this address unless they actually control that Google account).
+        const OWNER_EMAIL = 'abdujalilov7707@gmail.com';
+
         let authState = {
             isLoggedIn: true,
+            isOwner: false,
             isVerified: true,
             company: "KazTrans Logistics LLC",
             name: "Dias Akhmetov",
             email: "dispatch@kaztrans-logistics.kz",
             phone: "+7 (727) 880-1234",
-            tg: "@kaztrans_disp",
-            pendingVerificationEmail: null,
-            generatedCode: "748921"
+            tg: "@kaztrans_disp"
         };
+
+        // The page opens pre-logged-in as a demo company so the board is usable without going through
+        // Google sign-in first (also handy since Google sign-in requires an authorized http/https host —
+        // see the Firebase bridge script in <head>, it won't work when this file is opened as file://).
+        // Once someone actually signs in via Google, this flips to true and drives the real gated flow.
+        let usingFirebaseSession = false;
+        let pendingGoogleUser = null; // the Firebase user currently mid-way through "complete your profile"
+
+        // In-memory mirror of the last accounts list fetched from Firestore, used by the approvals screen.
+        let accountRegistry = [];
 
         // Flatpickr Range Instance
         let searchDatePickerInstance = null;
@@ -1089,6 +1209,8 @@
                 nav_directory_sec: "Directory & Network",
                 nav_directory: "Carrier Directory",
                 nav_settings: "Account & Settings",
+                nav_admin_sec: "Administration",
+                nav_approvals: "Users to Approve",
                 currency_label: "Currency:",
                 connected_status: "Connected",
                 filter_origin: "Origin (City, Country)",
@@ -1149,12 +1271,13 @@
                 lbl_disp_pref: "Search & Bot Alert Preferences",
                 lbl_default_dh: "Default Deadhead Radius (km)",
                 btn_logout: "Logout",
-                auth_gate_sub: "Sign in or register to access live load boards, post equipment, and manage your freight.",
-                btn_login_submit: "Sign In",
-                modal_signup_title: "Create Account",
-                btn_signup_submit: "Register & Send Verification Email",
-                modal_verify_title: "Verify Your Email",
-                btn_verify_submit: "Confirm & Enter Workspace"
+                auth_gate_sub: "Sign in with Google to access live load boards, post equipment, and manage your freight.",
+                btn_google_continue: "Continue with Google",
+                lbl_request_sub: "You're signed in with Google. Add your company details to send an access request — you'll be able to use the platform once the owner approves it.",
+                btn_signup_submit: "Submit Access Request",
+                modal_pending_title: "Request Submitted",
+                lbl_pending_sub: "Your access request has been sent to the platform owner. You'll be able to sign in as soon as it's approved.",
+                btn_back_to_signin: "Sign Out"
             },
             ru: {
                 nav_operations: "Грузоперевозки",
@@ -1165,6 +1288,8 @@
                 nav_directory_sec: "Справочник и сеть",
                 nav_directory: "Справочник перевозчиков",
                 nav_settings: "Профиль и настройки",
+                nav_admin_sec: "Администрирование",
+                nav_approvals: "Заявки на доступ",
                 currency_label: "Валюта:",
                 connected_status: "Подключен",
                 filter_origin: "Откуда (Город, Страна)",
@@ -1225,12 +1350,13 @@
                 lbl_disp_pref: "Настройки поиска и Telegram-бота",
                 lbl_default_dh: "Радиус поиска по умолчанию (км)",
                 btn_logout: "Выйти",
-                auth_gate_sub: "Войдите или зарегистрируйтесь для доступа к поиску грузов, публикации транспорта и управлению.",
-                btn_login_submit: "Войти",
-                modal_signup_title: "Создать аккаунт",
-                btn_signup_submit: "Зарегистрироваться и отправить email",
-                modal_verify_title: "Подтверждение Email",
-                btn_verify_submit: "Активировать и войти"
+                auth_gate_sub: "Войдите через Google для доступа к поиску грузов, публикации транспорта и управлению.",
+                btn_google_continue: "Продолжить с Google",
+                lbl_request_sub: "Вы вошли через Google. Укажите данные компании, чтобы отправить заявку на доступ — вы сможете пользоваться платформой после одобрения владельцем.",
+                btn_signup_submit: "Отправить заявку на доступ",
+                modal_pending_title: "Заявка отправлена",
+                lbl_pending_sub: "Ваша заявка на доступ отправлена владельцу платформы. Вы сможете войти сразу после одобрения.",
+                btn_back_to_signin: "Выйти"
             }
         };
 
@@ -1472,19 +1598,26 @@
                 appWorkspace.classList.remove('hidden');
                 renderAuthSidebar();
                 renderMyLoads();
+                updateApprovalBadge();
             }
         }
 
         function renderAuthSidebar() {
             const sidebar = document.getElementById('sidebar-auth-section');
+            const adminSection = document.getElementById('nav-admin-section');
+            const approvalsMenu = document.getElementById('menu-approvals');
+
+            adminSection.classList.toggle('hidden', !authState.isOwner);
+            approvalsMenu.classList.toggle('hidden', !authState.isOwner);
+
             if (authState.isLoggedIn) {
                 sidebar.innerHTML = `
-                    <div onclick="setTab('account-settings')" class="flex items-center space-x-2.5 cursor-pointer hover:bg-slate-800/60 p-1 rounded transition">
-                        <div class="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-xs border border-blue-400">${authState.company.slice(0,2).toUpperCase()}</div>
+                    <div onclick="setTab('${authState.isOwner ? 'approvals' : 'account-settings'}')" class="flex items-center space-x-2.5 cursor-pointer hover:bg-slate-800/60 p-1 rounded transition">
+                        <div class="w-7 h-7 rounded-full ${authState.isOwner ? 'bg-amber-500' : 'bg-blue-600'} flex items-center justify-center font-bold text-white text-xs border border-blue-400">${authState.isOwner ? '👑' : authState.company.slice(0,2).toUpperCase()}</div>
                         <div class="flex-1 min-w-0">
                             <p class="font-semibold text-white truncate text-[11px]">${authState.company}</p>
-                            <p class="text-[9px] ${authState.isVerified ? 'text-emerald-400' : 'text-amber-400'} flex items-center gap-1">
-                                <span class="w-1.5 h-1.5 rounded-full ${authState.isVerified ? 'bg-emerald-400' : 'bg-amber-400'}"></span> ${authState.isVerified ? 'Verified Account' : 'Pending Verification'}
+                            <p class="text-[9px] ${authState.isOwner ? 'text-amber-400' : 'text-emerald-400'} flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full ${authState.isOwner ? 'bg-amber-400' : 'bg-emerald-400'}"></span> ${authState.isOwner ? 'Platform Owner' : 'Approved Account'}
                             </p>
                         </div>
                         <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
@@ -1495,81 +1628,276 @@
             lucide.createIcons();
         }
 
-        function switchAuthMode(mode) {
-            document.getElementById('auth-pane-login').classList.add('hidden');
-            document.getElementById('auth-pane-signup').classList.add('hidden');
-            document.getElementById('auth-pane-verify').classList.add('hidden');
+        function showAuthError(msg) {
+            const el = document.getElementById('auth-start-error');
+            el.innerText = msg;
+            el.classList.remove('hidden');
+        }
 
-            document.getElementById('auth-tab-btn-login').className = 'flex-1 py-3 text-center border-b-2 border-transparent text-slate-500 hover:text-slate-700';
-            document.getElementById('auth-tab-btn-signup').className = 'flex-1 py-3 text-center border-b-2 border-transparent text-slate-500 hover:text-slate-700';
+        function showRequestError(msg) {
+            const el = document.getElementById('request-error');
+            el.innerText = msg;
+            el.classList.remove('hidden');
+        }
 
-            if (mode === 'login') {
-                document.getElementById('auth-pane-login').classList.remove('hidden');
-                document.getElementById('auth-tab-btn-login').className = 'flex-1 py-3 text-center border-b-2 border-blue-600 text-blue-600 bg-white';
-            } else if (mode === 'signup') {
-                document.getElementById('auth-pane-signup').classList.remove('hidden');
-                document.getElementById('auth-tab-btn-signup').className = 'flex-1 py-3 text-center border-b-2 border-blue-600 text-blue-600 bg-white';
+        // Firestore Timestamp (has .toMillis()) or a plain millis number or null -> millis number
+        function tsToMillis(ts) {
+            if (!ts) return Date.now();
+            if (typeof ts === 'number') return ts;
+            if (typeof ts.toMillis === 'function') return ts.toMillis();
+            return Date.now();
+        }
+
+        function showAuthPane(paneId) {
+            ['auth-pane-start', 'auth-pane-complete-profile', 'auth-pane-pending', 'auth-pane-rejected'].forEach(id => {
+                document.getElementById(id).classList.toggle('hidden', id !== paneId);
+            });
+        }
+
+        function showStartPane() {
+            document.getElementById('auth-start-error').classList.add('hidden');
+            showAuthPane('auth-pane-start');
+        }
+
+        function showCompleteProfilePane(user) {
+            pendingGoogleUser = user;
+            document.getElementById('gate-request-name').value = user.displayName || '';
+            document.getElementById('gate-request-email').value = user.email || '';
+            document.getElementById('gate-request-company').value = '';
+            document.getElementById('gate-request-phone').value = '';
+            document.getElementById('gate-request-tg').value = '';
+            document.getElementById('request-error').classList.add('hidden');
+            showAuthPane('auth-pane-complete-profile');
+        }
+
+        function showPendingPane(email) {
+            document.getElementById('pending-target-email').innerText = email;
+            showAuthPane('auth-pane-pending');
+        }
+
+        function showRejectedPane() {
+            showAuthPane('auth-pane-rejected');
+        }
+
+        function mapFirebaseAuthError(err) {
+            const code = (err && err.code) || '';
+            if (code.includes('popup-closed-by-user')) return 'Sign-in was cancelled.';
+            if (code.includes('popup-blocked')) return 'Your browser blocked the sign-in popup. Allow popups for this site and try again.';
+            if (code.includes('unauthorized-domain')) return 'This domain isn\'t authorized for Google sign-in yet — add it under Firebase Console → Authentication → Settings → Authorized domains (opening this file directly as file:// can\'t be authorized; serve it over http/https instead).';
+            if (code.includes('network-request-failed')) return 'Network error — check your connection and try again.';
+            if (code.includes('operation-not-allowed')) return 'Google sign-in isn\'t enabled for this Firebase project yet — turn it on under Authentication → Sign-in method.';
+            return 'Google sign-in failed: ' + ((err && err.message) || 'unknown error');
+        }
+
+        async function handleGoogleSignIn() {
+            document.getElementById('auth-start-error').classList.add('hidden');
+            const btn = document.getElementById('google-signin-btn');
+            btn.disabled = true;
+            try {
+                await window.FB.signInWithGoogle();
+                // Resolves via the 'fb-auth-changed' listener below, which calls handleFirebaseUser().
+            } catch (err) {
+                showAuthError(mapFirebaseAuthError(err));
+            } finally {
+                btn.disabled = false;
             }
         }
 
-        function handleLoginSubmit(e) {
-            e.preventDefault();
-            const email = document.getElementById('gate-login-email').value;
-            authState.isLoggedIn = true;
-            authState.isVerified = true;
-            authState.email = email;
-            authState.company = email.split('@')[0].toUpperCase() + " Logistics";
-            
-            checkAuthStatus();
-            alert(currentLang === 'ru' ? '✓ Вы успешно вошли в систему!' : '✓ Signed in successfully!');
+        async function handleGateSignOut() {
+            try { await window.FB.signOut(); } catch (e) { /* ignore */ }
+            pendingGoogleUser = null;
+            showStartPane();
         }
 
-        function handleSignupSubmit(e) {
-            e.preventDefault();
-            const company = document.getElementById('gate-signup-company').value;
-            const name = document.getElementById('gate-signup-name').value;
-            const email = document.getElementById('gate-signup-email').value;
-            const phone = document.getElementById('gate-signup-phone').value;
-            const tg = document.getElementById('gate-signup-tg').value;
+        async function handleFirebaseUser(user) {
+            usingFirebaseSession = true;
+            const email = (user.email || '').toLowerCase();
 
-            authState.company = company;
-            authState.name = name;
-            authState.email = email;
-            authState.phone = phone;
-            authState.tg = tg;
-            authState.pendingVerificationEmail = email;
-            authState.generatedCode = String(Math.floor(100000 + Math.random() * 900000));
-
-            document.getElementById('auth-pane-signup').classList.add('hidden');
-            document.getElementById('gate-verify-target').innerText = email;
-            document.getElementById('auth-pane-verify').classList.remove('hidden');
-
-            alert(`[SNG ONE EMAIL DISPATCHER]\n\nTo: ${email}\nSubject: Verify your SNG ONE Account\n\nYour 6-digit confirmation security code is: ${authState.generatedCode}\n\nPlease enter it to activate your account.`);
-        }
-
-        function handleVerificationSubmit(e) {
-            e.preventDefault();
-            const code = document.getElementById('gate-verify-code').value.trim();
-            if (code === authState.generatedCode || code === "123456") {
-                authState.isLoggedIn = true;
-                authState.isVerified = true;
+            if (email === OWNER_EMAIL.toLowerCase()) {
+                authState = { isLoggedIn: true, isOwner: true, isVerified: true, company: 'SNG ONE — Platform Owner', name: user.displayName || 'Platform Owner', email: OWNER_EMAIL, phone: '', tg: '' };
                 checkAuthStatus();
-                alert(currentLang === 'ru' ? '✓ Email успешно подтвержден! Добро пожаловать.' : '✓ Email verified successfully! Welcome to SNG ONE.');
-            } else {
-                alert('Invalid security code. Please check your email.');
+                return;
             }
+
+            let account;
+            try {
+                account = await window.FB.getAccount(email);
+            } catch (err) {
+                showAuthError('Could not reach Firestore. Check your connection and Firestore security rules, then try again.');
+                return;
+            }
+
+            if (!account) { showCompleteProfilePane(user); return; }
+            if (account.status === 'pending') { showPendingPane(account.email); return; }
+            if (account.status === 'rejected') { showRejectedPane(); return; }
+
+            authState = { isLoggedIn: true, isOwner: false, isVerified: true, company: account.company, name: account.name, email: account.email, phone: account.phone, tg: account.tg };
+            checkAuthStatus();
         }
 
-        function resendVerificationCode() {
-            authState.generatedCode = String(Math.floor(100000 + Math.random() * 900000));
-            alert(`[EMAIL RESENT]\n\nNew 6-digit verification code sent to ${authState.pendingVerificationEmail}: ${authState.generatedCode}`);
+        window.addEventListener('fb-auth-changed', (e) => {
+            const user = e.detail;
+            if (!user) {
+                if (usingFirebaseSession) {
+                    authState.isLoggedIn = false;
+                    checkAuthStatus();
+                }
+                showStartPane();
+                return;
+            }
+            handleFirebaseUser(user);
+        });
+
+        async function handleAccessRequestSubmit(e) {
+            e.preventDefault();
+            document.getElementById('request-error').classList.add('hidden');
+            const email = document.getElementById('gate-request-email').value.trim().toLowerCase();
+
+            if (email === OWNER_EMAIL.toLowerCase()) {
+                showRequestError('This email is reserved for the platform owner — sign in with it directly instead.');
+                return;
+            }
+
+            const btn = document.getElementById('request-submit-btn');
+            btn.disabled = true;
+            try {
+                const existing = await window.FB.getAccount(email);
+                if (existing) {
+                    showRequestError('A request or account already exists for this email.');
+                    return;
+                }
+                await window.FB.createAccountRequest({
+                    company: document.getElementById('gate-request-company').value,
+                    name: document.getElementById('gate-request-name').value,
+                    email: email,
+                    phone: document.getElementById('gate-request-phone').value,
+                    tg: document.getElementById('gate-request-tg').value,
+                    authProvider: 'google',
+                    uid: pendingGoogleUser ? pendingGoogleUser.uid : null
+                });
+                updateApprovalBadge();
+                showPendingPane(email);
+            } catch (err) {
+                showRequestError('Could not submit your request. Check your connection and Firestore security rules, then try again.');
+            } finally {
+                btn.disabled = false;
+            }
         }
 
         function handleLogout() {
             authState.isLoggedIn = false;
-            authState.isVerified = false;
             checkAuthStatus();
-            alert(currentLang === 'ru' ? 'Вы вышли из системы.' : 'Logged out successfully.');
+            if (usingFirebaseSession) {
+                window.FB.signOut().catch(() => {});
+            }
+        }
+
+        // ================= USERS TO APPROVE (OWNER ONLY) =================
+        async function updateApprovalBadge() {
+            const badge = document.getElementById('badge-approvals');
+            if (!badge || !authState.isOwner) return;
+            try {
+                accountRegistry = await window.FB.listAllAccounts();
+            } catch (err) {
+                return;
+            }
+            const pendingCount = accountRegistry.filter(a => a.status === 'pending').length;
+            badge.innerText = pendingCount;
+            badge.classList.toggle('hidden', pendingCount === 0);
+        }
+
+        async function renderApprovals() {
+            if (!authState.isOwner) return;
+            const pendingList = document.getElementById('approvals-pending-list');
+            const reviewedList = document.getElementById('approvals-reviewed-list');
+            pendingList.innerHTML = `<div class="bg-white border border-slate-200 rounded-lg p-4 text-center text-slate-400">Loading…</div>`;
+            reviewedList.innerHTML = '';
+
+            try {
+                accountRegistry = await window.FB.listAllAccounts();
+            } catch (err) {
+                pendingList.innerHTML = `<div class="bg-rose-50 border border-rose-200 rounded-lg p-4 text-center text-rose-600">Could not load requests from Firestore. Check your connection and security rules, then reopen this tab.</div>`;
+                return;
+            }
+
+            const pending = accountRegistry.filter(a => a.status === 'pending').sort((a, b) => tsToMillis(a.requestedAt) - tsToMillis(b.requestedAt));
+            const reviewed = accountRegistry.filter(a => a.status !== 'pending').sort((a, b) => tsToMillis(b.reviewedAt) - tsToMillis(a.reviewedAt));
+
+            document.getElementById('approvals-pending-count').innerText = pending.length;
+
+            pendingList.innerHTML = pending.length === 0
+                ? `<div class="bg-white border border-slate-200 rounded-lg p-4 text-center text-slate-400">No pending requests right now.</div>`
+                : pending.map(a => `
+                    <div class="bg-white border border-amber-200 rounded-lg p-4 shadow-sm">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="font-bold text-slate-900">${a.company}</p>
+                                <p class="text-slate-500">${a.name} • <a href="mailto:${a.email}" class="text-blue-600 hover:underline">${a.email}</a></p>
+                                <p class="text-slate-500">${a.phone} • ${a.tg}</p>
+                                <p class="text-[10px] text-slate-400 mt-1">Requested ${computeAge(tsToMillis(a.requestedAt)).text} ago via Google sign-in</p>
+                            </div>
+                            <span class="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold px-2 py-0.5 rounded flex-shrink-0">Pending</span>
+                        </div>
+                        <div class="flex gap-2 mt-3">
+                            <button onclick="approveAccount('${a.email}')" class="flex-1 justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded flex items-center space-x-1.5 transition">
+                                <i data-lucide="check" class="w-3.5 h-3.5"></i><span>Approve</span>
+                            </button>
+                            <button onclick="rejectAccount('${a.email}')" class="flex-1 justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold py-1.5 rounded border border-rose-200 flex items-center space-x-1.5 transition">
+                                <i data-lucide="x" class="w-3.5 h-3.5"></i><span>Decline</span>
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+
+            reviewedList.innerHTML = reviewed.length === 0
+                ? `<div class="bg-white border border-slate-200 rounded-lg p-3 text-center text-slate-400">No reviewed requests yet.</div>`
+                : reviewed.map(a => `
+                    <div class="bg-white border border-slate-200 rounded-lg p-3 flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="font-semibold text-slate-800 truncate">${a.company} <span class="text-slate-400 font-normal">— ${a.email}</span></p>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <span class="${a.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'} border text-[10px] font-bold px-2 py-0.5 rounded">${a.status === 'approved' ? 'Approved' : 'Declined'}</span>
+                            <button onclick="removeAccount('${a.email}')" title="Remove record" class="text-slate-300 hover:text-rose-600 transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                        </div>
+                    </div>
+                `).join('');
+
+            lucide.createIcons();
+        }
+
+        async function approveAccount(email) {
+            try {
+                await window.FB.setAccountStatus(email, 'approved');
+                renderApprovals();
+                updateApprovalBadge();
+            } catch (err) {
+                alert('Could not approve this request — check your connection and Firestore security rules.');
+            }
+        }
+
+        async function rejectAccount(email) {
+            const account = accountRegistry.find(a => a.email === email);
+            if (!confirm(`Decline the access request from ${account ? account.company : email}?`)) return;
+            try {
+                await window.FB.setAccountStatus(email, 'rejected');
+                renderApprovals();
+                updateApprovalBadge();
+            } catch (err) {
+                alert('Could not decline this request — check your connection and Firestore security rules.');
+            }
+        }
+
+        async function removeAccount(email) {
+            const account = accountRegistry.find(a => a.email === email);
+            if (!confirm(`Permanently remove the reviewed request from ${account ? account.company : email}? They would need to request access again.`)) return;
+            try {
+                await window.FB.deleteAccount(email);
+                renderApprovals();
+                updateApprovalBadge();
+            } catch (err) {
+                alert('Could not remove this record — check your connection and Firestore security rules.');
+            }
         }
 
         // ================= MY POSTED LOADS (VIEW, EDIT, DELETE) =================
@@ -2196,7 +2524,8 @@
 
         // ================= NAVIGATION =================
         function setTab(tabName) {
-            const views = ['search-loads', 'post-loads', 'search-trucks', 'post-trucks', 'directory', 'account-settings'];
+            if (tabName === 'approvals' && !authState.isOwner) return;
+            const views = ['search-loads', 'post-loads', 'search-trucks', 'post-trucks', 'directory', 'account-settings', 'approvals'];
             views.forEach(v => {
                 const el = document.getElementById(`view-${v}`);
                 if (el) el.classList.add('hidden');
@@ -2224,7 +2553,8 @@
                     'search-trucks': 'Search Trucks',
                     'post-trucks': 'Post Trucks',
                     'directory': 'Carrier Directory',
-                    'account-settings': 'Account & Profile Settings'
+                    'account-settings': 'Account & Profile Settings',
+                    'approvals': 'Users to Approve'
                 },
                 ru: {
                     'search-loads': 'Поиск грузов',
@@ -2232,7 +2562,8 @@
                     'search-trucks': 'Поиск транспорта',
                     'post-trucks': 'Добавить транспорт',
                     'directory': 'Справочник перевозчиков',
-                    'account-settings': 'Профиль и настройки'
+                    'account-settings': 'Профиль и настройки',
+                    'approvals': 'Заявки на доступ'
                 }
             };
             document.getElementById('page-title').innerText = titles[currentLang][tabName] || 'Load Board';
@@ -2244,6 +2575,7 @@
             if(tabName === 'post-loads') renderMyLoads();
             if(tabName === 'search-trucks') renderTrucks(trucksDatabase);
             if(tabName === 'directory') renderDirectory(directoryDatabase);
+            if(tabName === 'approvals') renderApprovals();
             lucide.createIcons();
 
             // Navigating from the mobile drawer should close it so the selected view is visible
