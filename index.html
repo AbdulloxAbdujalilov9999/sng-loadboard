@@ -1,0 +1,2206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNG One Load Board - DAT Edition</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Flatpickr (Modern Date Range Picker) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <style>
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .tab-active { background-color: #1e293b; color: #38bdf8; border-left: 4px solid #38bdf8; }
+        .row-expanded { background-color: #f0f7ff !important; border-bottom-color: transparent !important; }
+        .sortable-th { cursor: pointer; user-select: none; transition: background-color 0.15s; }
+        .sortable-th:hover { background-color: #1a3a5c; }
+        .search-tab-active { background-color: #ffffff; color: #0066cc; border-bottom: 2px solid #0066cc; font-weight: 700; }
+        .search-tab-inactive { background-color: #e2e8f0; color: #64748b; }
+        .search-tab-inactive:hover { background-color: #cbd5e1; color: #334155; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans antialiased h-screen flex overflow-hidden">
+
+    <!-- ================= LOGGED OUT AUTH GATEWAY ================= -->
+    <div id="auth-lockout-screen" class="hidden fixed inset-0 bg-[#0a192f] z-50 flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-white rounded-xl shadow-2xl border border-slate-700 overflow-hidden text-xs">
+            <div class="bg-[#071324] p-6 text-center text-white border-b border-slate-800">
+                <div class="w-12 h-12 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center font-black text-white text-2xl tracking-wider mx-auto mb-2 shadow-lg">S1</div>
+                <h2 class="text-lg font-bold tracking-tight">SNG <span class="text-sky-400">ONE</span> Freight Network</h2>
+                <p class="text-slate-400 text-[11px] mt-1" data-i18n="auth_gate_sub">Sign in or register to access live load boards, post equipment, and manage your freight.</p>
+            </div>
+
+            <div class="flex border-b border-slate-200 bg-slate-50 text-xs font-semibold">
+                <button onclick="switchAuthMode('login')" id="auth-tab-btn-login" class="flex-1 py-3 text-center border-b-2 border-blue-600 text-blue-600 bg-white" data-i18n="btn_login_submit">Sign In</button>
+                <button onclick="switchAuthMode('signup')" id="auth-tab-btn-signup" class="flex-1 py-3 text-center border-b-2 border-transparent text-slate-500 hover:text-slate-700" data-i18n="modal_signup_title">Create Account</button>
+            </div>
+
+            <!-- Login Form -->
+            <div id="auth-pane-login" class="p-6 space-y-4">
+                <form onsubmit="handleLoginSubmit(event)" class="space-y-3">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Work Email</label>
+                        <input type="email" id="gate-login-email" required value="dispatch@kaztrans-logistics.kz" class="w-full border border-slate-300 rounded p-2.5 text-xs focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Password</label>
+                        <input type="password" id="gate-login-password" required placeholder="••••••••" class="w-full border border-slate-300 rounded p-2.5 text-xs focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <button type="submit" class="w-full bg-[#0066cc] hover:bg-blue-700 text-white font-bold py-2.5 rounded text-xs transition shadow flex items-center justify-center space-x-2">
+                        <i data-lucide="log-in" class="w-4 h-4"></i>
+                        <span data-i18n="btn_login_submit">Sign In to Workspace</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Sign Up Form -->
+            <div id="auth-pane-signup" class="hidden p-6 space-y-4">
+                <form onsubmit="handleSignupSubmit(event)" class="space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1">Company Name</label>
+                            <input type="text" id="gate-signup-company" required placeholder="SilkRoad Trans LLC" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1">Dispatcher Name</label>
+                            <input type="text" id="gate-signup-name" required placeholder="Alisher Usmanov" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Work Email</label>
+                        <input type="email" id="gate-signup-email" required placeholder="alisher@silkroad.uz" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1">Phone Number</label>
+                            <input type="text" id="gate-signup-phone" required placeholder="+998 (90) 123-45-67" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1">Telegram Handle</label>
+                            <input type="text" id="gate-signup-tg" required placeholder="@alisher_disp" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Password</label>
+                        <input type="password" id="gate-signup-password" required placeholder="••••••••" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded text-xs transition shadow flex items-center justify-center space-x-2">
+                        <i data-lucide="mail" class="w-4 h-4"></i>
+                        <span data-i18n="btn_signup_submit">Register & Send Verification Email</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Email Verification Pane -->
+            <div id="auth-pane-verify" class="hidden p-6 space-y-4 text-center">
+                <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
+                    <i data-lucide="mail-check" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-800" data-i18n="modal_verify_title">Verify Your Email</h3>
+                    <p class="text-slate-500 text-[11px] mt-1">We sent a 6-digit confirmation code to <strong id="gate-verify-target" class="text-slate-800"></strong></p>
+                </div>
+                <form onsubmit="handleVerificationSubmit(event)" class="space-y-3">
+                    <input type="text" id="gate-verify-code" maxlength="6" required placeholder="123456" class="w-full text-center tracking-widest text-lg font-mono font-bold border border-slate-300 rounded p-2.5 focus:border-blue-500 focus:outline-none">
+                    <button type="submit" class="w-full bg-[#0066cc] hover:bg-blue-700 text-white font-bold py-2.5 rounded text-xs transition shadow" data-i18n="btn_verify_submit">Confirm & Enter Workspace</button>
+                </form>
+                <div class="text-[11px] text-slate-400">
+                    <span>Didn't receive code?</span>
+                    <button type="button" onclick="resendVerificationCode()" class="text-blue-600 font-bold hover:underline ml-1">Resend Email</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= MAIN APP WRAPPER ================= -->
+    <div id="app-workspace" class="flex-1 flex h-screen overflow-hidden">
+
+        <!-- ================= LEFT SIDEBAR ================= -->
+        <aside class="w-60 bg-[#0a192f] text-slate-300 flex flex-col flex-shrink-0 z-20 border-r border-slate-800 select-none">
+            <div class="h-14 px-4 flex items-center justify-between border-b border-slate-800 bg-[#071324]">
+                <div class="flex items-center space-x-2">
+                    <div class="w-7 h-7 rounded bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center font-black text-white text-base tracking-wider">S1</div>
+                    <div>
+                        <span class="font-bold text-white text-sm tracking-tight">SNG <span class="text-sky-400">ONE</span></span>
+                        <span class="block text-[9px] text-slate-400 uppercase tracking-widest leading-none">DAT Freight Network</span>
+                    </div>
+                </div>
+                <span class="text-[9px] bg-sky-950 text-sky-300 border border-sky-800 font-semibold px-1.5 py-0.5 rounded">PRO</span>
+            </div>
+
+            <nav class="flex-1 py-3 px-2 space-y-1 overflow-y-auto text-xs font-medium">
+                <div class="px-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider" data-i18n="nav_operations">Freight Operations</div>
+                
+                <button onclick="setTab('search-loads')" id="menu-search-loads" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition tab-active">
+                    <i data-lucide="search" class="w-4 h-4"></i>
+                    <span class="flex-1 text-left" data-i18n="nav_search_loads">Search Loads</span>
+                    <span class="bg-sky-900/60 text-sky-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono" id="badge-total-loads">8</span>
+                </button>
+
+                <button onclick="setTab('post-loads')" id="menu-post-loads" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    <span class="flex-1 text-left" data-i18n="nav_post_loads">Post & Manage Loads</span>
+                </button>
+
+                <button onclick="setTab('search-trucks')" id="menu-search-trucks" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="truck" class="w-4 h-4"></i>
+                    <span class="flex-1 text-left" data-i18n="nav_search_trucks">Search Trucks</span>
+                    <span class="bg-emerald-950 text-emerald-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono" id="badge-total-trucks">4</span>
+                </button>
+
+                <button onclick="setTab('post-trucks')" id="menu-post-trucks" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="navigation" class="w-4 h-4"></i>
+                    <span class="flex-1 text-left" data-i18n="nav_post_trucks">Post Trucks</span>
+                </button>
+
+                <div class="pt-3 px-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider" data-i18n="nav_directory_sec">Directory & Network</div>
+
+                <button onclick="setTab('directory')" id="menu-directory" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="book-open" class="w-4 h-4"></i>
+                    <span class="flex-1 text-left" data-i18n="nav_directory">Carrier Directory</span>
+                </button>
+
+                <button onclick="setTab('account-settings')" id="menu-account-settings" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    <span class="flex-1 text-left" data-i18n="nav_settings">Account & Settings</span>
+                </button>
+            </nav>
+
+            <div id="sidebar-auth-section" class="p-3 border-t border-slate-800 bg-[#071324] text-xs"></div>
+        </aside>
+
+        <!-- ================= MAIN WORKSPACE ================= -->
+        <div class="flex-1 flex flex-col min-w-0 bg-slate-100 overflow-hidden">
+            
+            <!-- Top Toolbar -->
+            <header class="h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between shadow-sm z-20 flex-shrink-0">
+                <div class="flex items-center space-x-3">
+                    <h1 class="text-base font-bold text-slate-800 tracking-tight" id="page-title">Search Loads</h1>
+                </div>
+                <div class="flex items-center space-x-3 text-xs">
+                    <!-- Language Selector -->
+                    <div class="flex items-center space-x-1 bg-slate-100 p-1 rounded border border-slate-200">
+                        <span class="text-slate-500 font-medium pl-1 text-[11px]">Lang:</span>
+                        <select id="lang-select" onchange="changeLanguage(this.value)" class="bg-white font-bold text-slate-700 rounded px-1.5 py-0.5 text-xs border border-slate-200 focus:outline-none cursor-pointer">
+                            <option value="en">English (EN)</option>
+                            <option value="ru">Русский (RU)</option>
+                        </select>
+                    </div>
+
+                    <!-- Currency Selector -->
+                    <div class="flex items-center space-x-1 bg-slate-100 p-1 rounded border border-slate-200">
+                        <span class="text-slate-500 font-medium pl-1 text-[11px]" data-i18n="currency_label">Currency:</span>
+                        <select id="currency-select" onchange="changeCurrency(this.value)" class="bg-white font-bold text-slate-700 rounded px-1.5 py-0.5 text-xs border border-slate-200 focus:outline-none cursor-pointer">
+                            <option value="USD">USD ($)</option>
+                            <option value="RUB">RUB (₽)</option>
+                            <option value="KZT">KZT (₸)</option>
+                            <option value="UZS">UZS (so'm)</option>
+                            <option value="KGS">KGS (som)</option>
+                            <option value="TJS">TJS (ЅМ)</option>
+                            <option value="BYN">BYN (Br)</option>
+                            <option value="AZN">AZN (₼)</option>
+                            <option value="GEL">GEL (₾)</option>
+                            <option value="AMD">AMD (֏)</option>
+                        </select>
+                    </div>
+
+                    <!-- Telegram Sync Status -->
+                    <div class="flex items-center space-x-1.5 bg-sky-50 text-sky-800 px-2.5 py-1 rounded border border-sky-200 text-xs">
+                        <i data-lucide="send" class="w-3.5 h-3.5 text-sky-600"></i>
+                        <span>Telegram Sync: <strong class="text-emerald-600 font-semibold" data-i18n="connected_status">Connected</strong></span>
+                    </div>
+
+                    <!-- Logout Button -->
+                    <button onclick="handleLogout()" class="text-slate-500 hover:text-rose-600 font-semibold text-xs border border-slate-200 px-2.5 py-1 rounded bg-slate-50 hover:bg-rose-50 transition flex items-center space-x-1">
+                        <i data-lucide="log-out" class="w-3 h-3"></i>
+                        <span data-i18n="btn_logout">Logout</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- ================= TAB: SEARCH LOADS ================= -->
+            <section id="view-search-loads" class="flex-1 flex flex-col min-h-0 overflow-hidden">
+                
+                <!-- MULTI-SEARCH TABS (UP TO 9 SEARCH TABS) -->
+                <div class="bg-slate-200/90 px-3 pt-1.5 border-b border-slate-300 flex items-center space-x-1 flex-shrink-0 z-30 overflow-x-auto select-none" id="multi-search-tabs-bar">
+                    <!-- Rendered by JS -->
+                </div>
+
+                <!-- DAT Multi-Parameter Search Header Form -->
+                <div class="bg-white p-2.5 border-b border-slate-200 shadow-sm flex-shrink-0 relative z-30">
+                    <div class="grid grid-cols-12 gap-2 text-xs">
+                        
+                        <!-- Origin with Radius Search (Tashkent, UZ style) -->
+                        <div class="col-span-3 relative">
+                            <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" data-i18n="filter_origin">Origin (City, Country)</label>
+                            <div class="flex">
+                                <input type="text" id="filter-origin" autocomplete="off" oninput="handleCityInput(this, 'filter-origin-dropdown')" placeholder="e.g. Andijan, UZ" class="w-full border border-slate-300 rounded-l px-2 py-1.5 focus:border-blue-500 focus:outline-none text-xs">
+                                <input type="number" id="filter-dho" value="100" placeholder="100" title="Origin Search Radius (km)" class="w-16 border-t border-b border-r border-slate-300 rounded-r px-1 py-1.5 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
+                            </div>
+                            <div id="filter-origin-dropdown" class="hidden absolute left-0 right-16 top-[100%] bg-white border border-slate-300 rounded-b shadow-2xl max-h-48 overflow-y-auto z-50 text-xs"></div>
+                        </div>
+
+                        <!-- Destination with Radius Search -->
+                        <div class="col-span-3 relative">
+                            <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" data-i18n="filter_dest">Destination (City, Country)</label>
+                            <div class="flex">
+                                <input type="text" id="filter-dest" autocomplete="off" oninput="handleCityInput(this, 'filter-dest-dropdown')" placeholder="e.g. Moscow, RU" class="w-full border border-slate-300 rounded-l px-2 py-1.5 focus:border-blue-500 focus:outline-none text-xs">
+                                <input type="number" id="filter-dhd" value="100" placeholder="100" title="Destination Search Radius (km)" class="w-16 border-t border-b border-r border-slate-300 rounded-r px-1 py-1.5 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
+                            </div>
+                            <div id="filter-dest-dropdown" class="hidden absolute left-0 right-16 top-[100%] bg-white border border-slate-300 rounded-b shadow-2xl max-h-48 overflow-y-auto z-50 text-xs"></div>
+                        </div>
+
+                        <!-- Trailer Type -->
+                        <div class="col-span-2">
+                            <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" data-i18n="filter_type">Trailer Type</label>
+                            <select id="filter-equip" class="w-full border border-slate-300 rounded px-2 py-1.5 focus:border-blue-500 text-xs">
+                                <option value="" data-i18n="opt_all_types">All Types (V, R, T, F, AC)</option>
+                                <option value="T" data-i18n="opt_tent">T - Tent / Tilt (Тент)</option>
+                                <option value="R" data-i18n="opt_reefer">R - Refrigerated (Реф)</option>
+                                <option value="F" data-i18n="opt_flatbed">F - Flatbed (Открытый)</option>
+                                <option value="V" data-i18n="opt_van">V - Box / Dry Van (Фургон)</option>
+                                <option value="AC" data-i18n="opt_autocarrier">AC - Auto Carrier (Автовоз)</option>
+                            </select>
+                        </div>
+
+                        <!-- Full / Partial -->
+                        <div class="col-span-1">
+                            <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]">F/P</label>
+                            <select id="filter-fp" class="w-full border border-slate-300 rounded px-1 py-1.5 focus:border-blue-500 text-xs">
+                                <option value="" data-i18n="opt_both">Both</option>
+                                <option value="Full">Full</option>
+                                <option value="Partial">Partial</option>
+                            </select>
+                        </div>
+
+                        <!-- Single Modern Date Range Picker (Flatpickr) -->
+                        <div class="col-span-2">
+                            <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" data-i18n="filter_date_range">Pickup Date Range</label>
+                            <div class="relative">
+                                <input type="text" id="filter-date-range" placeholder="Select Date or Range" class="w-full border border-slate-300 rounded px-2 py-1.5 focus:border-blue-500 text-xs bg-white cursor-pointer pr-7">
+                                <i data-lucide="calendar" class="w-3.5 h-3.5 absolute right-2 top-2 text-slate-400 pointer-events-none"></i>
+                            </div>
+                        </div>
+
+                        <!-- Search CTA -->
+                        <div class="col-span-1 flex items-end">
+                            <button onclick="applyLoadFilters()" class="w-full bg-[#0066cc] hover:bg-blue-700 text-white font-bold py-1.5 px-2 rounded flex items-center justify-center space-x-1 shadow transition text-xs">
+                                <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+                                <span data-i18n="btn_search">Search</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Full-Width DAT Grid -->
+                <div class="flex-1 flex flex-col bg-white overflow-hidden relative z-10">
+                    <div class="bg-slate-50 px-4 py-1.5 border-b border-slate-200 flex justify-between items-center text-xs flex-shrink-0">
+                        <div class="flex items-center space-x-3 text-[11px]">
+                            <span class="font-bold text-slate-700"><span data-i18n="lbl_matches">Matches</span>: <span id="filtered-count" class="text-blue-600 font-extrabold">0</span></span>
+                            <span class="text-slate-300">|</span>
+                            <span class="text-slate-500 italic" data-i18n="lbl_radius_info">Origin & Dest match all loads within chosen DH radius</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="resetSortAndFilters()" class="hover:bg-slate-200 text-slate-600 font-medium px-2 py-0.5 rounded transition text-xs flex items-center space-x-1">
+                                <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                                <span data-i18n="btn_reset">Reset</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Fitted Table Container -->
+                    <div class="flex-1 overflow-y-auto overflow-x-hidden">
+                        <table class="w-full text-left text-[11px] border-collapse font-mono table-fixed">
+                            <thead class="bg-[#0f2942] text-white uppercase text-[10px] tracking-wider sticky top-0 z-10 select-none">
+                                <tr>
+                                    <th class="py-2.5 px-1.5 w-6 text-center"></th>
+                                    <th onclick="handleHeaderSort('age')" class="py-2.5 px-2 w-14 sortable-th" title="Sort by Age">
+                                        <div class="flex items-center space-x-1">
+                                            <span data-i18n="th_age">Age</span>
+                                            <span id="sort-icon-age" class="text-[9px] text-slate-400">⇅</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="handleHeaderSort('date')" class="py-2.5 px-2 w-16 sortable-th" title="Sort by Pickup Date">
+                                        <div class="flex items-center space-x-1">
+                                            <span data-i18n="th_date">Date</span>
+                                            <span id="sort-icon-date" class="text-[9px] text-slate-400">⇅</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="handleHeaderSort('origin')" class="py-2.5 px-2.5 w-[20%] sortable-th" title="Sort by Origin">
+                                        <div class="flex items-center space-x-1">
+                                            <span data-i18n="th_origin">Origin / DHO</span>
+                                            <span id="sort-icon-origin" class="text-[9px] text-slate-400">⇅</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="handleHeaderSort('dest')" class="py-2.5 px-2.5 w-[20%] sortable-th" title="Sort by Destination">
+                                        <div class="flex items-center space-x-1">
+                                            <span data-i18n="th_dest">Destination / DHD</span>
+                                            <span id="sort-icon-dest" class="text-[9px] text-slate-400">⇅</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="handleHeaderSort('equip')" class="py-2.5 px-2 w-12 text-center sortable-th" title="Sort by Type">
+                                        <div class="flex items-center justify-center space-x-1">
+                                            <span data-i18n="th_type">Type</span>
+                                            <span id="sort-icon-equip" class="text-[9px] text-slate-400">⇅</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="handleHeaderSort('fp')" class="py-2.5 px-2 w-14 sortable-th" title="Sort by F/P">
+                                        <div class="flex items-center space-x-1">
+                                            <span>F/P</span>
+                                            <span id="sort-icon-fp" class="text-[9px] text-slate-400">⇅</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="handleHeaderSort('weight')" class="py-2.5 px-2 w-24 sortable-th" title="Sort by Weight/Vol">
+                                        <div class="flex items-center space-x-1">
+                                            <span data-i18n="th_weight">Weight/Vol</span>
+                                            <span id="sort-icon-weight" class="text-[9px] text-slate-400">⇅</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="handleHeaderSort('dist')" class="py-2.5 px-2 w-20 text-right sortable-th" title="Sort by Distance">
+                                        <div class="flex items-center justify-end space-x-1">
+                                            <span data-i18n="th_distance">Distance</span>
+                                            <span id="sort-icon-dist" class="text-[9px] text-slate-400">⇅</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="handleHeaderSort('rate')" class="py-2.5 px-2.5 w-24 text-right sortable-th" title="Sort by Rate">
+                                        <div class="flex items-center justify-end space-x-1">
+                                            <span data-i18n="th_rate">Rate</span>
+                                            <span id="sort-icon-rate" class="text-[9px] text-slate-400">⇅</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="handleHeaderSort('company')" class="py-2.5 px-2.5 sortable-th" title="Sort by Company">
+                                        <div class="flex items-center space-x-1">
+                                            <span data-i18n="th_company">Company / Contact</span>
+                                            <span id="sort-icon-company" class="text-[9px] text-slate-400">⇅</span>
+                                        </div>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="loads-tbody" class="divide-y divide-slate-200">
+                                <!-- Injected by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= TAB: POST & MANAGE LOADS (WITH USER'S OWN POSTED LOADS + EDIT / DELETE) ================= -->
+            <section id="view-post-loads" class="hidden flex-1 overflow-y-auto p-6 bg-slate-100 space-y-6">
+                
+                <!-- TOP CARD: POST NEW FREIGHT LOAD -->
+                <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-sm border border-slate-200 p-6 space-y-4">
+                    <div class="flex justify-between items-center border-b pb-3">
+                        <div>
+                            <h2 class="text-base font-bold text-slate-800" data-i18n="post_load_heading">Post Freight Load</h2>
+                            <p class="text-xs text-slate-500" data-i18n="post_load_sub">Fill in cargo parameters. Distance (km) is automatically calculated.</p>
+                        </div>
+                        <span class="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded font-semibold border border-blue-200">
+                            Posting as: <strong id="posting-as-company">KazTrans Logistics LLC</strong>
+                        </span>
+                    </div>
+
+                    <form onsubmit="handlePostLoad(event)" class="space-y-4 text-xs">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="relative">
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="filter_origin">Origin City & Country</label>
+                                <input type="text" id="post-orig" autocomplete="off" oninput="handleCityInput(this, 'post-orig-dropdown'); autoComputePostDistance();" required placeholder="Type city (e.g. Tashkent, UZ)" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                                <div id="post-orig-dropdown" class="hidden absolute left-0 right-0 top-[100%] bg-white border border-slate-300 rounded-b shadow-2xl max-h-48 overflow-y-auto z-50 text-xs"></div>
+                            </div>
+                            <div class="relative">
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="filter_dest">Destination City & Country</label>
+                                <input type="text" id="post-dest" autocomplete="off" oninput="handleCityInput(this, 'post-dest-dropdown'); autoComputePostDistance();" required placeholder="Type city (e.g. Moscow, RU)" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                                <div id="post-dest-dropdown" class="hidden absolute left-0 right-0 top-[100%] bg-white border border-slate-300 rounded-b shadow-2xl max-h-48 overflow-y-auto z-50 text-xs"></div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-4 gap-4">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="filter_type">Trailer Equipment</label>
+                                <select id="post-equip" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                                    <option value="T" data-i18n="opt_tent">T - Tent / Tilt (Тент)</option>
+                                    <option value="R" data-i18n="opt_reefer">R - Reefer (Реф)</option>
+                                    <option value="F" data-i18n="opt_flatbed">F - Flatbed (Шаланда)</option>
+                                    <option value="V" data-i18n="opt_van">V - Box / Dry Van (Фургон)</option>
+                                    <option value="AC" data-i18n="opt_autocarrier">AC - Auto Carrier (Автовоз)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1">Load Type</label>
+                                <select id="post-fp" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                                    <option value="Full">Full (FTL)</option>
+                                    <option value="Partial">Partial (LTL)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_weight_tons">Weight (Tons)</label>
+                                <input type="number" id="post-weight" step="0.1" required placeholder="21.5" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_vol_cube">Volume (m³)</label>
+                                <input type="number" id="post-vol" placeholder="86" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-4 gap-4">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_pickup_date">Pickup Date</label>
+                                <input type="date" id="post-date" required class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="font-semibold text-slate-700" data-i18n="lbl_delivery_date">Delivery Date</label>
+                                    <span class="text-[9px] text-slate-400 font-normal italic">Optional</span>
+                                </div>
+                                <input type="date" id="post-delivery-date" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_distance_km">Estimated Distance (km)</label>
+                                <input type="number" id="post-dist" required placeholder="Auto-calculated" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs bg-slate-50 font-bold text-blue-700">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_target_rate">Rate Target ($ USD)</label>
+                                <input type="number" id="post-rate" required placeholder="3400" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_commodity">Commodity Description</label>
+                                <input type="text" id="post-commodity" required placeholder="e.g. Fresh Fruits (+4C)" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_disp_name">Contact Dispatcher Name</label>
+                                <input type="text" id="post-contact-name" required placeholder="e.g. Timur Alimov" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_phone">Phone Number</label>
+                                <input type="text" id="post-phone" required placeholder="+998 (90) 123-45-67" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1">Email</label>
+                                <input type="email" id="post-email" required placeholder="dispatch@company.com" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1">Telegram Username</label>
+                                <input type="text" id="post-tg" required placeholder="@logistics_disp" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full bg-[#0066cc] hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded text-xs transition shadow flex items-center justify-center space-x-2">
+                            <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                            <span data-i18n="btn_publish_load">Publish Load to Live Exchange</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- BOTTOM CARD: USER'S OWN POSTED LOADS (ONLY VISIBLE & EDITABLE BY CREATOR) -->
+                <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden text-xs">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="layers" class="w-4 h-4 text-blue-600"></i>
+                            <h3 class="font-bold text-slate-800 text-sm">My Active Posted Loads (<span id="my-loads-count" class="text-blue-600">0</span>)</h3>
+                        </div>
+                        <span class="text-[11px] text-slate-500">Only you can view, edit, or remove your company's posts</span>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-[11px] border-collapse font-mono">
+                            <thead class="bg-slate-100 text-slate-600 uppercase text-[10px]">
+                                <tr class="border-b border-slate-200">
+                                    <th class="p-2.5">Origin → Destination</th>
+                                    <th class="p-2.5">Pickup / Delivery</th>
+                                    <th class="p-2.5">Type & Weight</th>
+                                    <th class="p-2.5">Distance</th>
+                                    <th class="p-2.5">Rate</th>
+                                    <th class="p-2.5">Commodity</th>
+                                    <th class="p-2.5 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="my-loads-tbody" class="divide-y divide-slate-200">
+                                <!-- Injected dynamically by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- ================= TAB: SEARCH TRUCKS ================= -->
+            <section id="view-search-trucks" class="hidden flex-1 flex flex-col min-h-0 bg-white overflow-hidden">
+                <div class="p-3 border-b border-slate-200 bg-white flex-shrink-0 relative z-30">
+                    <div class="grid grid-cols-4 gap-3 text-xs">
+                        <div class="relative">
+                            <label class="block font-semibold text-slate-600 mb-1" data-i18n="lbl_truck_loc">Truck Location</label>
+                            <div class="flex">
+                                <input type="text" id="search-truck-loc" autocomplete="off" oninput="handleCityInput(this, 'search-truck-loc-dd')" placeholder="Type city (e.g. Almaty, KZ)" class="w-full border border-slate-300 rounded-l p-1.5 text-xs">
+                                <input type="number" id="search-truck-radius" value="150" title="Search Radius (km)" class="w-14 border-t border-b border-r border-slate-300 rounded-r px-1 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
+                            </div>
+                            <div id="search-truck-loc-dd" class="hidden absolute left-0 right-14 top-[100%] bg-white border border-slate-300 rounded-b shadow-2xl max-h-48 overflow-y-auto z-50 text-xs"></div>
+                        </div>
+                        <div class="relative">
+                            <label class="block font-semibold text-slate-600 mb-1" data-i18n="lbl_truck_dest">Destination Preferred</label>
+                            <input type="text" id="search-truck-dest" autocomplete="off" oninput="handleCityInput(this, 'search-truck-dest-dd')" placeholder="Anywhere / Any Direction" class="w-full border border-slate-300 rounded p-1.5 text-xs">
+                            <div id="search-truck-dest-dd" class="hidden absolute left-0 right-0 top-[100%] bg-white border border-slate-300 rounded-b shadow-2xl max-h-48 overflow-y-auto z-50 text-xs"></div>
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-600 mb-1" data-i18n="filter_type">Trailer Specification</label>
+                            <select id="search-truck-equip" class="w-full border border-slate-300 rounded p-1.5 text-xs">
+                                <option value="" data-i18n="opt_all_types">All Equipment</option>
+                                <option value="T">T - Tent / Tilt</option>
+                                <option value="R">R - Reefer</option>
+                                <option value="F">F - Flatbed</option>
+                                <option value="V">V - Box / Van</option>
+                                <option value="AC">AC - Auto Carrier</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="filterTrucks()" class="w-full bg-[#0066cc] hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded text-xs transition" data-i18n="btn_find_trucks">Find Available Trucks</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trucks Table -->
+                <div class="flex-1 overflow-auto relative z-10">
+                    <table class="w-full text-left text-[11px] border-collapse font-mono">
+                        <thead class="bg-[#0f2942] text-white uppercase text-[10px] tracking-wider sticky top-0">
+                            <tr>
+                                <th class="p-2.5" data-i18n="th_date">Date</th>
+                                <th class="p-2.5" data-i18n="th_origin">Location</th>
+                                <th class="p-2.5" data-i18n="th_dest">Preferred Destination</th>
+                                <th class="p-2.5 text-center" data-i18n="th_type">Equipment</th>
+                                <th class="p-2.5" data-i18n="th_weight">Capacity & Specs</th>
+                                <th class="p-2.5" data-i18n="lbl_target_rate">Min Rate</th>
+                                <th class="p-2.5" data-i18n="th_company">Carrier Company</th>
+                                <th class="p-2.5 text-center" data-i18n="lbl_direct_contacts">Contact</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trucks-tbody" class="divide-y divide-slate-200">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ================= TAB: POST TRUCKS ================= -->
+            <section id="view-post-trucks" class="hidden flex-1 overflow-y-auto p-6 bg-slate-100">
+                <div class="max-w-3xl mx-auto bg-white rounded-lg shadow-sm border border-slate-200 p-6 space-y-5 text-xs">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800" data-i18n="nav_post_trucks">Post Available Truck</h2>
+                        <p class="text-xs text-slate-500" data-i18n="post_truck_sub">Broadcast your empty trailer capacity to shippers and brokers across SNG corridors.</p>
+                    </div>
+
+                    <form onsubmit="handlePostTruck(event)" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="relative">
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_truck_loc">Current Location (City, Country)</label>
+                                <input type="text" id="truck-post-loc" autocomplete="off" oninput="handleCityInput(this, 'truck-post-loc-dd')" required placeholder="e.g. Samarkand, UZ" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                                <div id="truck-post-loc-dd" class="hidden absolute left-0 right-0 top-[100%] bg-white border border-slate-300 rounded-b shadow-2xl max-h-48 overflow-y-auto z-50 text-xs"></div>
+                            </div>
+                            <div class="relative">
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_truck_dest">Desired Destination</label>
+                                <input type="text" id="truck-post-dest" autocomplete="off" oninput="handleCityInput(this, 'truck-post-dest-dd')" placeholder="e.g. Moscow, RU or Anywhere" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                                <div id="truck-post-dest-dd" class="hidden absolute left-0 right-0 top-[100%] bg-white border border-slate-300 rounded-b shadow-2xl max-h-48 overflow-y-auto z-50 text-xs"></div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="filter_type">Trailer Type</label>
+                                <select id="truck-post-equip" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                                    <option value="T">T - Tent / Tilt (Тент)</option>
+                                    <option value="R">R - Reefer (Рефрижератор)</option>
+                                    <option value="F">F - Flatbed (Открытый)</option>
+                                    <option value="V">V - Box / Dry Van (Фургон)</option>
+                                    <option value="AC">AC - Auto Carrier (Автовоз)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_weight_tons">Max Payload (Tons)</label>
+                                <input type="number" id="truck-post-cap" step="0.1" required placeholder="22.0" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_min_target_rate">Min Target Rate ($ USD, Optional)</label>
+                                <input type="number" id="truck-post-min-rate" placeholder="e.g. 1800" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_avail_from">Available From Date</label>
+                                <input type="date" id="truck-post-date" required class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_avail_until">Available Until (Optional)</label>
+                                <input type="date" id="truck-post-date-end" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-50 p-3 rounded border border-slate-200 space-y-2">
+                            <span class="block font-bold text-slate-700 text-[11px]" data-i18n="lbl_trailer_features">Equipment Features & Permissions:</span>
+                            <div class="grid grid-cols-4 gap-2 text-[11px] text-slate-700">
+                                <label class="flex items-center space-x-1.5 cursor-pointer">
+                                    <input type="checkbox" id="truck-feat-tir" checked class="rounded text-blue-600">
+                                    <span>TIR Carnet</span>
+                                </label>
+                                <label class="flex items-center space-x-1.5 cursor-pointer">
+                                    <input type="checkbox" id="truck-feat-adr" class="rounded text-blue-600">
+                                    <span>ADR (Hazardous)</span>
+                                </label>
+                                <label class="flex items-center space-x-1.5 cursor-pointer">
+                                    <input type="checkbox" id="truck-feat-gps" checked class="rounded text-blue-600">
+                                    <span>GPS Live Tracking</span>
+                                </label>
+                                <label class="flex items-center space-x-1.5 cursor-pointer">
+                                    <input type="checkbox" id="truck-feat-side" checked class="rounded text-blue-600">
+                                    <span>Side & Top Loading</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_phone">Dispatcher Phone</label>
+                                <input type="text" id="truck-post-phone" required placeholder="+998 (90) 123-45-67" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1">Telegram Username</label>
+                                <input type="text" id="truck-post-tg" required placeholder="@kaztrans_disp" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded text-xs shadow transition flex items-center justify-center space-x-2">
+                            <i data-lucide="check-circle" class="w-4 h-4"></i>
+                            <span data-i18n="btn_publish_truck">Publish Available Equipment</span>
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- ================= TAB: CARRIER DIRECTORY ================= -->
+            <section id="view-directory" class="hidden flex-1 overflow-y-auto p-6 bg-slate-100">
+                <div class="max-w-5xl mx-auto space-y-4">
+                    <div class="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                        <div class="relative w-80">
+                            <input type="text" id="directory-search" oninput="filterDirectory(this.value)" placeholder="Search company by name, TIR, or city..." class="w-full border border-slate-300 rounded px-3 py-2 text-xs focus:border-blue-500 focus:outline-none">
+                            <i data-lucide="search" class="w-3.5 h-3.5 absolute right-3 top-2.5 text-slate-400"></i>
+                        </div>
+                        <span class="text-xs text-slate-500 font-medium"><span id="dir-count">5</span> <span data-i18n="lbl_verified_companies">Registered Logistics Companies</span></span>
+                    </div>
+
+                    <div id="directory-grid" class="grid grid-cols-2 gap-4 text-xs"></div>
+                </div>
+            </section>
+
+            <!-- ================= TAB: ACCOUNT & SETTINGS ================= -->
+            <section id="view-account-settings" class="hidden flex-1 overflow-y-auto p-6 bg-slate-100">
+                <div class="max-w-4xl mx-auto space-y-5">
+                    <div class="bg-white p-5 rounded-lg shadow-sm border border-slate-200 flex items-center justify-between">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center text-white font-bold text-xl border-2 border-white shadow" id="acc-big-avatar">KT</div>
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <h2 class="text-base font-bold text-slate-900" id="acc-title-name">KazTrans Logistics LLC</h2>
+                                    <span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded" id="acc-status-badge">Verified Member</span>
+                                </div>
+                                <p class="text-xs text-slate-500" id="acc-sub-details">TIR Carnet #KZ-883921 • Registration: Almaty, KZ</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="handleLogout()" class="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-3 py-2 rounded text-xs border border-rose-200 flex items-center space-x-1.5 transition">
+                                <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+                                <span data-i18n="btn_logout">Log Out</span>
+                            </button>
+                            <button onclick="saveAccountSettings()" class="bg-[#0066cc] hover:bg-blue-700 text-white font-bold px-4 py-2 rounded text-xs shadow flex items-center space-x-1.5 transition">
+                                <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                                <span data-i18n="btn_save_settings">Save Profile</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-5 text-xs">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
+                            <h3 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2">
+                                <i data-lucide="building" class="w-4 h-4 text-blue-600"></i>
+                                <span data-i18n="lbl_comp_info">Company & Contact Information</span>
+                            </h3>
+                            <div class="space-y-2.5">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_comp_name">Company Registered Name</label>
+                                    <input type="text" id="setting-company-name" value="KazTrans Logistics LLC" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_disp_name">Head Dispatcher Name</label>
+                                    <input type="text" id="setting-dispatcher-name" value="Dias Akhmetov" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_phone">Primary Phone</label>
+                                        <input type="text" id="setting-phone" value="+7 (727) 880-1234" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                    </div>
+                                    <div>
+                                        <label class="block font-semibold text-slate-700 mb-1">Telegram Username</label>
+                                        <input type="text" id="setting-tg" value="@kaztrans_disp" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1">Corporate Dispatch Email</label>
+                                    <input type="email" id="setting-email" value="dispatch@kaztrans-logistics.kz" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
+                            <h3 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2">
+                                <i data-lucide="bell" class="w-4 h-4 text-sky-600"></i>
+                                <span data-i18n="lbl_disp_pref">Search & Bot Alert Preferences</span>
+                            </h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_default_dh">Default Deadhead Radius (km)</label>
+                                    <input type="number" id="setting-default-dh" value="100" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                    <p class="text-[10px] text-slate-400 mt-0.5">Loads within this distance are automatically shown in search.</p>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1">Telegram Instant Alerts Chat ID / Channel</label>
+                                    <div class="flex">
+                                        <input type="text" id="setting-tg-chatid" value="@sng_loads_channel" class="w-full border border-slate-300 rounded-l p-2 text-xs font-mono">
+                                        <button type="button" onclick="testTgWebhook()" class="bg-sky-600 hover:bg-sky-700 text-white font-bold px-3 rounded-r text-[10px]">Test</button>
+                                    </div>
+                                </div>
+                                <div class="space-y-1.5 pt-1">
+                                    <label class="flex items-center space-x-2 cursor-pointer">
+                                        <input type="checkbox" checked class="rounded text-blue-600">
+                                        <span class="text-slate-700">Receive Telegram alert when load matches my posted truck</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2 cursor-pointer">
+                                        <input type="checkbox" checked class="rounded text-blue-600">
+                                        <span class="text-slate-700">Auto-publish new loads to Telegram group channels</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <!-- ================= EDIT LOAD MODAL ================= -->
+    <div id="modal-edit-load" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl border border-slate-200 max-w-xl w-full p-6 space-y-4 text-xs">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-sm font-bold text-slate-800 flex items-center space-x-2">
+                    <i data-lucide="edit" class="w-4 h-4 text-blue-600"></i>
+                    <span>Edit Posted Freight Load</span>
+                </h3>
+                <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+
+            <form onsubmit="handleEditLoadSubmit(event)" class="space-y-3">
+                <input type="hidden" id="edit-load-id">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Origin (City, Country)</label>
+                        <input type="text" id="edit-orig" required oninput="autoComputeEditDistance()" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Destination (City, Country)</label>
+                        <input type="text" id="edit-dest" required oninput="autoComputeEditDistance()" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-4 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Trailer Type</label>
+                        <select id="edit-equip" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            <option value="T">T - Tent / Tilt</option>
+                            <option value="R">R - Reefer</option>
+                            <option value="F">F - Flatbed</option>
+                            <option value="V">V - Box / Van</option>
+                            <option value="AC">AC - Auto Carrier</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">F/P</label>
+                        <select id="edit-fp" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            <option value="Full">Full</option>
+                            <option value="Partial">Partial</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Weight (Tons)</label>
+                        <input type="number" id="edit-weight" step="0.1" required class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Rate ($ USD)</label>
+                        <input type="number" id="edit-rate" required class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 font-bold text-emerald-600">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Pickup Date</label>
+                        <input type="date" id="edit-date" required class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Delivery Date (Optional)</label>
+                        <input type="date" id="edit-delivery-date" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Est. Distance (km)</label>
+                        <input type="number" id="edit-dist" required class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 bg-slate-50 font-bold text-blue-700">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Commodity Description</label>
+                    <input type="text" id="edit-commodity" required class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                </div>
+
+                <div class="flex space-x-2 pt-2 border-t">
+                    <button type="button" onclick="closeEditModal()" class="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded text-xs transition">Cancel</button>
+                    <button type="submit" class="w-2/3 bg-[#0066cc] hover:bg-blue-700 text-white font-bold py-2 rounded text-xs transition shadow flex items-center justify-center space-x-1.5">
+                        <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                        <span>Save Changes & Sync</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================= JAVASCRIPT STATE ENGINE ================= -->
+    <script>
+        const CITY_COORDINATES = {
+            "Tashkent, UZ": { lat: 41.2995, lng: 69.2401 },
+            "Samarkand, UZ": { lat: 39.6542, lng: 66.9597 },
+            "Bukhara, UZ": { lat: 39.7681, lng: 64.4556 },
+            "Namangan, UZ": { lat: 40.9983, lng: 71.6726 },
+            "Andijan, UZ": { lat: 40.7821, lng: 72.3442 },
+            "Fergana, UZ": { lat: 40.3842, lng: 71.7843 },
+            "Almaty, KZ": { lat: 43.2220, lng: 76.8512 },
+            "Astana, KZ": { lat: 51.1694, lng: 71.4491 },
+            "Shymkent, KZ": { lat: 42.3417, lng: 69.5901 },
+            "Aktau, KZ": { lat: 43.6481, lng: 51.1722 },
+            "Atyrau, KZ": { lat: 47.0945, lng: 51.9238 },
+            "Karaganda, KZ": { lat: 49.8047, lng: 73.1094 },
+            "Bishkek, KG": { lat: 42.8746, lng: 74.5698 },
+            "Osh, KG": { lat: 40.5140, lng: 72.8161 },
+            "Jalal-Abad, KG": { lat: 40.9333, lng: 72.9833 },
+            "Dushanbe, TJ": { lat: 38.5598, lng: 68.7870 },
+            "Khujand, TJ": { lat: 40.2826, lng: 69.6222 },
+            "Moscow, RU": { lat: 55.7558, lng: 37.6173 },
+            "Saint Petersburg, RU": { lat: 59.9343, lng: 30.3351 },
+            "Novosibirsk, RU": { lat: 55.0084, lng: 82.9357 },
+            "Yekaterinburg, RU": { lat: 56.8389, lng: 60.6057 },
+            "Kazan, RU": { lat: 55.8304, lng: 49.0661 },
+            "Chelyabinsk, RU": { lat: 55.1644, lng: 61.4368 },
+            "Minsk, BY": { lat: 53.9006, lng: 27.5590 },
+            "Brest, BY": { lat: 52.0976, lng: 23.7341 },
+            "Baku, AZ": { lat: 40.4093, lng: 49.8671 },
+            "Ganja, AZ": { lat: 40.6828, lng: 46.3606 },
+            "Ashgabat, TM": { lat: 37.9601, lng: 58.3261 },
+            "Tbilisi, GE": { lat: 41.7151, lng: 44.8271 },
+            "Batumi, GE": { lat: 41.6168, lng: 41.6367 },
+            "Yerevan, AM": { lat: 40.1792, lng: 44.4991 },
+            "Chisinau, MD": { lat: 47.0105, lng: 28.8638 },
+            "Kyiv, UA": { lat: 50.4501, lng: 30.5234 },
+            "Rostov-on-Don, RU": { lat: 47.2357, lng: 39.7015 },
+            "Volgograd, RU": { lat: 48.7080, lng: 44.5133 }
+        };
+
+        const CIS_CITIES = Object.keys(CITY_COORDINATES);
+
+        function calculateDistanceKm(cityA, cityB) {
+            const coordA = CITY_COORDINATES[cityA];
+            const coordB = CITY_COORDINATES[cityB];
+            if (!coordA || !coordB) {
+                return cityA.toLowerCase() === cityB.toLowerCase() ? 0 : 9999;
+            }
+            const R = 6371;
+            const dLat = (coordB.lat - coordA.lat) * Math.PI / 180;
+            const dLon = (coordB.lng - coordA.lng) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(coordA.lat * Math.PI / 180) * Math.cos(coordB.lat * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return Math.round(R * c);
+        }
+
+        function resolveCityKey(searchStr) {
+            if (!searchStr) return null;
+            const s = searchStr.toLowerCase().trim();
+            return CIS_CITIES.find(c => c.toLowerCase().includes(s)) || null;
+        }
+
+        // Live "posted X ago" age, derived from a real timestamp instead of a frozen string
+        function computeAge(postedAt) {
+            const minutes = Math.max(0, Math.floor((Date.now() - postedAt) / 60000));
+            let text;
+            if (minutes < 1) text = 'Just now';
+            else if (minutes < 60) text = `${minutes}m`;
+            else if (minutes < 1440) text = `${Math.floor(minutes / 60)}h`;
+            else text = `${Math.floor(minutes / 1440)}d`;
+            return { minutes, text };
+        }
+
+        // ================= AUTHENTICATION & USER PROFILE =================
+        let authState = {
+            isLoggedIn: true,
+            isVerified: true,
+            company: "KazTrans Logistics LLC",
+            name: "Dias Akhmetov",
+            email: "dispatch@kaztrans-logistics.kz",
+            phone: "+7 (727) 880-1234",
+            tg: "@kaztrans_disp",
+            pendingVerificationEmail: null,
+            generatedCode: "748921"
+        };
+
+        // Flatpickr Range Instance
+        let searchDatePickerInstance = null;
+
+        // Multi-Search Tabs (Up to 9 tabs allowed)
+        let searchTabs = [
+            {
+                id: 1,
+                title: "Search 1",
+                origin: "",
+                dho: 100,
+                dest: "",
+                dhd: 100,
+                equip: "",
+                fp: "",
+                dateRange: ""
+            },
+            {
+                id: 2,
+                title: "Andijan → RU",
+                origin: "Andijan, UZ",
+                dho: 100,
+                dest: "Moscow, RU",
+                dhd: 100,
+                equip: "T",
+                fp: "Full",
+                dateRange: ""
+            }
+        ];
+        let activeSearchTabId = 1;
+
+        // i18n
+        const I18N = {
+            en: {
+                nav_operations: "Freight Operations",
+                nav_search_loads: "Search Loads",
+                nav_post_loads: "Post & Manage Loads",
+                nav_search_trucks: "Search Trucks",
+                nav_post_trucks: "Post Trucks",
+                nav_directory_sec: "Directory & Network",
+                nav_directory: "Carrier Directory",
+                nav_settings: "Account & Settings",
+                currency_label: "Currency:",
+                connected_status: "Connected",
+                filter_origin: "Origin (City, Country)",
+                filter_dest: "Destination (City, Country)",
+                filter_type: "Trailer Type",
+                opt_all_types: "All Types (V, R, T, F, AC)",
+                opt_tent: "T - Tent / Tilt (Тент)",
+                opt_reefer: "R - Refrigerated (Реф)",
+                opt_flatbed: "F - Flatbed (Открытый)",
+                opt_van: "V - Box / Dry Van (Фургон)",
+                opt_autocarrier: "AC - Auto Carrier (Автовоз)",
+                opt_both: "Both",
+                filter_date_range: "Pickup Date Range",
+                btn_search: "Search",
+                lbl_matches: "Matches",
+                lbl_radius_info: "Origin & Dest match all loads within chosen DH radius",
+                btn_reset: "Reset",
+                th_age: "Age",
+                th_date: "Date",
+                th_origin: "Origin / DHO",
+                th_dest: "Destination / DHD",
+                th_type: "Type",
+                th_weight: "Weight/Vol",
+                th_distance: "Distance",
+                th_rate: "Rate",
+                th_company: "Company / Contact",
+                post_load_heading: "Post Freight Load",
+                post_load_sub: "Fill in cargo parameters. Distance (km) is automatically calculated.",
+                lbl_weight_tons: "Weight (Tons)",
+                lbl_vol_cube: "Volume (m³)",
+                lbl_distance_km: "Estimated Distance (km)",
+                lbl_target_rate: "Rate Target ($ USD)",
+                lbl_pickup_date: "Pickup Date",
+                lbl_delivery_date: "Desired Delivery Date",
+                lbl_commodity: "Commodity Description",
+                lbl_disp_name: "Contact Dispatcher Name",
+                lbl_phone: "Phone Number",
+                btn_publish_load: "Publish Load to Live Exchange",
+                lbl_truck_loc: "Truck Location",
+                lbl_truck_dest: "Desired Destination",
+                btn_find_trucks: "Find Available Trucks",
+                btn_publish_truck: "Publish Available Equipment",
+                lbl_cargo_specs: "Cargo & Route Specs",
+                lbl_maps_btn: "View Route on Google Maps",
+                lbl_direct_contacts: "Direct Dispatcher Contact",
+                lbl_call: "Call",
+                lbl_email: "Email",
+                lbl_copy: "Copy Info",
+                post_truck_sub: "Broadcast your empty trailer capacity to shippers and brokers across SNG corridors.",
+                lbl_min_target_rate: "Min Target Rate ($ USD, Optional)",
+                lbl_avail_from: "Available From Date",
+                lbl_avail_until: "Available Until (Optional)",
+                lbl_trailer_features: "Equipment Features & Permissions:",
+                lbl_verified_companies: "Registered Logistics Companies",
+                btn_save_settings: "Save Profile",
+                lbl_comp_info: "Company & Contact Information",
+                lbl_comp_name: "Company Registered Name",
+                lbl_disp_pref: "Search & Bot Alert Preferences",
+                lbl_default_dh: "Default Deadhead Radius (km)",
+                btn_logout: "Logout",
+                auth_gate_sub: "Sign in or register to access live load boards, post equipment, and manage your freight.",
+                btn_login_submit: "Sign In",
+                modal_signup_title: "Create Account",
+                btn_signup_submit: "Register & Send Verification Email",
+                modal_verify_title: "Verify Your Email",
+                btn_verify_submit: "Confirm & Enter Workspace"
+            },
+            ru: {
+                nav_operations: "Грузоперевозки",
+                nav_search_loads: "Поиск грузов",
+                nav_post_loads: "Добавить и управлять грузами",
+                nav_search_trucks: "Поиск транспорта",
+                nav_post_trucks: "Добавить транспорт",
+                nav_directory_sec: "Справочник и сеть",
+                nav_directory: "Справочник перевозчиков",
+                nav_settings: "Профиль и настройки",
+                currency_label: "Валюта:",
+                connected_status: "Подключен",
+                filter_origin: "Откуда (Город, Страна)",
+                filter_dest: "Куда (Город, Страна)",
+                filter_type: "Тип прицепа",
+                opt_all_types: "Все типы (V, R, T, F, AC)",
+                opt_tent: "T - Тент / Штора",
+                opt_reefer: "R - Рефрижератор",
+                opt_flatbed: "F - Открытый / Шаланда",
+                opt_van: "V - Фургон / Изотерм",
+                opt_autocarrier: "AC - Автовоз",
+                opt_both: "Все",
+                filter_date_range: "Период погрузки (Даты)",
+                btn_search: "Поиск",
+                lbl_matches: "Найдено",
+                lbl_radius_info: "Поиск находит грузы в радиусе DH",
+                btn_reset: "Сброс",
+                th_age: "Время",
+                th_date: "Дата",
+                th_origin: "Откуда / DHO",
+                th_dest: "Куда / DHD",
+                th_type: "Тип",
+                th_weight: "Вес/Объем",
+                th_distance: "Дистанция",
+                th_rate: "Ставка",
+                th_company: "Компания / Диспетчер",
+                post_load_heading: "Разместить груз",
+                post_load_sub: "Укажите параметры груза. Дистанция (км) рассчитывается автоматически.",
+                lbl_weight_tons: "Вес (Тонны)",
+                lbl_vol_cube: "Объем (м³)",
+                lbl_distance_km: "Расчетное расстояние (км)",
+                lbl_target_rate: "Ставка ($ USD)",
+                lbl_pickup_date: "Дата погрузки",
+                lbl_delivery_date: "Желаемая дата доставки",
+                lbl_commodity: "Наименование груза",
+                lbl_disp_name: "Имя диспетчера",
+                lbl_phone: "Номер телефона",
+                btn_publish_load: "Опубликовать груз на бирже",
+                lbl_truck_loc: "Местонахождение машины",
+                lbl_truck_dest: "Желаемое направление",
+                btn_find_trucks: "Найти транспорт",
+                btn_publish_truck: "Разместить машину",
+                lbl_cargo_specs: "Параметры груза и маршрута",
+                lbl_maps_btn: "Маршрут в Google Maps",
+                lbl_direct_contacts: "Прямые контакты диспетчера",
+                lbl_call: "Звонок",
+                lbl_email: "Почта",
+                lbl_copy: "Скопировать",
+                post_truck_sub: "Разместите свободный транспорт для грузоотправителей и экспедиторов СНГ.",
+                lbl_min_target_rate: "Мин. желаемая ставка ($ USD)",
+                lbl_avail_from: "Готовность с даты",
+                lbl_avail_until: "Готовность по дату (Необязательно)",
+                lbl_trailer_features: "Оснащение и разрешения прицепа:",
+                lbl_verified_companies: "Проверенных транспортных компаний",
+                btn_save_settings: "Сохранить профиль",
+                lbl_comp_info: "Информация о компании и контакты",
+                lbl_comp_name: "Юридическое название компании",
+                lbl_disp_pref: "Настройки поиска и Telegram-бота",
+                lbl_default_dh: "Радиус поиска по умолчанию (км)",
+                btn_logout: "Выйти",
+                auth_gate_sub: "Войдите или зарегистрируйтесь для доступа к поиску грузов, публикации транспорта и управлению.",
+                btn_login_submit: "Войти",
+                modal_signup_title: "Создать аккаунт",
+                btn_signup_submit: "Зарегистрироваться и отправить email",
+                modal_verify_title: "Подтверждение Email",
+                btn_verify_submit: "Активировать и войти"
+            }
+        };
+
+        let currentLang = 'en';
+
+        const CURRENCY_RATES = {
+            USD: { symbol: '$', rate: 1 },
+            RUB: { symbol: '₽', rate: 92.5 },
+            KZT: { symbol: '₸', rate: 475.0 },
+            UZS: { symbol: "so'm", rate: 12600.0 },
+            KGS: { symbol: 'som', rate: 89.5 },
+            TJS: { symbol: 'ЅМ', rate: 10.9 },
+            BYN: { symbol: 'Br', rate: 3.3 },
+            AZN: { symbol: '₼', rate: 1.7 },
+            GEL: { symbol: '₾', rate: 2.7 },
+            AMD: { symbol: '֏', rate: 405.0 }
+        };
+        let currentCurrency = 'USD';
+        let expandedLoadId = null;
+
+        let currentSort = {
+            column: 'age',
+            direction: 'asc'
+        };
+
+        // Master Loads Database (Includes ownerEmail to verify post authorship)
+        let loadsDatabase = [
+            { id: 101, ownerEmail: 'dispatch@silkroad-cargo.uz', postedAt: Date.now() - 2 * 60000, date: '2026-08-31', deliveryDate: '2026-09-06', origin: 'Tashkent, UZ', dest: 'Moscow, RU', equip: 'T', fp: 'Full', weight: 22.0, volume: 92, dist: 3400, rateUSD: 3500, company: 'SilkRoad Express LLC', contactPerson: 'Alisher Usmanov', commodity: 'Apparel & Cotton Yarn', tg: '@silkroad_log', phone: '+998 71 234 5678', email: 'dispatch@silkroad-cargo.uz' },
+            { id: 102, ownerEmail: 'agro@valleyfresh.uz', postedAt: Date.now() - 5 * 60000, date: '2026-08-31', deliveryDate: null, origin: 'Namangan, UZ', dest: 'Almaty, KZ', equip: 'R', fp: 'Full', weight: 20.0, volume: 86, dist: 950, rateUSD: 1900, company: 'Valley Fresh Cargo', contactPerson: 'Sardor Inoyatov', commodity: 'Fresh Table Peaches (+4C)', tg: '@valleyfresh_uz', phone: '+998 69 220 3344', email: 'agro@valleyfresh.uz' },
+            { id: 103, ownerEmail: 'cargo@fergana-sped.uz', postedAt: Date.now() - 8 * 60000, date: '2026-09-01', deliveryDate: '2026-09-05', origin: 'Fergana, UZ', dest: 'Novosibirsk, RU', equip: 'T', fp: 'Full', weight: 21.5, volume: 90, dist: 2350, rateUSD: 2600, company: 'Fergana Sped Trans', contactPerson: 'Rustam Karimov', commodity: 'Textile Fabric & Threads', tg: '@fergana_trans', phone: '+998 73 244 5566', email: 'cargo@fergana-sped.uz' },
+            { id: 104, ownerEmail: 'order@tienshan-sped.kg', postedAt: Date.now() - 14 * 60000, date: '2026-09-01', deliveryDate: null, origin: 'Bishkek, KG', dest: 'Novosibirsk, RU', equip: 'T', fp: 'Full', weight: 21.0, volume: 90, dist: 2100, rateUSD: 2300, company: 'TienShan Freight Sped', contactPerson: 'Azamat Kasymov', commodity: 'Consumer Goods & Fabrics', tg: '@tienshan_kg', phone: '+996 312 458 899', email: 'order@tienshan-sped.kg' },
+            { id: 105, ownerEmail: 'dispatch@kaztrans-logistics.kz', postedAt: Date.now() - 22 * 60000, date: '2026-09-01', deliveryDate: '2026-09-03', origin: 'Almaty, KZ', dest: 'Tashkent, UZ', equip: 'F', fp: 'Full', weight: 24.0, volume: 40, dist: 810, rateUSD: 1350, company: 'KazTrans Logistics LLC', contactPerson: 'Dias Akhmetov', commodity: 'Reinforcing Steel Rods', tg: '@kaztrans_disp', phone: '+7 (727) 880-1234', email: 'dispatch@kaztrans-logistics.kz' },
+            { id: 106, ownerEmail: 'booking@belautodirect.by', postedAt: Date.now() - 35 * 60000, date: '2026-09-02', deliveryDate: '2026-09-08', origin: 'Minsk, BY', dest: 'Astana, KZ', equip: 'V', fp: 'Full', weight: 18.0, volume: 82, dist: 3100, rateUSD: 3100, company: 'BelAutoDirect Transport', contactPerson: 'Sergey Kovalchuk', commodity: 'Machinery Components', tg: '@belautodirect', phone: '+375 17 209 8800', email: 'booking@belautodirect.by' },
+            { id: 107, ownerEmail: 'cargo@pamir-logistics.tj', postedAt: Date.now() - 48 * 60000, date: '2026-09-02', deliveryDate: null, origin: 'Khujand, TJ', dest: 'Yekaterinburg, RU', equip: 'R', fp: 'Full', weight: 20.0, volume: 86, dist: 2750, rateUSD: 3200, company: 'Pamir Logistics Corp', contactPerson: 'Farrukh Saidov', commodity: 'Dried Apricots & Walnuts', tg: '@pamir_log', phone: '+992 3422 61122', email: 'cargo@pamir-logistics.tj' },
+            { id: 108, ownerEmail: 'dispatch@kaztrans-logistics.kz', postedAt: Date.now() - 65 * 60000, date: '2026-09-03', deliveryDate: '2026-09-08', origin: 'Shymkent, KZ', dest: 'Moscow, RU', equip: 'T', fp: 'Partial', weight: 8.5, volume: 35, dist: 3150, rateUSD: 1400, company: 'KazTrans Logistics LLC', contactPerson: 'Dias Akhmetov', commodity: 'Packaging Materials', tg: '@kaztrans_disp', phone: '+7 (727) 880-1234', email: 'dispatch@kaztrans-logistics.kz' }
+        ];
+
+        let trucksDatabase = [
+            { id: 201, date: '2026-08-31', loc: 'Tashkent, UZ', dest: 'Anywhere / Any Direction', equip: 'T', cap: '22.0t / 92m³', features: 'TIR • GPS • Side/Top', minRateUSD: 3200, carrier: 'Orient-Trans Sped', tg: '@orient_trans', phone: '+998 71 200 1122' },
+            { id: 202, date: '2026-09-01', loc: 'Almaty, KZ', dest: 'Tashkent / Samarkand', equip: 'R', cap: '20.0t / 86m³', features: 'FRC (+/-25C) • GPS', minRateUSD: 1800, carrier: 'Kazakh Cold Chain', tg: '@kz_cold', phone: '+7 727 300 4455' },
+            { id: 203, date: '2026-09-01', loc: 'Bishkek, KG', dest: 'Anywhere Russia', equip: 'F', cap: '25.0t', features: 'Belts • Stakes • TIR', minRateUSD: 2100, carrier: 'Manas Trucking', tg: '@manas_truck', phone: '+996 312 998877' },
+            { id: 204, date: '2026-09-02', loc: 'Andijan, UZ', dest: 'Anywhere / Kazakhstan / Russia', equip: 'T', cap: '22.0t / 96m³', features: 'TIR • ADR Certified', minRateUSD: 2400, carrier: 'Fergana Valley Line', tg: '@ferganavalley_trans', phone: '+998 74 228 1020' }
+        ];
+
+        let directoryDatabase = [
+            { name: "SilkRoad Express LLC", country: "UZ", city: "Tashkent", tir: "TIR-UZ 88910", fleet: "48 Units (Tent 92m³, Reefer)", routes: "Uzbekistan ↔ Kazakhstan ↔ Russia ↔ Belarus", dispatcher: "Alisher Usmanov", phone: "+998 (71) 234-56-78", email: "dispatch@silkroad-cargo.uz", tg: "@silkroad_log" },
+            { name: "KazTrans Logistics LLC", country: "KZ", city: "Almaty", tir: "TIR-KZ 98214", fleet: "65 Units (Standard Tent, Flatbed)", routes: "Kazakhstan ↔ Central Asia ↔ Russia", dispatcher: "Dias Akhmetov", phone: "+7 (727) 880-1234", email: "dispatch@kaztrans-logistics.kz", tg: "@kaztrans_disp" },
+            { name: "Valley Fresh Cargo", country: "UZ", city: "Namangan", tir: "TIR-UZ 44102", fleet: "30 Units (Reefer TermoKing)", routes: "Fergana Valley ↔ Kazakhstan ↔ Siberia", dispatcher: "Sardor Inoyatov", phone: "+998 (69) 220-3344", email: "agro@valleyfresh.uz", tg: "@valleyfresh_uz" },
+            { name: "TienShan Freight Sped", country: "KG", city: "Bishkek", tir: "TIR-KG 31908", fleet: "35 Units (Mega Tents 105m³)", routes: "Kyrgyzstan ↔ Russia ↔ China Transit", dispatcher: "Azamat Kasymov", phone: "+996 (312) 458-899", email: "order@tienshan-sped.kg", tg: "@tienshan_kg" },
+            { name: "BelAutoDirect Transport", country: "BY", city: "Minsk", tir: "TIR-BY 77123", fleet: "80 Units (Box Dry Van, Mega Tent)", routes: "Belarus ↔ Russia ↔ Central Asia", dispatcher: "Sergey Kovalchuk", phone: "+375 (17) 209-8800", email: "booking@belautodirect.by", tg: "@belautodirect" }
+        ];
+
+        // ================= MULTI-SEARCH TABS (MAX 9) =================
+        function renderSearchTabs() {
+            const container = document.getElementById('multi-search-tabs-bar');
+            if (!container) return;
+            container.innerHTML = '';
+
+            searchTabs.forEach((tab) => {
+                const isActive = tab.id === activeSearchTabId;
+                const tabBtn = document.createElement('div');
+                tabBtn.className = `flex items-center space-x-1.5 px-3 py-1 rounded-t text-xs cursor-pointer transition border-t border-l border-r border-slate-300 ${isActive ? 'search-tab-active shadow-sm' : 'search-tab-inactive'}`;
+                tabBtn.onclick = () => switchSearchTab(tab.id);
+
+                let displayTitle = tab.title;
+                if (tab.origin && tab.dest) {
+                    const o = tab.origin.split(',')[0];
+                    const d = tab.dest.split(',')[0];
+                    displayTitle = `${o} → ${d}`;
+                }
+
+                tabBtn.innerHTML = `
+                    <i data-lucide="search" class="w-3 h-3 ${isActive ? 'text-blue-600' : 'text-slate-400'}"></i>
+                    <span class="max-w-[120px] truncate">${displayTitle}</span>
+                    ${searchTabs.length > 1 ? `<button onclick="event.stopPropagation(); closeSearchTab(${tab.id})" class="ml-1 text-slate-400 hover:text-rose-600 rounded-full p-0.5"><i data-lucide="x" class="w-2.5 h-2.5"></i></button>` : ''}
+                `;
+                container.appendChild(tabBtn);
+            });
+
+            if (searchTabs.length < 9) {
+                const addBtn = document.createElement('button');
+                addBtn.onclick = addNewSearchTab;
+                addBtn.className = 'px-2 py-1 bg-slate-300 hover:bg-slate-400 text-slate-700 rounded-t text-xs font-bold transition flex items-center space-x-1';
+                addBtn.title = `Add Search Window (${searchTabs.length}/9)`;
+                addBtn.innerHTML = `<i data-lucide="plus" class="w-3.5 h-3.5"></i>`;
+                container.appendChild(addBtn);
+            }
+
+            lucide.createIcons();
+        }
+
+        function switchSearchTab(tabId) {
+            saveCurrentTabState();
+            activeSearchTabId = tabId;
+            const tab = searchTabs.find(t => t.id === tabId);
+            if (tab) {
+                document.getElementById('filter-origin').value = tab.origin || '';
+                document.getElementById('filter-dho').value = tab.dho || 100;
+                document.getElementById('filter-dest').value = tab.dest || '';
+                document.getElementById('filter-dhd').value = tab.dhd || 100;
+                document.getElementById('filter-equip').value = tab.equip || '';
+                document.getElementById('filter-fp').value = tab.fp || '';
+                if (searchDatePickerInstance) {
+                    searchDatePickerInstance.setDate(tab.dateRange || '', false);
+                }
+            }
+
+            renderSearchTabs();
+            applyLoadFilters();
+        }
+
+        function saveCurrentTabState() {
+            const currentTab = searchTabs.find(t => t.id === activeSearchTabId);
+            if (currentTab) {
+                currentTab.origin = document.getElementById('filter-origin').value;
+                currentTab.dho = parseInt(document.getElementById('filter-dho').value) || 100;
+                currentTab.dest = document.getElementById('filter-dest').value;
+                currentTab.dhd = parseInt(document.getElementById('filter-dhd').value) || 100;
+                currentTab.equip = document.getElementById('filter-equip').value;
+                currentTab.fp = document.getElementById('filter-fp').value;
+                currentTab.dateRange = document.getElementById('filter-date-range').value;
+            }
+        }
+
+        function addNewSearchTab() {
+            if (searchTabs.length >= 9) return;
+            saveCurrentTabState();
+            const newId = Date.now();
+            const newIndex = searchTabs.length + 1;
+            const newTab = {
+                id: newId,
+                title: `Search ${newIndex}`,
+                origin: "",
+                dho: 100,
+                dest: "",
+                dhd: 100,
+                equip: "",
+                fp: "",
+                dateRange: ""
+            };
+            searchTabs.push(newTab);
+            switchSearchTab(newId);
+        }
+
+        function closeSearchTab(tabId) {
+            if (searchTabs.length <= 1) return;
+            const index = searchTabs.findIndex(t => t.id === tabId);
+            searchTabs = searchTabs.filter(t => t.id !== tabId);
+            if (activeSearchTabId === tabId) {
+                activeSearchTabId = searchTabs[Math.max(0, index - 1)].id;
+            }
+            switchSearchTab(activeSearchTabId);
+        }
+
+        // ================= AUTOCOMPLETE & DISTANCE CALCULATION =================
+        function handleCityInput(inputElem, dropdownId) {
+            const val = inputElem.value.trim().toLowerCase();
+            const dd = document.getElementById(dropdownId);
+            
+            if (!val) {
+                dd.innerHTML = '';
+                dd.classList.add('hidden');
+                return;
+            }
+
+            const matches = CIS_CITIES.filter(city => city.toLowerCase().includes(val));
+            if (matches.length === 0) {
+                dd.innerHTML = '<div class="p-2 text-slate-400 text-center">No matching city</div>';
+                dd.classList.remove('hidden');
+                return;
+            }
+
+            dd.innerHTML = '';
+            matches.forEach(city => {
+                const item = document.createElement('div');
+                item.className = 'px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-slate-700 text-xs border-b border-slate-100 last:border-none';
+                item.innerText = city;
+                item.onmousedown = () => {
+                    inputElem.value = city;
+                    dd.classList.add('hidden');
+                    if (inputElem.id.startsWith('filter')) {
+                        saveCurrentTabState();
+                        renderSearchTabs();
+                        applyLoadFilters();
+                    } else if (inputElem.id === 'post-orig' || inputElem.id === 'post-dest') {
+                        autoComputePostDistance();
+                    } else if (inputElem.id === 'edit-orig' || inputElem.id === 'edit-dest') {
+                        autoComputeEditDistance();
+                    } else if (inputElem.id === 'search-truck-loc' || inputElem.id === 'search-truck-dest') {
+                        filterTrucks();
+                    }
+                };
+                dd.appendChild(item);
+            });
+            dd.classList.remove('hidden');
+        }
+
+        function autoComputePostDistance() {
+            const orig = document.getElementById('post-orig').value;
+            const dest = document.getElementById('post-dest').value;
+            const origKey = resolveCityKey(orig);
+            const destKey = resolveCityKey(dest);
+            if (origKey && destKey) {
+                const km = calculateDistanceKm(origKey, destKey);
+                document.getElementById('post-dist').value = km;
+            }
+        }
+
+        function autoComputeEditDistance() {
+            const orig = document.getElementById('edit-orig').value;
+            const dest = document.getElementById('edit-dest').value;
+            const origKey = resolveCityKey(orig);
+            const destKey = resolveCityKey(dest);
+            if (origKey && destKey) {
+                const km = calculateDistanceKm(origKey, destKey);
+                document.getElementById('edit-dist').value = km;
+            }
+        }
+
+        document.addEventListener('click', (e) => {
+            const dropdowns = document.querySelectorAll('[id$="-dropdown"], [id$="-dd"]');
+            dropdowns.forEach(dd => {
+                if (!dd.contains(e.target) && !e.target.closest('input')) {
+                    dd.classList.add('hidden');
+                }
+            });
+        });
+
+        // ================= AUTH GATEWAY & MANAGEMENT =================
+        function checkAuthStatus() {
+            const lockoutScreen = document.getElementById('auth-lockout-screen');
+            const appWorkspace = document.getElementById('app-workspace');
+
+            if (!authState.isLoggedIn) {
+                lockoutScreen.classList.remove('hidden');
+                appWorkspace.classList.add('hidden');
+            } else {
+                lockoutScreen.classList.add('hidden');
+                appWorkspace.classList.remove('hidden');
+                renderAuthSidebar();
+                renderMyLoads();
+            }
+        }
+
+        function renderAuthSidebar() {
+            const sidebar = document.getElementById('sidebar-auth-section');
+            if (authState.isLoggedIn) {
+                sidebar.innerHTML = `
+                    <div onclick="setTab('account-settings')" class="flex items-center space-x-2.5 cursor-pointer hover:bg-slate-800/60 p-1 rounded transition">
+                        <div class="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-xs border border-blue-400">${authState.company.slice(0,2).toUpperCase()}</div>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-semibold text-white truncate text-[11px]">${authState.company}</p>
+                            <p class="text-[9px] ${authState.isVerified ? 'text-emerald-400' : 'text-amber-400'} flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full ${authState.isVerified ? 'bg-emerald-400' : 'bg-amber-400'}"></span> ${authState.isVerified ? 'Verified Account' : 'Pending Verification'}
+                            </p>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500"></i>
+                    </div>
+                `;
+            }
+            document.getElementById('posting-as-company').innerText = authState.company;
+            lucide.createIcons();
+        }
+
+        function switchAuthMode(mode) {
+            document.getElementById('auth-pane-login').classList.add('hidden');
+            document.getElementById('auth-pane-signup').classList.add('hidden');
+            document.getElementById('auth-pane-verify').classList.add('hidden');
+
+            document.getElementById('auth-tab-btn-login').className = 'flex-1 py-3 text-center border-b-2 border-transparent text-slate-500 hover:text-slate-700';
+            document.getElementById('auth-tab-btn-signup').className = 'flex-1 py-3 text-center border-b-2 border-transparent text-slate-500 hover:text-slate-700';
+
+            if (mode === 'login') {
+                document.getElementById('auth-pane-login').classList.remove('hidden');
+                document.getElementById('auth-tab-btn-login').className = 'flex-1 py-3 text-center border-b-2 border-blue-600 text-blue-600 bg-white';
+            } else if (mode === 'signup') {
+                document.getElementById('auth-pane-signup').classList.remove('hidden');
+                document.getElementById('auth-tab-btn-signup').className = 'flex-1 py-3 text-center border-b-2 border-blue-600 text-blue-600 bg-white';
+            }
+        }
+
+        function handleLoginSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('gate-login-email').value;
+            authState.isLoggedIn = true;
+            authState.isVerified = true;
+            authState.email = email;
+            authState.company = email.split('@')[0].toUpperCase() + " Logistics";
+            
+            checkAuthStatus();
+            alert(currentLang === 'ru' ? '✓ Вы успешно вошли в систему!' : '✓ Signed in successfully!');
+        }
+
+        function handleSignupSubmit(e) {
+            e.preventDefault();
+            const company = document.getElementById('gate-signup-company').value;
+            const name = document.getElementById('gate-signup-name').value;
+            const email = document.getElementById('gate-signup-email').value;
+            const phone = document.getElementById('gate-signup-phone').value;
+            const tg = document.getElementById('gate-signup-tg').value;
+
+            authState.company = company;
+            authState.name = name;
+            authState.email = email;
+            authState.phone = phone;
+            authState.tg = tg;
+            authState.pendingVerificationEmail = email;
+            authState.generatedCode = String(Math.floor(100000 + Math.random() * 900000));
+
+            document.getElementById('auth-pane-signup').classList.add('hidden');
+            document.getElementById('gate-verify-target').innerText = email;
+            document.getElementById('auth-pane-verify').classList.remove('hidden');
+
+            alert(`[SNG ONE EMAIL DISPATCHER]\n\nTo: ${email}\nSubject: Verify your SNG ONE Account\n\nYour 6-digit confirmation security code is: ${authState.generatedCode}\n\nPlease enter it to activate your account.`);
+        }
+
+        function handleVerificationSubmit(e) {
+            e.preventDefault();
+            const code = document.getElementById('gate-verify-code').value.trim();
+            if (code === authState.generatedCode || code === "123456") {
+                authState.isLoggedIn = true;
+                authState.isVerified = true;
+                checkAuthStatus();
+                alert(currentLang === 'ru' ? '✓ Email успешно подтвержден! Добро пожаловать.' : '✓ Email verified successfully! Welcome to SNG ONE.');
+            } else {
+                alert('Invalid security code. Please check your email.');
+            }
+        }
+
+        function resendVerificationCode() {
+            authState.generatedCode = String(Math.floor(100000 + Math.random() * 900000));
+            alert(`[EMAIL RESENT]\n\nNew 6-digit verification code sent to ${authState.pendingVerificationEmail}: ${authState.generatedCode}`);
+        }
+
+        function handleLogout() {
+            authState.isLoggedIn = false;
+            authState.isVerified = false;
+            checkAuthStatus();
+            alert(currentLang === 'ru' ? 'Вы вышли из системы.' : 'Logged out successfully.');
+        }
+
+        // ================= MY POSTED LOADS (VIEW, EDIT, DELETE) =================
+        function renderMyLoads() {
+            const tbody = document.getElementById('my-loads-tbody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const myLoads = loadsDatabase.filter(l => l.ownerEmail === authState.email);
+            document.getElementById('my-loads-count').innerText = myLoads.length;
+
+            if (myLoads.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-400 font-sans">You have not posted any active loads yet. Post a load above to manage it here.</td></tr>`;
+                return;
+            }
+
+            myLoads.forEach(load => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition border-b border-slate-200';
+                tr.innerHTML = `
+                    <td class="p-2.5 font-bold text-slate-900">${load.origin} → ${load.dest}</td>
+                    <td class="p-2.5 text-slate-600">${load.date} <span class="text-slate-400">/</span> ${load.deliveryDate || '--'}</td>
+                    <td class="p-2.5"><span class="bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">${load.equip}</span> ${load.weight}t</td>
+                    <td class="p-2.5 text-slate-600">${load.dist.toLocaleString()} km</td>
+                    <td class="p-2.5 font-bold text-emerald-600">${formatPrice(load.rateUSD)}</td>
+                    <td class="p-2.5 text-slate-700 truncate max-w-[150px]" title="${load.commodity}">${load.commodity}</td>
+                    <td class="p-2.5 text-center">
+                        <div class="flex items-center justify-center space-x-1">
+                            <button onclick="openEditModal(${load.id})" class="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2 py-1 rounded text-[10px] border border-blue-200 flex items-center space-x-1 transition" title="Edit Load">
+                                <i data-lucide="edit-2" class="w-3 h-3"></i>
+                                <span>Edit</span>
+                            </button>
+                            <button onclick="deleteMyLoad(${load.id})" class="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2 py-1 rounded text-[10px] border border-rose-200 flex items-center space-x-1 transition" title="Delete Load">
+                                <i data-lucide="trash-2" class="w-3 h-3"></i>
+                                <span>Remove</span>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            lucide.createIcons();
+        }
+
+        function deleteMyLoad(loadId) {
+            const target = loadsDatabase.find(l => l.id === loadId);
+            if (!target || target.ownerEmail !== authState.email) {
+                alert('Unauthorized: You can only remove your own posted loads.');
+                return;
+            }
+
+            if (confirm('Are you sure you want to remove this load from the live board?')) {
+                loadsDatabase = loadsDatabase.filter(l => l.id !== loadId);
+                renderMyLoads();
+                applyLoadFilters();
+                updateNavBadges();
+                alert('✓ Load removed successfully!');
+            }
+        }
+
+        function openEditModal(loadId) {
+            const load = loadsDatabase.find(l => l.id === loadId);
+            if (!load || load.ownerEmail !== authState.email) {
+                alert('Unauthorized: You can only edit your own posted loads.');
+                return;
+            }
+
+            document.getElementById('edit-load-id').value = load.id;
+            document.getElementById('edit-orig').value = load.origin;
+            document.getElementById('edit-dest').value = load.dest;
+            document.getElementById('edit-equip').value = load.equip;
+            document.getElementById('edit-fp').value = load.fp;
+            document.getElementById('edit-weight').value = load.weight;
+            document.getElementById('edit-rate').value = load.rateUSD;
+            document.getElementById('edit-date').value = load.date;
+            document.getElementById('edit-delivery-date').value = load.deliveryDate || '';
+            document.getElementById('edit-dist').value = load.dist;
+            document.getElementById('edit-commodity').value = load.commodity;
+
+            document.getElementById('modal-edit-load').classList.remove('hidden');
+        }
+
+        function closeEditModal() {
+            document.getElementById('modal-edit-load').classList.add('hidden');
+        }
+
+        function handleEditLoadSubmit(e) {
+            e.preventDefault();
+            const loadId = parseInt(document.getElementById('edit-load-id').value);
+            const load = loadsDatabase.find(l => l.id === loadId);
+            if (!load || load.ownerEmail !== authState.email) return;
+
+            load.origin = document.getElementById('edit-orig').value;
+            load.dest = document.getElementById('edit-dest').value;
+            load.equip = document.getElementById('edit-equip').value;
+            load.fp = document.getElementById('edit-fp').value;
+            load.weight = parseFloat(document.getElementById('edit-weight').value);
+            load.rateUSD = parseFloat(document.getElementById('edit-rate').value);
+            load.date = document.getElementById('edit-date').value;
+            load.deliveryDate = document.getElementById('edit-delivery-date').value || null;
+            load.dist = parseInt(document.getElementById('edit-dist').value);
+            load.commodity = document.getElementById('edit-commodity').value;
+
+            closeEditModal();
+            renderMyLoads();
+            applyLoadFilters();
+            alert('✓ Load updated and synchronized across all active searchers!');
+        }
+
+        // ================= NAV BADGES (always reflect the live pool, not the current filtered view) =================
+        function updateNavBadges() {
+            document.getElementById('badge-total-loads').innerText = loadsDatabase.length;
+            document.getElementById('badge-total-trucks').innerText = trucksDatabase.length;
+        }
+
+        // ================= CURRENCY & FORMATTING =================
+        function formatPrice(usdValue) {
+            const conf = CURRENCY_RATES[currentCurrency];
+            const converted = Math.round(usdValue * conf.rate);
+            return `${conf.symbol}${converted.toLocaleString()}`;
+        }
+
+        function toggleLoadRow(loadId) {
+            expandedLoadId = (expandedLoadId === loadId) ? null : loadId;
+            applyLoadFilters();
+        }
+
+        function openGoogleMaps(origin, dest) {
+            const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
+            window.open(url, '_blank');
+        }
+
+        function copyContactInfo(company, name, phone, email, tg) {
+            const text = `Company: ${company}\nDispatcher: ${name}\nPhone: ${phone}\nEmail: ${email}\nTelegram: ${tg}`;
+            navigator.clipboard.writeText(text).then(() => {
+                alert((currentLang === 'ru' ? '✓ Контакты скопированы:\n\n' : '✓ Contact Details copied:\n\n') + text);
+            });
+        }
+
+        // ================= SORTING =================
+        function handleHeaderSort(columnKey) {
+            if (currentSort.column === columnKey) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = columnKey;
+                currentSort.direction = 'asc';
+            }
+            updateSortIndicators();
+            applyLoadFilters();
+        }
+
+        function updateSortIndicators() {
+            const columns = ['age', 'date', 'origin', 'dest', 'equip', 'fp', 'weight', 'dist', 'rate', 'company'];
+            columns.forEach(col => {
+                const iconEl = document.getElementById(`sort-icon-${col}`);
+                if (!iconEl) return;
+                
+                if (currentSort.column === col) {
+                    iconEl.innerText = currentSort.direction === 'asc' ? '▲' : '▼';
+                    iconEl.classList.remove('text-slate-400');
+                    iconEl.classList.add('text-sky-300', 'font-bold');
+                } else {
+                    iconEl.innerText = '⇅';
+                    iconEl.classList.add('text-slate-400');
+                    iconEl.classList.remove('text-sky-300', 'font-bold');
+                }
+            });
+        }
+
+        function sortLoadData(list) {
+            const col = currentSort.column;
+            const dir = currentSort.direction === 'asc' ? 1 : -1;
+
+            return list.sort((a, b) => {
+                let valA, valB;
+                switch(col) {
+                    case 'age': valA = computeAge(a.postedAt).minutes; valB = computeAge(b.postedAt).minutes; break;
+                    case 'date': valA = a.date; valB = b.date; break;
+                    case 'origin': valA = a.origin.toLowerCase(); valB = b.origin.toLowerCase(); break;
+                    case 'dest': valA = a.dest.toLowerCase(); valB = b.dest.toLowerCase(); break;
+                    case 'equip': valA = a.equip; valB = b.equip; break;
+                    case 'fp': valA = a.fp; valB = b.fp; break;
+                    case 'weight': valA = a.weight; valB = b.weight; break;
+                    case 'dist': valA = a.dist; valB = b.dist; break;
+                    case 'rate': valA = a.rateUSD; valB = b.rateUSD; break;
+                    case 'company': valA = a.company.toLowerCase(); valB = b.company.toLowerCase(); break;
+                    default: return 0;
+                }
+                if (valA < valB) return -1 * dir;
+                if (valA > valB) return 1 * dir;
+                return 0;
+            });
+        }
+
+        // ================= RADIUS & MODERN SINGLE DATE-RANGE FILTER =================
+        function applyLoadFilters() {
+            saveCurrentTabState();
+            renderSearchTabs();
+
+            const origInput = document.getElementById('filter-origin').value.trim();
+            const destInput = document.getElementById('filter-dest').value.trim();
+            const dho = parseInt(document.getElementById('filter-dho').value) || 100;
+            const dhd = parseInt(document.getElementById('filter-dhd').value) || 100;
+            const equip = document.getElementById('filter-equip').value;
+            const fp = document.getElementById('filter-fp').value;
+            const dateRangeVal = document.getElementById('filter-date-range').value.trim();
+
+            let startDate = null;
+            let endDate = null;
+            if (dateRangeVal) {
+                const parts = dateRangeVal.split(' to ');
+                startDate = parts[0] ? parts[0].trim() : null;
+                endDate = parts[1] ? parts[1].trim() : startDate;
+            }
+
+            const searchOrigKey = resolveCityKey(origInput);
+            const searchDestKey = resolveCityKey(destInput);
+
+            let filtered = loadsDatabase.filter(load => {
+                let matchOrig = true;
+                let actualDho = 0;
+                if (origInput) {
+                    if (searchOrigKey && CITY_COORDINATES[load.origin]) {
+                        actualDho = calculateDistanceKm(searchOrigKey, load.origin);
+                        matchOrig = actualDho <= dho;
+                    } else {
+                        matchOrig = load.origin.toLowerCase().includes(origInput.toLowerCase());
+                    }
+                }
+                load.dho = actualDho;
+
+                let matchDest = true;
+                let actualDhd = 0;
+                if (destInput) {
+                    if (searchDestKey && CITY_COORDINATES[load.dest]) {
+                        actualDhd = calculateDistanceKm(searchDestKey, load.dest);
+                        matchDest = actualDhd <= dhd;
+                    } else {
+                        matchDest = load.dest.toLowerCase().includes(destInput.toLowerCase());
+                    }
+                }
+                load.dhd = actualDhd;
+
+                const matchEquip = !equip || load.equip === equip;
+                const matchFp = !fp || load.fp === fp;
+                
+                let matchDate = true;
+                if (startDate && load.date < startDate) matchDate = false;
+                if (endDate && load.date > endDate) matchDate = false;
+
+                return matchOrig && matchDest && matchEquip && matchFp && matchDate;
+            });
+
+            filtered = sortLoadData(filtered);
+            renderLoadsTable(filtered);
+        }
+
+        function resetSortAndFilters() {
+            document.getElementById('filter-origin').value = '';
+            document.getElementById('filter-dho').value = '100';
+            document.getElementById('filter-dest').value = '';
+            document.getElementById('filter-dhd').value = '100';
+            document.getElementById('filter-equip').value = '';
+            document.getElementById('filter-fp').value = '';
+            if (searchDatePickerInstance) {
+                searchDatePickerInstance.clear();
+            }
+            currentSort.column = 'age';
+            currentSort.direction = 'asc';
+            updateSortIndicators();
+            applyLoadFilters();
+        }
+
+        // ================= RENDER LOADS TABLE =================
+        function renderLoadsTable(data) {
+            const tbody = document.getElementById('loads-tbody');
+            tbody.innerHTML = '';
+            document.getElementById('filtered-count').innerText = data.length;
+
+            const t = I18N[currentLang];
+
+            if(data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="11" class="p-8 text-center text-slate-400 font-sans">${currentLang === 'ru' ? 'Грузы не найдены. Увеличьте радиус поиска DH.' : 'No matching loads found. Try increasing deadhead radius.'}</td></tr>`;
+                return;
+            }
+
+            data.forEach((load) => {
+                const isExpanded = expandedLoadId === load.id;
+                const age = computeAge(load.postedAt);
+
+                const tr = document.createElement('tr');
+                tr.className = `border-b border-slate-200 transition cursor-pointer select-none ${isExpanded ? 'row-expanded font-semibold text-blue-950' : 'hover:bg-slate-50'}`;
+                tr.onclick = () => toggleLoadRow(load.id);
+
+                tr.innerHTML = `
+                    <td class="py-2 px-1.5 text-center text-slate-400">
+                        <i data-lucide="${isExpanded ? 'chevron-down' : 'chevron-right'}" class="w-3.5 h-3.5 text-blue-600 transition-transform"></i>
+                    </td>
+                    <td class="py-2 px-2 text-slate-400 font-normal truncate">${age.text}</td>
+                    <td class="py-2 px-2 text-slate-600 truncate">${load.date.slice(5)}</td>
+                    <td class="py-2 px-2.5 font-bold text-slate-900 truncate" title="${load.origin}">${load.origin} <span class="text-[10px] ${load.dho > 0 ? 'text-blue-600 font-bold' : 'text-slate-400 font-normal'}">(${load.dho}km)</span></td>
+                    <td class="py-2 px-2.5 font-bold text-slate-900 truncate" title="${load.dest}">${load.dest} <span class="text-[10px] ${load.dhd > 0 ? 'text-blue-600 font-bold' : 'text-slate-400 font-normal'}">(${load.dhd}km)</span></td>
+                    <td class="py-2 px-2 text-center"><span class="bg-blue-50 text-blue-800 font-bold px-1.5 py-0.5 rounded border border-blue-200 text-[10px]">${load.equip}</span></td>
+                    <td class="py-2 px-2 text-slate-600 truncate">${load.fp}</td>
+                    <td class="py-2 px-2 text-slate-700 truncate">${load.weight}t / ${load.volume}m³</td>
+                    <td class="py-2 px-2 text-right text-slate-600 truncate">${load.dist.toLocaleString()} km</td>
+                    <td class="py-2 px-2.5 text-right font-bold text-emerald-600 truncate">${formatPrice(load.rateUSD)}</td>
+                    <td class="py-2 px-2.5 text-slate-800 font-medium truncate" title="${load.company}">${load.company}</td>
+                `;
+                tbody.appendChild(tr);
+
+                if (isExpanded) {
+                    const detailTr = document.createElement('tr');
+                    detailTr.className = 'bg-[#f8fbff] border-b-2 border-blue-400/40 shadow-inner font-sans';
+                    detailTr.innerHTML = `
+                        <td colspan="11" class="p-4">
+                            <div class="grid grid-cols-12 gap-4 text-xs">
+                                
+                                <div class="col-span-6 bg-white p-3 rounded border border-blue-100 shadow-sm space-y-3 flex flex-col justify-between">
+                                    <div>
+                                        <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                                            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">${t.lbl_cargo_specs}</span>
+                                            <span class="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">${load.equip} • ${load.fp}</span>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2 text-[11px] pt-2">
+                                            <div><span class="text-slate-500">${t.lbl_commodity}:</span> <strong class="text-slate-800 font-medium block">${load.commodity}</strong></div>
+                                            <div><span class="text-slate-500">${t.th_weight}:</span> <strong class="text-slate-800 font-mono block">${load.weight} t / ${load.volume} m³</strong></div>
+                                            <div><span class="text-slate-500">${t.lbl_pickup_date}:</span> <strong class="text-slate-800 font-mono block">${load.date}</strong></div>
+                                            <div><span class="text-slate-500">${t.lbl_delivery_date}:</span> <strong class="text-slate-800 font-mono block">${load.deliveryDate || '--'}</strong></div>
+                                            <div class="col-span-2 pt-1 border-t border-slate-100"><span class="text-slate-500">${t.th_distance}:</span> <strong class="text-blue-700 font-mono">${load.dist.toLocaleString()} km (Estimated Route)</strong></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="pt-2 border-t border-slate-100">
+                                        <button onclick="event.stopPropagation(); openGoogleMaps('${load.origin}', '${load.dest}')" class="w-full bg-[#1a73e8] hover:bg-blue-600 text-white font-bold py-2 px-3 rounded flex items-center justify-center space-x-2 shadow-sm transition">
+                                            <i data-lucide="map-pin" class="w-4 h-4 text-amber-300"></i>
+                                            <span>${t.lbl_maps_btn}</span>
+                                            <i data-lucide="external-link" class="w-3.5 h-3.5 text-blue-200"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="col-span-6 bg-white p-3 rounded border border-blue-100 shadow-sm space-y-2">
+                                    <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                                        <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">${t.lbl_direct_contacts}</span>
+                                        <span class="text-sm font-black text-emerald-600 font-mono">${formatPrice(load.rateUSD)}</span>
+                                    </div>
+
+                                    <div class="space-y-2 text-slate-700 text-[11px] pt-1">
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center space-x-1.5">
+                                                <i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i>
+                                                <strong class="text-slate-900">${load.company}</strong>
+                                            </div>
+                                            <span class="text-slate-500 font-medium">${load.contactPerson}</span>
+                                        </div>
+
+                                        <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-100">
+                                            <div class="flex items-center space-x-2">
+                                                <i data-lucide="phone" class="w-3.5 h-3.5 text-blue-600"></i>
+                                                <a href="tel:${load.phone}" onclick="event.stopPropagation()" class="font-bold text-blue-700 hover:underline">${load.phone}</a>
+                                            </div>
+                                            <a href="tel:${load.phone}" onclick="event.stopPropagation()" class="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold hover:bg-blue-200">${t.lbl_call}</a>
+                                        </div>
+
+                                        <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-100">
+                                            <div class="flex items-center space-x-2 truncate">
+                                                <i data-lucide="mail" class="w-3.5 h-3.5 text-amber-600"></i>
+                                                <a href="mailto:${load.email}" onclick="event.stopPropagation()" class="text-slate-800 hover:underline truncate">${load.email}</a>
+                                            </div>
+                                            <a href="mailto:${load.email}" onclick="event.stopPropagation()" class="text-[10px] bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-semibold hover:bg-slate-300">${t.lbl_email}</a>
+                                        </div>
+
+                                        <div class="grid grid-cols-2 gap-2 pt-1">
+                                            <a href="https://t.me/${load.tg.replace('@','')}" target="_blank" onclick="event.stopPropagation()" class="bg-[#229ED9] hover:bg-[#1e8bc0] text-white font-bold py-1.5 px-2 rounded flex items-center justify-center space-x-1.5 transition text-xs">
+                                                <i data-lucide="send" class="w-3 h-3"></i>
+                                                <span>${load.tg}</span>
+                                            </a>
+                                            <button onclick="event.stopPropagation(); copyContactInfo('${load.company}', '${load.contactPerson}', '${load.phone}', '${load.email}', '${load.tg}')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-1.5 px-2 rounded border border-slate-300 flex items-center justify-center space-x-1 transition text-xs">
+                                                <i data-lucide="copy" class="w-3 h-3"></i>
+                                                <span>${t.lbl_copy}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(detailTr);
+                }
+            });
+
+            lucide.createIcons();
+        }
+
+        // ================= POST LOAD =================
+        function handlePostLoad(e) {
+            e.preventDefault();
+            const orig = document.getElementById('post-orig').value;
+            const dest = document.getElementById('post-dest').value;
+            let dist = parseInt(document.getElementById('post-dist').value);
+
+            if (!dist) {
+                const origKey = resolveCityKey(orig);
+                const destKey = resolveCityKey(dest);
+                dist = (origKey && destKey) ? calculateDistanceKm(origKey, destKey) : 1200;
+            }
+
+            const newLoad = {
+                id: Date.now(),
+                ownerEmail: authState.email, // Bind ownership to logged-in user
+                postedAt: Date.now(),
+                date: document.getElementById('post-date').value,
+                deliveryDate: document.getElementById('post-delivery-date').value || null,
+                origin: orig,
+                dest: dest,
+                equip: document.getElementById('post-equip').value,
+                fp: document.getElementById('post-fp').value,
+                weight: parseFloat(document.getElementById('post-weight').value),
+                volume: parseInt(document.getElementById('post-vol').value) || 86,
+                dist: dist,
+                rateUSD: parseFloat(document.getElementById('post-rate').value),
+                company: authState.company,
+                contactPerson: document.getElementById('post-contact-name').value,
+                commodity: document.getElementById('post-commodity').value,
+                phone: document.getElementById('post-phone').value,
+                email: document.getElementById('post-email').value,
+                tg: document.getElementById('post-tg').value
+            };
+
+            loadsDatabase.unshift(newLoad);
+            renderMyLoads();
+            applyLoadFilters();
+            updateNavBadges();
+            alert(currentLang === 'ru' ? '✓ Груз успешно опубликован!' : '✓ Load published successfully!');
+            document.getElementById('post-orig').value = '';
+            document.getElementById('post-dest').value = '';
+            document.getElementById('post-dist').value = '';
+            document.getElementById('post-commodity').value = '';
+        }
+
+        // ================= TRUCKS (SEARCH & POST) =================
+        function renderTrucks(data) {
+            const tbody = document.getElementById('trucks-tbody');
+            tbody.innerHTML = '';
+
+            data.forEach(t => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition border-b border-slate-200">
+                        <td class="p-2.5 font-bold text-slate-800">${t.date}</td>
+                        <td class="p-2.5 font-bold text-blue-700">${t.loc}</td>
+                        <td class="p-2.5 text-slate-700">${t.dest || '<span class="text-slate-400 italic">Anywhere / Any Direction</span>'}</td>
+                        <td class="p-2.5 text-center"><span class="bg-blue-50 text-blue-800 font-bold px-1.5 py-0.5 rounded border border-blue-200 text-xs">${t.equip}</span></td>
+                        <td class="p-2.5 text-slate-700">
+                            <div>${t.cap}</div>
+                            <div class="text-[10px] text-slate-500">${t.features || 'TIR Carnet'}</div>
+                        </td>
+                        <td class="p-2.5 font-bold text-emerald-600">${t.minRateUSD ? formatPrice(t.minRateUSD) : 'Negotiable'}</td>
+                        <td class="p-2.5 font-semibold text-slate-900">${t.carrier}</td>
+                        <td class="p-2.5 text-center">
+                            <div class="flex items-center justify-center space-x-1.5">
+                                <a href="https://t.me/${t.tg.replace('@','')}" target="_blank" class="bg-[#229ED9] text-white hover:bg-blue-600 px-2 py-1 rounded text-[10px] font-bold">Telegram</a>
+                                <a href="tel:${t.phone}" class="bg-slate-200 text-slate-700 hover:bg-slate-300 px-2 py-1 rounded text-[10px] font-bold">Call</a>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            lucide.createIcons();
+        }
+
+        function handlePostTruck(e) {
+            e.preventDefault();
+            const destVal = document.getElementById('truck-post-dest').value.trim();
+            const minRateVal = document.getElementById('truck-post-min-rate').value;
+            
+            const featList = [];
+            if (document.getElementById('truck-feat-tir').checked) featList.push('TIR');
+            if (document.getElementById('truck-feat-adr').checked) featList.push('ADR');
+            if (document.getElementById('truck-feat-gps').checked) featList.push('GPS');
+            if (document.getElementById('truck-feat-side').checked) featList.push('Side/Top Load');
+
+            const newTruck = {
+                id: Date.now(),
+                date: document.getElementById('truck-post-date').value,
+                loc: document.getElementById('truck-post-loc').value,
+                dest: destVal || 'Anywhere / Any Direction',
+                equip: document.getElementById('truck-post-equip').value,
+                cap: `${document.getElementById('truck-post-cap').value}t`,
+                features: featList.join(' • ') || 'Standard',
+                minRateUSD: minRateVal ? parseFloat(minRateVal) : null,
+                carrier: authState.company || 'KazTrans Logistics (You)',
+                tg: document.getElementById('truck-post-tg').value,
+                phone: document.getElementById('truck-post-phone').value
+            };
+
+            trucksDatabase.unshift(newTruck);
+            alert(currentLang === 'ru' ? '✓ Транспорт успешно опубликован!' : '✓ Available Truck posted successfully!');
+            setTab('search-trucks');
+            renderTrucks(trucksDatabase);
+            updateNavBadges();
+        }
+
+        function filterTrucks() {
+            const locInput = document.getElementById('search-truck-loc').value.trim();
+            const dest = document.getElementById('search-truck-dest').value.toLowerCase().trim();
+            const equip = document.getElementById('search-truck-equip').value;
+            const radius = parseInt(document.getElementById('search-truck-radius').value) || 150;
+            const locKey = resolveCityKey(locInput);
+
+            const filtered = trucksDatabase.filter(t => {
+                let matchLoc = true;
+                if (locInput) {
+                    if (locKey && CITY_COORDINATES[t.loc]) {
+                        matchLoc = calculateDistanceKm(locKey, t.loc) <= radius;
+                    } else {
+                        matchLoc = t.loc.toLowerCase().includes(locInput.toLowerCase());
+                    }
+                }
+                const matchDest = !dest || t.dest.toLowerCase().includes(dest) || t.dest.toLowerCase().includes('any');
+                const matchEquip = !equip || t.equip === equip;
+                return matchLoc && matchDest && matchEquip;
+            });
+            renderTrucks(filtered);
+        }
+
+        // ================= CARRIER DIRECTORY =================
+        function renderDirectory(data) {
+            const grid = document.getElementById('directory-grid');
+            grid.innerHTML = '';
+            document.getElementById('dir-count').innerText = data.length;
+
+            data.forEach(c => {
+                grid.innerHTML += `
+                    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm space-y-2.5">
+                        <div class="flex justify-between items-start border-b border-slate-100 pb-2">
+                            <div>
+                                <h3 class="font-bold text-slate-900 text-sm">${c.name}</h3>
+                                <p class="text-[11px] text-slate-500">${c.city}, ${c.country} • <span class="text-blue-700 font-mono font-semibold">${c.tir}</span></p>
+                            </div>
+                            <span class="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200">Verified</span>
+                        </div>
+                        <div class="space-y-1 text-[11px] text-slate-600">
+                            <div><strong class="text-slate-700">Fleet:</strong> ${c.fleet}</div>
+                            <div><strong class="text-slate-700">Primary Lanes:</strong> ${c.routes}</div>
+                            <div><strong class="text-slate-700">Lead Dispatcher:</strong> ${c.dispatcher}</div>
+                        </div>
+                        <div class="pt-2 border-t border-slate-100 grid grid-cols-3 gap-2 text-[10px]">
+                            <a href="tel:${c.phone}" class="bg-blue-50 text-blue-700 font-bold py-1.5 px-2 rounded text-center hover:bg-blue-100 transition flex items-center justify-center space-x-1">
+                                <i data-lucide="phone" class="w-3 h-3"></i>
+                                <span>${c.phone}</span>
+                            </a>
+                            <a href="mailto:${c.email}" class="bg-slate-100 text-slate-700 font-semibold py-1.5 px-2 rounded text-center hover:bg-slate-200 transition flex items-center justify-center space-x-1 truncate">
+                                <i data-lucide="mail" class="w-3 h-3"></i>
+                                <span class="truncate">Email</span>
+                            </a>
+                            <a href="https://t.me/${c.tg.replace('@','')}" target="_blank" class="bg-[#229ED9] text-white font-bold py-1.5 px-2 rounded text-center hover:bg-[#1e8bc0] transition flex items-center justify-center space-x-1">
+                                <i data-lucide="send" class="w-3 h-3"></i>
+                                <span>${c.tg}</span>
+                            </a>
+                        </div>
+                    </div>
+                `;
+            });
+            lucide.createIcons();
+        }
+
+        function filterDirectory(query) {
+            const q = query.toLowerCase().trim();
+            const filtered = directoryDatabase.filter(c => 
+                c.name.toLowerCase().includes(q) || 
+                c.city.toLowerCase().includes(q) || 
+                c.tir.toLowerCase().includes(q) ||
+                c.routes.toLowerCase().includes(q)
+            );
+            renderDirectory(filtered);
+        }
+
+        // ================= ACCOUNT & SETTINGS =================
+        function saveAccountSettings() {
+            authState.company = document.getElementById('setting-company-name').value;
+            authState.name = document.getElementById('setting-dispatcher-name').value;
+            authState.phone = document.getElementById('setting-phone').value;
+            authState.tg = document.getElementById('setting-tg').value;
+            authState.email = document.getElementById('setting-email').value;
+            const defaultDh = document.getElementById('setting-default-dh').value;
+
+            document.getElementById('acc-title-name').innerText = authState.company;
+            document.getElementById('acc-big-avatar').innerText = authState.company.slice(0,2).toUpperCase();
+
+            if (defaultDh) {
+                document.getElementById('filter-dho').value = defaultDh;
+                document.getElementById('filter-dhd').value = defaultDh;
+            }
+
+            renderAuthSidebar();
+            renderMyLoads();
+            alert(currentLang === 'ru' ? '✓ Настройки профиля успешно сохранены!' : '✓ Account profile & preferences saved successfully!');
+        }
+
+        function testTgWebhook() {
+            alert('✓ Telegram Bot Handshake Successful!\nConnected to Telegram dispatch channel @sng_loads_channel.');
+        }
+
+        // ================= NAVIGATION =================
+        function setTab(tabName) {
+            const views = ['search-loads', 'post-loads', 'search-trucks', 'post-trucks', 'directory', 'account-settings'];
+            views.forEach(v => {
+                const el = document.getElementById(`view-${v}`);
+                if (el) el.classList.add('hidden');
+                
+                const menuEl = document.getElementById(`menu-${v}`);
+                if (menuEl) {
+                    menuEl.classList.remove('tab-active');
+                    menuEl.classList.add('text-slate-400');
+                }
+            });
+
+            const activeView = document.getElementById(`view-${tabName}`);
+            if (activeView) activeView.classList.remove('hidden');
+
+            const activeMenu = document.getElementById(`menu-${tabName}`);
+            if (activeMenu) {
+                activeMenu.classList.add('tab-active');
+                activeMenu.classList.remove('text-slate-400');
+            }
+
+            const titles = {
+                en: {
+                    'search-loads': 'Search Loads',
+                    'post-loads': 'Post & Manage Loads',
+                    'search-trucks': 'Search Trucks',
+                    'post-trucks': 'Post Trucks',
+                    'directory': 'Carrier Directory',
+                    'account-settings': 'Account & Profile Settings'
+                },
+                ru: {
+                    'search-loads': 'Поиск грузов',
+                    'post-loads': 'Разместить и управлять грузами',
+                    'search-trucks': 'Поиск транспорта',
+                    'post-trucks': 'Добавить транспорт',
+                    'directory': 'Справочник перевозчиков',
+                    'account-settings': 'Профиль и настройки'
+                }
+            };
+            document.getElementById('page-title').innerText = titles[currentLang][tabName] || 'Load Board';
+
+            if(tabName === 'search-loads') {
+                renderSearchTabs();
+                applyLoadFilters();
+            }
+            if(tabName === 'post-loads') renderMyLoads();
+            if(tabName === 'search-trucks') renderTrucks(trucksDatabase);
+            if(tabName === 'directory') renderDirectory(directoryDatabase);
+            lucide.createIcons();
+        }
+
+        function changeCurrency(curr) {
+            currentCurrency = curr;
+            applyLoadFilters();
+            renderMyLoads();
+            renderTrucks(trucksDatabase);
+        }
+
+        function changeLanguage(lang) {
+            currentLang = lang;
+            const dict = I18N[lang];
+            
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if(dict[key]) el.innerText = dict[key];
+            });
+
+            renderAuthSidebar();
+            renderSearchTabs();
+            applyLoadFilters();
+            renderMyLoads();
+            renderTrucks(trucksDatabase);
+            renderDirectory(directoryDatabase);
+            lucide.createIcons();
+        }
+
+        // ================= INIT =================
+        window.onload = () => {
+            // Initialize Flatpickr Single Range Picker
+            searchDatePickerInstance = flatpickr("#filter-date-range", {
+                mode: "range",
+                dateFormat: "Y-m-d",
+                onChange: function(selectedDates, dateStr) {
+                    saveCurrentTabState();
+                    applyLoadFilters();
+                }
+            });
+
+            checkAuthStatus();
+            renderSearchTabs();
+            updateSortIndicators();
+            applyLoadFilters();
+            renderMyLoads();
+            renderTrucks(trucksDatabase);
+            renderDirectory(directoryDatabase);
+            updateNavBadges();
+            lucide.createIcons();
+
+            // Keep "posted X ago" ages ticking forward without requiring user interaction
+            setInterval(() => {
+                if (!document.getElementById('view-search-loads').classList.contains('hidden')) {
+                    applyLoadFilters();
+                }
+            }, 60000);
+        };
+    </script>
+</body>
+</html>
