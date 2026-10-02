@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null && request.auth.token.email != null; }
+    function me() { return request.auth.token.email.lower(); }
+    function isOwner() { return signedIn() && me() == 'abdujalilov7707@gmail.com'; }
+    function isApproved() {
+      return isOwner() || (
+        signedIn() &&
+        exists(/databases/$(database)/documents/accounts/$(me())) &&
+        get(/databases/$(database)/documents/accounts/$(me())).data.status == 'approved'
+      );
+    }
+
+    // Access requests / approved members. Doc id = lowercased Google email.
+    match /accounts/{email} {
+      allow get: if signedIn() && (me() == email || isOwner());
+      allow list: if isOwner();
+      allow create: if signedIn() && me() == email
+                    && request.resource.data.email == email
+                    && request.resource.data.status == 'pending';
+      // Owner can change anything (approve / decline). A member may only edit their own profile fields.
+      allow update: if isOwner() || (
+                      signedIn() && me() == email && resource.data.status == 'approved'
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['company', 'name', 'phone', 'tg', 'location', 'tir', 'fleet', 'routes'])
+                    );
+      allow delete: if isOwner();
+    }
+
+    // Shared load board: every approved member reads; only the creator (or owner) edits/removes.
+    match /loads/{id} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.ownerEmail == me()
+                    && request.resource.data.dist is number
+                    && request.resource.data.rateUSD is number
+                    && request.resource.data.weight is number;
+      allow update: if isApproved() && (resource.data.ownerEmail == me() || isOwner())
+                    && request.resource.data.ownerEmail == resource.data.ownerEmail;
+      allow delete: if isApproved() && (resource.data.ownerEmail == me() || isOwner());
+    }
+
+    match /trucks/{id} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.ownerEmail == me();
+      allow update: if isApproved() && (resource.data.ownerEmail == me() || isOwner())
+                    && request.resource.data.ownerEmail == resource.data.ownerEmail;
+      allow delete: if isApproved() && (resource.data.ownerEmail == me() || isOwner());
+    }
+
+    // Public company listing for approved members (written by the owner on approval, or by the member themselves).
+    match /directory/{email} {
+      allow read: if isApproved();
+      allow create, update: if isOwner() || (isApproved() && me() == email);
+      allow delete: if isOwner();
+    }
+  }
+}

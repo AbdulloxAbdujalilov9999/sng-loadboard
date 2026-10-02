@@ -27,7 +27,7 @@
             getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
         } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
         import {
-            getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, serverTimestamp
+            getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp
         } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -44,51 +44,62 @@
         const fbAuth = getAuth(fbApp);
         const fbDb = getFirestore(fbApp);
         const googleProvider = new GoogleAuthProvider();
-        const ACCOUNTS_COLLECTION = 'accounts';
+
+        // Every collection is keyed by a string doc id; accounts/directory use the lowercased email.
+        const ref = (col, id) => doc(fbDb, col, String(id));
+        const watchCollection = (col) => (cb, errCb) =>
+            onSnapshot(collection(fbDb, col), snap => cb(snap.docs.map(d => d.data())), errCb);
 
         window.FB = {
             async signInWithGoogle() {
                 const result = await signInWithPopup(fbAuth, googleProvider);
                 return result.user;
             },
-            async signOut() {
-                await signOut(fbAuth);
-            },
+            async signOut() { await signOut(fbAuth); },
+
+            // --- accounts (access requests / approved members) ---
             async getAccount(email) {
-                const snap = await getDoc(doc(fbDb, ACCOUNTS_COLLECTION, email.toLowerCase()));
+                const snap = await getDoc(ref('accounts', email.toLowerCase()));
                 return snap.exists() ? snap.data() : null;
             },
-            async createAccountRequest(data) {
-                await setDoc(doc(fbDb, ACCOUNTS_COLLECTION, data.email.toLowerCase()), {
-                    ...data,
-                    status: 'pending',
-                    requestedAt: serverTimestamp(),
-                    reviewedAt: null
-                });
+            subscribeAccount(email, cb, errCb) {
+                return onSnapshot(ref('accounts', email.toLowerCase()), snap => {
+                    // A cache-only "doesn't exist" isn't trustworthy yet (would flash the sign-up form at members).
+                    if (!snap.exists() && snap.metadata.fromCache) return;
+                    cb(snap.exists() ? snap.data() : null);
+                }, errCb);
             },
-            async listAllAccounts() {
-                const snap = await getDocs(collection(fbDb, ACCOUNTS_COLLECTION));
-                return snap.docs.map(d => d.data());
+            subscribeAccounts: watchCollection('accounts'),
+            async createAccountRequest(data) {
+                await setDoc(ref('accounts', data.email.toLowerCase()), {
+                    ...data, status: 'pending', requestedAt: serverTimestamp(), reviewedAt: null
+                });
             },
             async setAccountStatus(email, status) {
-                await updateDoc(doc(fbDb, ACCOUNTS_COLLECTION, email.toLowerCase()), {
-                    status, reviewedAt: serverTimestamp()
-                });
+                await updateDoc(ref('accounts', email.toLowerCase()), { status, reviewedAt: serverTimestamp() });
             },
-            async deleteAccount(email) {
-                await deleteDoc(doc(fbDb, ACCOUNTS_COLLECTION, email.toLowerCase()));
-            }
+            async updateAccountProfile(email, fields) {
+                await updateDoc(ref('accounts', email.toLowerCase()), fields);
+            },
+            async deleteAccount(email) { await deleteDoc(ref('accounts', email.toLowerCase())); },
+
+            // --- shared live data: every approved member sees the same loads / trucks / directory ---
+            subscribeLoads: watchCollection('loads'),
+            async saveLoad(load) { await setDoc(ref('loads', load.id), load); },
+            async deleteLoad(id) { await deleteDoc(ref('loads', id)); },
+
+            subscribeTrucks: watchCollection('trucks'),
+            async saveTruck(truck) { await setDoc(ref('trucks', truck.id), truck); },
+            async deleteTruck(id) { await deleteDoc(ref('trucks', id)); },
+
+            subscribeDirectory: watchCollection('directory'),
+            async saveDirectoryEntry(email, data) { await setDoc(ref('directory', email.toLowerCase()), data); },
+            async deleteDirectoryEntry(email) { await deleteDoc(ref('directory', email.toLowerCase())); }
         };
 
-        // Firebase always fires once with the currently-cached session on load. If that first fire is
-        // "nobody's signed in", ignore it so the page's own logged-in-by-default demo view stays up —
-        // only react once a real sign-in/sign-out actually happens (or a real session is restored).
-        let firstAuthCheck = true;
+        // Always report the auth state (including "nobody signed in") so the page can start at the
+        // gateway and only show the platform to an approved member.
         onAuthStateChanged(fbAuth, (user) => {
-            if (firstAuthCheck) {
-                firstAuthCheck = false;
-                if (!user) return;
-            }
             window.dispatchEvent(new CustomEvent('fb-auth-changed', { detail: user }));
         });
     </script>
@@ -182,9 +193,9 @@
 
             <!-- Start: single Google sign-in entry point for everyone (owner, returning members, new requests) -->
             <div id="auth-pane-start" class="p-6 space-y-4">
-                <button type="button" id="google-signin-btn" onclick="handleGoogleSignIn()" class="w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-2.5 rounded text-xs transition shadow border border-slate-300 flex items-center justify-center space-x-2">
+                <button type="button" id="google-signin-btn" onclick="handleGoogleSignIn()" disabled class="disabled:opacity-60 disabled:cursor-wait w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-2.5 rounded text-xs transition shadow border border-slate-300 flex items-center justify-center space-x-2">
                     <svg class="w-4 h-4" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.5 6 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.5 6 29.5 4 24 4 16.3 4 9.6 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-1.8 14-5l-6.5-5.4C29.5 35.2 26.9 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5c3.3 6.5 10 10.9 17.8 10.9z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.5 5.4C41.1 35.9 44 30.4 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
-                    <span id="google-signin-btn-label" data-i18n="btn_google_continue">Continue with Google</span>
+                    <span id="google-signin-btn-label">Checking your session…</span>
                 </button>
                 <p class="text-[10px] text-slate-400 text-center leading-relaxed">New companies fill in a few details after signing in and wait for the platform owner to approve access. Returning members and the owner get in immediately.</p>
                 <p id="auth-start-error" class="hidden text-rose-600 bg-rose-50 border border-rose-200 rounded p-2 text-[11px] font-semibold"></p>
@@ -284,7 +295,7 @@
                 <button onclick="setTab('search-loads')" id="menu-search-loads" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition tab-active">
                     <i data-lucide="search" class="w-4 h-4"></i>
                     <span class="flex-1 text-left" data-i18n="nav_search_loads">Search Loads</span>
-                    <span class="bg-sky-900/60 text-sky-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono" id="badge-total-loads">8</span>
+                    <span class="bg-sky-900/60 text-sky-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono" id="badge-total-loads">0</span>
                 </button>
 
                 <button onclick="setTab('post-loads')" id="menu-post-loads" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
@@ -295,7 +306,7 @@
                 <button onclick="setTab('search-trucks')" id="menu-search-trucks" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
                     <i data-lucide="truck" class="w-4 h-4"></i>
                     <span class="flex-1 text-left" data-i18n="nav_search_trucks">Search Trucks</span>
-                    <span class="bg-emerald-950 text-emerald-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono" id="badge-total-trucks">4</span>
+                    <span class="bg-emerald-950 text-emerald-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono" id="badge-total-trucks">0</span>
                 </button>
 
                 <button onclick="setTab('post-trucks')" id="menu-post-trucks" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
@@ -378,6 +389,8 @@
                     </button>
                 </div>
             </header>
+
+            <div id="sync-banner" class="hidden bg-amber-50 border-b border-amber-300 text-amber-900 text-[11px] font-semibold px-4 py-2 flex-shrink-0"></div>
 
             <!-- ================= TAB: SEARCH LOADS ================= -->
             <section id="view-search-loads" class="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -566,7 +579,7 @@
                             <p class="text-xs text-slate-500" data-i18n="post_load_sub">Fill in cargo parameters. Distance (km) is automatically calculated.</p>
                         </div>
                         <span class="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded font-semibold border border-blue-200">
-                            Posting as: <strong id="posting-as-company">KazTrans Logistics LLC</strong>
+                            Posting as: <strong id="posting-as-company"></strong>
                         </span>
                     </div>
 
@@ -848,6 +861,31 @@
                         </button>
                     </form>
                 </div>
+
+                <!-- MY POSTED TRUCKS (only the creator can see / remove these) -->
+                <div class="max-w-3xl mx-auto mt-4 sm:mt-6 bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden text-xs">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap justify-between items-center gap-2">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="truck" class="w-4 h-4 text-emerald-600"></i>
+                            <h3 class="font-bold text-slate-800 text-sm">My Active Posted Trucks (<span id="my-trucks-count" class="text-emerald-600">0</span>)</h3>
+                        </div>
+                        <span class="text-[11px] text-slate-500">Visible to every member on Search Trucks; only you can remove yours</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="responsive-table w-full text-left text-[11px] border-collapse font-mono">
+                            <thead class="bg-slate-100 text-slate-600 uppercase text-[10px]">
+                                <tr class="border-b border-slate-200">
+                                    <th class="p-2.5">Location → Destination</th>
+                                    <th class="p-2.5">Available</th>
+                                    <th class="p-2.5">Equipment</th>
+                                    <th class="p-2.5">Min Rate</th>
+                                    <th class="p-2.5 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="my-trucks-tbody" class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </div>
             </section>
 
             <!-- ================= TAB: CARRIER DIRECTORY ================= -->
@@ -858,7 +896,7 @@
                             <input type="text" id="directory-search" oninput="filterDirectory(this.value)" placeholder="Search company by name, TIR, or city..." class="w-full border border-slate-300 rounded px-3 py-2 text-xs focus:border-blue-500 focus:outline-none">
                             <i data-lucide="search" class="w-3.5 h-3.5 absolute right-3 top-2.5 text-slate-400"></i>
                         </div>
-                        <span class="text-xs text-slate-500 font-medium"><span id="dir-count">5</span> <span data-i18n="lbl_verified_companies">Registered Logistics Companies</span></span>
+                        <span class="text-xs text-slate-500 font-medium"><span id="dir-count">0</span> <span data-i18n="lbl_verified_companies">Registered Logistics Companies</span></span>
                     </div>
 
                     <div id="directory-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs"></div>
@@ -870,13 +908,13 @@
                 <div class="max-w-4xl mx-auto space-y-5">
                     <div class="bg-white p-4 sm:p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
                         <div class="flex items-center space-x-4">
-                            <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center text-white font-bold text-xl border-2 border-white shadow flex-shrink-0" id="acc-big-avatar">KT</div>
+                            <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center text-white font-bold text-xl border-2 border-white shadow flex-shrink-0" id="acc-big-avatar"></div>
                             <div class="min-w-0">
                                 <div class="flex items-center flex-wrap gap-2">
-                                    <h2 class="text-base font-bold text-slate-900" id="acc-title-name">KazTrans Logistics LLC</h2>
+                                    <h2 class="text-base font-bold text-slate-900" id="acc-title-name"></h2>
                                     <span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded" id="acc-status-badge">Verified Member</span>
                                 </div>
-                                <p class="text-xs text-slate-500" id="acc-sub-details">TIR Carnet #KZ-883921 • Registration: Almaty, KZ</p>
+                                <p class="text-xs text-slate-500" id="acc-sub-details"></p>
                             </div>
                         </div>
                         <div class="flex items-center space-x-2">
@@ -900,25 +938,43 @@
                             <div class="space-y-2.5">
                                 <div>
                                     <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_comp_name">Company Registered Name</label>
-                                    <input type="text" id="setting-company-name" value="KazTrans Logistics LLC" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                    <input type="text" id="setting-company-name" class="w-full border border-slate-300 rounded p-2 text-xs">
                                 </div>
                                 <div>
                                     <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_disp_name">Head Dispatcher Name</label>
-                                    <input type="text" id="setting-dispatcher-name" value="Dias Akhmetov" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                    <input type="text" id="setting-dispatcher-name" class="w-full border border-slate-300 rounded p-2 text-xs">
                                 </div>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     <div>
                                         <label class="block font-semibold text-slate-700 mb-1" data-i18n="lbl_phone">Primary Phone</label>
-                                        <input type="text" id="setting-phone" value="+7 (727) 880-1234" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                        <input type="text" id="setting-phone" class="w-full border border-slate-300 rounded p-2 text-xs">
                                     </div>
                                     <div>
                                         <label class="block font-semibold text-slate-700 mb-1">Telegram Username</label>
-                                        <input type="text" id="setting-tg" value="@kaztrans_disp" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                        <input type="text" id="setting-tg" class="w-full border border-slate-300 rounded p-2 text-xs">
                                     </div>
                                 </div>
                                 <div>
-                                    <label class="block font-semibold text-slate-700 mb-1">Corporate Dispatch Email</label>
-                                    <input type="email" id="setting-email" value="dispatch@kaztrans-logistics.kz" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                    <label class="block font-semibold text-slate-700 mb-1">Login Email (Google)</label>
+                                    <input type="email" id="setting-email" readonly class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 text-slate-500">
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block font-semibold text-slate-700 mb-1">Base Location</label>
+                                        <input type="text" id="setting-location" placeholder="Almaty, KZ" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                    </div>
+                                    <div>
+                                        <label class="block font-semibold text-slate-700 mb-1">TIR Carnet #</label>
+                                        <input type="text" id="setting-tir" placeholder="TIR-KZ 98214" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1">Fleet</label>
+                                    <input type="text" id="setting-fleet" placeholder="65 Units (Standard Tent, Flatbed)" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1">Primary Lanes</label>
+                                    <input type="text" id="setting-routes" placeholder="Kazakhstan ↔ Central Asia ↔ Russia" class="w-full border border-slate-300 rounded p-2 text-xs">
                                 </div>
                             </div>
                         </div>
@@ -1141,29 +1197,58 @@
             return { minutes, text };
         }
 
+        // ================= SHARED-DATA SAFETY HELPERS =================
+        // Loads/trucks/directory entries are written by other users, so everything rendered into
+        // innerHTML must be escaped and every incoming doc coerced to the shape the UI expects.
+        function esc(v) {
+            return String(v === undefined || v === null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        const toStr = (v) => (v === undefined || v === null) ? '' : String(v);
+        const toNum = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+        // ids are numbers (they're embedded in inline onclick handlers); stays under 2^53
+        function newDocId() { return Date.now() * 100 + Math.floor(Math.random() * 100); }
+
+        function normalizeLoad(d) {
+            return {
+                id: toNum(d.id), ownerEmail: toStr(d.ownerEmail).toLowerCase(), postedAt: toNum(d.postedAt, Date.now()),
+                date: toStr(d.date), deliveryDate: d.deliveryDate ? toStr(d.deliveryDate) : null,
+                origin: toStr(d.origin), dest: toStr(d.dest), equip: toStr(d.equip), fp: toStr(d.fp),
+                weight: toNum(d.weight), volume: toNum(d.volume), dist: toNum(d.dist), rateUSD: toNum(d.rateUSD),
+                company: toStr(d.company), contactPerson: toStr(d.contactPerson), commodity: toStr(d.commodity),
+                phone: toStr(d.phone), email: toStr(d.email), tg: toStr(d.tg)
+            };
+        }
+
+        function normalizeTruck(d) {
+            return {
+                id: toNum(d.id), ownerEmail: toStr(d.ownerEmail).toLowerCase(), postedAt: toNum(d.postedAt, Date.now()),
+                date: toStr(d.date), dateEnd: d.dateEnd ? toStr(d.dateEnd) : null,
+                loc: toStr(d.loc), dest: toStr(d.dest), equip: toStr(d.equip), cap: toStr(d.cap), features: toStr(d.features),
+                minRateUSD: d.minRateUSD ? toNum(d.minRateUSD) : null,
+                carrier: toStr(d.carrier), tg: toStr(d.tg), phone: toStr(d.phone)
+            };
+        }
+
+        function normalizeDirectoryEntry(d) {
+            return {
+                name: toStr(d.name), dispatcher: toStr(d.dispatcher), phone: toStr(d.phone), email: toStr(d.email),
+                tg: toStr(d.tg), location: toStr(d.location), tir: toStr(d.tir), fleet: toStr(d.fleet), routes: toStr(d.routes)
+            };
+        }
+
         // ================= AUTHENTICATION & USER PROFILE =================
         // Real identity check: Firebase Auth verifies Google account ownership server-side, so comparing
         // the signed-in user's email to OWNER_EMAIL is legitimate (nobody else can produce a valid
         // Firebase session claiming this address unless they actually control that Google account).
         const OWNER_EMAIL = 'abdujalilov7707@gmail.com';
 
-        let authState = {
-            isLoggedIn: true,
-            isOwner: false,
-            isVerified: true,
-            company: "KazTrans Logistics LLC",
-            name: "Dias Akhmetov",
-            email: "dispatch@kaztrans-logistics.kz",
-            phone: "+7 (727) 880-1234",
-            tg: "@kaztrans_disp"
-        };
+        const BLANK_AUTH = { isLoggedIn: false, isOwner: false, isVerified: false, company: '', name: '', email: '', phone: '', tg: '', location: '', tir: '', fleet: '', routes: '' };
+        let authState = { ...BLANK_AUTH };
 
-        // The page opens pre-logged-in as a demo company so the board is usable without going through
-        // Google sign-in first (also handy since Google sign-in requires an authorized http/https host —
-        // see the Firebase bridge script in <head>, it won't work when this file is opened as file://).
-        // Once someone actually signs in via Google, this flips to true and drives the real gated flow.
-        let usingFirebaseSession = false;
-        let pendingGoogleUser = null; // the Firebase user currently mid-way through "complete your profile"
+        let pendingGoogleUser = null;   // Firebase user mid-way through "complete your profile"
+        let accountUnsub = null;        // live listener on the signed-in user's own account doc
+        let dataUnsubs = [];            // live listeners on loads / trucks / directory (/ accounts for the owner)
+        let accountsLoaded = false;     // owner only: first accounts snapshot has arrived
 
         // In-memory mirror of the last accounts list fetched from Firestore, used by the approvals screen.
         let accountRegistry = [];
@@ -1382,32 +1467,11 @@
             direction: 'asc'
         };
 
-        // Master Loads Database (Includes ownerEmail to verify post authorship)
-        let loadsDatabase = [
-            { id: 101, ownerEmail: 'dispatch@silkroad-cargo.uz', postedAt: Date.now() - 2 * 60000, date: '2026-08-31', deliveryDate: '2026-09-06', origin: 'Tashkent, UZ', dest: 'Moscow, RU', equip: 'T', fp: 'Full', weight: 22.0, volume: 92, dist: 3400, rateUSD: 3500, company: 'SilkRoad Express LLC', contactPerson: 'Alisher Usmanov', commodity: 'Apparel & Cotton Yarn', tg: '@silkroad_log', phone: '+998 71 234 5678', email: 'dispatch@silkroad-cargo.uz' },
-            { id: 102, ownerEmail: 'agro@valleyfresh.uz', postedAt: Date.now() - 5 * 60000, date: '2026-08-31', deliveryDate: null, origin: 'Namangan, UZ', dest: 'Almaty, KZ', equip: 'R', fp: 'Full', weight: 20.0, volume: 86, dist: 950, rateUSD: 1900, company: 'Valley Fresh Cargo', contactPerson: 'Sardor Inoyatov', commodity: 'Fresh Table Peaches (+4C)', tg: '@valleyfresh_uz', phone: '+998 69 220 3344', email: 'agro@valleyfresh.uz' },
-            { id: 103, ownerEmail: 'cargo@fergana-sped.uz', postedAt: Date.now() - 8 * 60000, date: '2026-09-01', deliveryDate: '2026-09-05', origin: 'Fergana, UZ', dest: 'Novosibirsk, RU', equip: 'T', fp: 'Full', weight: 21.5, volume: 90, dist: 2350, rateUSD: 2600, company: 'Fergana Sped Trans', contactPerson: 'Rustam Karimov', commodity: 'Textile Fabric & Threads', tg: '@fergana_trans', phone: '+998 73 244 5566', email: 'cargo@fergana-sped.uz' },
-            { id: 104, ownerEmail: 'order@tienshan-sped.kg', postedAt: Date.now() - 14 * 60000, date: '2026-09-01', deliveryDate: null, origin: 'Bishkek, KG', dest: 'Novosibirsk, RU', equip: 'T', fp: 'Full', weight: 21.0, volume: 90, dist: 2100, rateUSD: 2300, company: 'TienShan Freight Sped', contactPerson: 'Azamat Kasymov', commodity: 'Consumer Goods & Fabrics', tg: '@tienshan_kg', phone: '+996 312 458 899', email: 'order@tienshan-sped.kg' },
-            { id: 105, ownerEmail: 'dispatch@kaztrans-logistics.kz', postedAt: Date.now() - 22 * 60000, date: '2026-09-01', deliveryDate: '2026-09-03', origin: 'Almaty, KZ', dest: 'Tashkent, UZ', equip: 'F', fp: 'Full', weight: 24.0, volume: 40, dist: 810, rateUSD: 1350, company: 'KazTrans Logistics LLC', contactPerson: 'Dias Akhmetov', commodity: 'Reinforcing Steel Rods', tg: '@kaztrans_disp', phone: '+7 (727) 880-1234', email: 'dispatch@kaztrans-logistics.kz' },
-            { id: 106, ownerEmail: 'booking@belautodirect.by', postedAt: Date.now() - 35 * 60000, date: '2026-09-02', deliveryDate: '2026-09-08', origin: 'Minsk, BY', dest: 'Astana, KZ', equip: 'V', fp: 'Full', weight: 18.0, volume: 82, dist: 3100, rateUSD: 3100, company: 'BelAutoDirect Transport', contactPerson: 'Sergey Kovalchuk', commodity: 'Machinery Components', tg: '@belautodirect', phone: '+375 17 209 8800', email: 'booking@belautodirect.by' },
-            { id: 107, ownerEmail: 'cargo@pamir-logistics.tj', postedAt: Date.now() - 48 * 60000, date: '2026-09-02', deliveryDate: null, origin: 'Khujand, TJ', dest: 'Yekaterinburg, RU', equip: 'R', fp: 'Full', weight: 20.0, volume: 86, dist: 2750, rateUSD: 3200, company: 'Pamir Logistics Corp', contactPerson: 'Farrukh Saidov', commodity: 'Dried Apricots & Walnuts', tg: '@pamir_log', phone: '+992 3422 61122', email: 'cargo@pamir-logistics.tj' },
-            { id: 108, ownerEmail: 'dispatch@kaztrans-logistics.kz', postedAt: Date.now() - 65 * 60000, date: '2026-09-03', deliveryDate: '2026-09-08', origin: 'Shymkent, KZ', dest: 'Moscow, RU', equip: 'T', fp: 'Partial', weight: 8.5, volume: 35, dist: 3150, rateUSD: 1400, company: 'KazTrans Logistics LLC', contactPerson: 'Dias Akhmetov', commodity: 'Packaging Materials', tg: '@kaztrans_disp', phone: '+7 (727) 880-1234', email: 'dispatch@kaztrans-logistics.kz' }
-        ];
-
-        let trucksDatabase = [
-            { id: 201, date: '2026-08-31', loc: 'Tashkent, UZ', dest: 'Anywhere / Any Direction', equip: 'T', cap: '22.0t / 92m³', features: 'TIR • GPS • Side/Top', minRateUSD: 3200, carrier: 'Orient-Trans Sped', tg: '@orient_trans', phone: '+998 71 200 1122' },
-            { id: 202, date: '2026-09-01', loc: 'Almaty, KZ', dest: 'Tashkent / Samarkand', equip: 'R', cap: '20.0t / 86m³', features: 'FRC (+/-25C) • GPS', minRateUSD: 1800, carrier: 'Kazakh Cold Chain', tg: '@kz_cold', phone: '+7 727 300 4455' },
-            { id: 203, date: '2026-09-01', loc: 'Bishkek, KG', dest: 'Anywhere Russia', equip: 'F', cap: '25.0t', features: 'Belts • Stakes • TIR', minRateUSD: 2100, carrier: 'Manas Trucking', tg: '@manas_truck', phone: '+996 312 998877' },
-            { id: 204, date: '2026-09-02', loc: 'Andijan, UZ', dest: 'Anywhere / Kazakhstan / Russia', equip: 'T', cap: '22.0t / 96m³', features: 'TIR • ADR Certified', minRateUSD: 2400, carrier: 'Fergana Valley Line', tg: '@ferganavalley_trans', phone: '+998 74 228 1020' }
-        ];
-
-        let directoryDatabase = [
-            { name: "SilkRoad Express LLC", country: "UZ", city: "Tashkent", tir: "TIR-UZ 88910", fleet: "48 Units (Tent 92m³, Reefer)", routes: "Uzbekistan ↔ Kazakhstan ↔ Russia ↔ Belarus", dispatcher: "Alisher Usmanov", phone: "+998 (71) 234-56-78", email: "dispatch@silkroad-cargo.uz", tg: "@silkroad_log" },
-            { name: "KazTrans Logistics LLC", country: "KZ", city: "Almaty", tir: "TIR-KZ 98214", fleet: "65 Units (Standard Tent, Flatbed)", routes: "Kazakhstan ↔ Central Asia ↔ Russia", dispatcher: "Dias Akhmetov", phone: "+7 (727) 880-1234", email: "dispatch@kaztrans-logistics.kz", tg: "@kaztrans_disp" },
-            { name: "Valley Fresh Cargo", country: "UZ", city: "Namangan", tir: "TIR-UZ 44102", fleet: "30 Units (Reefer TermoKing)", routes: "Fergana Valley ↔ Kazakhstan ↔ Siberia", dispatcher: "Sardor Inoyatov", phone: "+998 (69) 220-3344", email: "agro@valleyfresh.uz", tg: "@valleyfresh_uz" },
-            { name: "TienShan Freight Sped", country: "KG", city: "Bishkek", tir: "TIR-KG 31908", fleet: "35 Units (Mega Tents 105m³)", routes: "Kyrgyzstan ↔ Russia ↔ China Transit", dispatcher: "Azamat Kasymov", phone: "+996 (312) 458-899", email: "order@tienshan-sped.kg", tg: "@tienshan_kg" },
-            { name: "BelAutoDirect Transport", country: "BY", city: "Minsk", tir: "TIR-BY 77123", fleet: "80 Units (Box Dry Van, Mega Tent)", routes: "Belarus ↔ Russia ↔ Central Asia", dispatcher: "Sergey Kovalchuk", phone: "+375 (17) 209-8800", email: "booking@belautodirect.by", tg: "@belautodirect" }
-        ];
+        // Live data mirrors of the Firestore collections (filled by the listeners in startDataSubscriptions).
+        // Every load/truck carries ownerEmail so only its creator can edit/remove it.
+        let loadsDatabase = [];
+        let trucksDatabase = [];
+        let directoryDatabase = [];
 
         // ================= MULTI-SEARCH TABS (MAX 9) =================
         function renderSearchTabs() {
@@ -1430,7 +1494,7 @@
 
                 tabBtn.innerHTML = `
                     <i data-lucide="search" class="w-3 h-3 ${isActive ? 'text-blue-600' : 'text-slate-400'}"></i>
-                    <span class="max-w-[120px] truncate">${displayTitle}</span>
+                    <span class="max-w-[120px] truncate">${esc(displayTitle)}</span>
                     ${searchTabs.length > 1 ? `<button onclick="event.stopPropagation(); closeSearchTab(${tab.id})" class="ml-1 text-slate-400 hover:text-rose-600 rounded-full p-0.5"><i data-lucide="x" class="w-2.5 h-2.5"></i></button>` : ''}
                 `;
                 container.appendChild(tabBtn);
@@ -1613,9 +1677,9 @@
             if (authState.isLoggedIn) {
                 sidebar.innerHTML = `
                     <div onclick="setTab('${authState.isOwner ? 'approvals' : 'account-settings'}')" class="flex items-center space-x-2.5 cursor-pointer hover:bg-slate-800/60 p-1 rounded transition">
-                        <div class="w-7 h-7 rounded-full ${authState.isOwner ? 'bg-amber-500' : 'bg-blue-600'} flex items-center justify-center font-bold text-white text-xs border border-blue-400">${authState.isOwner ? '👑' : authState.company.slice(0,2).toUpperCase()}</div>
+                        <div class="w-7 h-7 rounded-full ${authState.isOwner ? 'bg-amber-500' : 'bg-blue-600'} flex items-center justify-center font-bold text-white text-xs border border-blue-400">${authState.isOwner ? '👑' : esc(authState.company.slice(0,2).toUpperCase())}</div>
                         <div class="flex-1 min-w-0">
-                            <p class="font-semibold text-white truncate text-[11px]">${authState.company}</p>
+                            <p class="font-semibold text-white truncate text-[11px]">${esc(authState.company)}</p>
                             <p class="text-[9px] ${authState.isOwner ? 'text-amber-400' : 'text-emerald-400'} flex items-center gap-1">
                                 <span class="w-1.5 h-1.5 rounded-full ${authState.isOwner ? 'bg-amber-400' : 'bg-emerald-400'}"></span> ${authState.isOwner ? 'Platform Owner' : 'Approved Account'}
                             </p>
@@ -1660,7 +1724,10 @@
         }
 
         function showCompleteProfilePane(user) {
+            const alreadyShowing = pendingGoogleUser && pendingGoogleUser.uid === user.uid &&
+                !document.getElementById('auth-pane-complete-profile').classList.contains('hidden');
             pendingGoogleUser = user;
+            if (alreadyShowing) return;
             document.getElementById('gate-request-name').value = user.displayName || '';
             document.getElementById('gate-request-email').value = user.email || '';
             document.getElementById('gate-request-company').value = '';
@@ -1704,44 +1771,154 @@
         }
 
         async function handleGateSignOut() {
-            try { await window.FB.signOut(); } catch (e) { /* ignore */ }
+            stopAccountWatch();
             pendingGoogleUser = null;
+            try { await window.FB.signOut(); } catch (e) { /* ignore */ }
             showStartPane();
         }
 
-        async function handleFirebaseUser(user) {
-            usingFirebaseSession = true;
+        // ================= LIVE SESSION & DATA SYNC =================
+        // Loads, trucks and the directory are shared Firestore collections: every approved member
+        // (and the owner) listens to the same data, so a post by one user shows up for everyone
+        // immediately and survives reloads. Listeners start when someone enters the platform and
+        // stop when they leave, so a signed-out or revoked user never keeps receiving data.
+        function showSyncError(msg) {
+            const el = document.getElementById('sync-banner');
+            el.innerText = msg;
+            el.classList.remove('hidden');
+        }
+
+        function syncErrorHandler(what) {
+            return (err) => {
+                showSyncError(err && err.code === 'permission-denied'
+                    ? `Can't load ${what}: Firestore security rules are blocking access. The owner needs to publish the latest firestore.rules in the Firebase console.`
+                    : `Live sync of ${what} failed (${(err && err.message) || 'unknown error'}). Check your connection.`);
+            };
+        }
+
+        function stopAccountWatch() {
+            if (accountUnsub) { try { accountUnsub(); } catch (e) { /* ignore */ } accountUnsub = null; }
+        }
+
+        function stopDataSubscriptions() {
+            dataUnsubs.forEach(unsub => { try { unsub(); } catch (e) { /* ignore */ } });
+            dataUnsubs = [];
+            loadsDatabase = [];
+            trucksDatabase = [];
+            directoryDatabase = [];
+            accountRegistry = [];
+            accountsLoaded = false;
+        }
+
+        function startDataSubscriptions() {
+            stopDataSubscriptions();
+            document.getElementById('sync-banner').classList.add('hidden');
+
+            dataUnsubs.push(window.FB.subscribeLoads(docs => {
+                loadsDatabase = docs.map(normalizeLoad);
+                applyLoadFilters();
+                renderMyLoads();
+                updateNavBadges();
+            }, syncErrorHandler('loads')));
+
+            dataUnsubs.push(window.FB.subscribeTrucks(docs => {
+                trucksDatabase = docs.map(normalizeTruck).sort((a, b) => b.postedAt - a.postedAt);
+                filterTrucks();
+                renderMyTrucks();
+                updateNavBadges();
+            }, syncErrorHandler('trucks')));
+
+            dataUnsubs.push(window.FB.subscribeDirectory(docs => {
+                directoryDatabase = docs.map(normalizeDirectoryEntry).sort((a, b) => a.name.localeCompare(b.name));
+                filterDirectory(document.getElementById('directory-search').value);
+            }, syncErrorHandler('the carrier directory')));
+
+            if (authState.isOwner) {
+                dataUnsubs.push(window.FB.subscribeAccounts(docs => {
+                    accountRegistry = docs;
+                    accountsLoaded = true;
+                    updateApprovalBadge();
+                    renderApprovals();
+                }, syncErrorHandler('access requests')));
+            }
+        }
+
+        function directoryEntryFrom(a) {
+            return {
+                name: a.company || '', dispatcher: a.name || '', phone: a.phone || '', email: a.email,
+                tg: a.tg || '', location: a.location || '', tir: a.tir || '', fleet: a.fleet || '', routes: a.routes || ''
+            };
+        }
+
+        function leaveApp() {
+            if (!authState.isLoggedIn && dataUnsubs.length === 0) return;
+            authState = { ...BLANK_AUTH };
+            stopDataSubscriptions();
+            checkAuthStatus();
+        }
+
+        function enterApp(account) {
+            const alreadyIn = authState.isLoggedIn && authState.email === account.email;
+            authState = {
+                isLoggedIn: true, isOwner: false, isVerified: true,
+                company: account.company, name: account.name, email: account.email,
+                phone: account.phone || '', tg: account.tg || '',
+                location: account.location || '', tir: account.tir || '', fleet: account.fleet || '', routes: account.routes || ''
+            };
+            if (!alreadyIn) {
+                startDataSubscriptions();
+                window.FB.saveDirectoryEntry(account.email, directoryEntryFrom(account)).catch(() => { /* directory listing is best-effort */ });
+            }
+            checkAuthStatus();
+            populateProfileForms();
+        }
+
+        function enterAppAsOwner(user) {
+            authState = { ...BLANK_AUTH, isLoggedIn: true, isOwner: true, isVerified: true,
+                company: 'SNG ONE — Platform Owner', name: user.displayName || 'Platform Owner', email: OWNER_EMAIL.toLowerCase() };
+            startDataSubscriptions();
+            checkAuthStatus();
+            populateProfileForms();
+        }
+
+        function handleFirebaseUser(user) {
+            stopAccountWatch();
             const email = (user.email || '').toLowerCase();
 
             if (email === OWNER_EMAIL.toLowerCase()) {
-                authState = { isLoggedIn: true, isOwner: true, isVerified: true, company: 'SNG ONE — Platform Owner', name: user.displayName || 'Platform Owner', email: OWNER_EMAIL, phone: '', tg: '' };
-                checkAuthStatus();
+                enterAppAsOwner(user);
                 return;
             }
 
-            let account;
-            try {
-                account = await window.FB.getAccount(email);
-            } catch (err) {
-                showAuthError('Could not reach Firestore. Check your connection and Firestore security rules, then try again.');
-                return;
-            }
+            // Follow this member's own account doc live: approval lets them in, a decline or removal
+            // takes access away immediately, and a pending request flips to approved without re-login.
+            accountUnsub = window.FB.subscribeAccount(email, account => {
+                if (!account) { leaveApp(); showCompleteProfilePane(user); return; }
+                if (account.status === 'pending') { leaveApp(); showPendingPane(account.email); return; }
+                if (account.status === 'rejected') { leaveApp(); showRejectedPane(); return; }
+                enterApp(account);
+            }, err => {
+                leaveApp();
+                showAuthPane('auth-pane-start');
+                showAuthError(err && err.code === 'permission-denied'
+                    ? 'Firestore security rules are blocking access to your account. The owner needs to publish the latest firestore.rules.'
+                    : 'Could not reach the server. Check your connection and try again.');
+            });
+        }
 
-            if (!account) { showCompleteProfilePane(user); return; }
-            if (account.status === 'pending') { showPendingPane(account.email); return; }
-            if (account.status === 'rejected') { showRejectedPane(); return; }
-
-            authState = { isLoggedIn: true, isOwner: false, isVerified: true, company: account.company, name: account.name, email: account.email, phone: account.phone, tg: account.tg };
-            checkAuthStatus();
+        function setGoogleButtonReady() {
+            const btn = document.getElementById('google-signin-btn');
+            btn.disabled = false;
+            document.getElementById('google-signin-btn-label').innerText = I18N[currentLang].btn_google_continue;
         }
 
         window.addEventListener('fb-auth-changed', (e) => {
             const user = e.detail;
+            setGoogleButtonReady();
             if (!user) {
-                if (usingFirebaseSession) {
-                    authState.isLoggedIn = false;
-                    checkAuthStatus();
-                }
+                stopAccountWatch();
+                pendingGoogleUser = null;
+                leaveApp();
                 showStartPane();
                 return;
             }
@@ -1761,11 +1938,6 @@
             const btn = document.getElementById('request-submit-btn');
             btn.disabled = true;
             try {
-                const existing = await window.FB.getAccount(email);
-                if (existing) {
-                    showRequestError('A request or account already exists for this email.');
-                    return;
-                }
                 await window.FB.createAccountRequest({
                     company: document.getElementById('gate-request-company').value,
                     name: document.getElementById('gate-request-name').value,
@@ -1775,7 +1947,6 @@
                     authProvider: 'google',
                     uid: pendingGoogleUser ? pendingGoogleUser.uid : null
                 });
-                updateApprovalBadge();
                 showPendingPane(email);
             } catch (err) {
                 showRequestError('Could not submit your request. Check your connection and Firestore security rules, then try again.');
@@ -1785,38 +1956,29 @@
         }
 
         function handleLogout() {
-            authState.isLoggedIn = false;
-            checkAuthStatus();
-            if (usingFirebaseSession) {
-                window.FB.signOut().catch(() => {});
-            }
+            stopAccountWatch();
+            leaveApp();
+            showStartPane();
+            if (window.FB) window.FB.signOut().catch(() => {});
         }
 
         // ================= USERS TO APPROVE (OWNER ONLY) =================
-        async function updateApprovalBadge() {
+        function updateApprovalBadge() {
             const badge = document.getElementById('badge-approvals');
-            if (!badge || !authState.isOwner) return;
-            try {
-                accountRegistry = await window.FB.listAllAccounts();
-            } catch (err) {
-                return;
-            }
-            const pendingCount = accountRegistry.filter(a => a.status === 'pending').length;
+            if (!badge) return;
+            const pendingCount = authState.isOwner ? accountRegistry.filter(a => a.status === 'pending').length : 0;
             badge.innerText = pendingCount;
             badge.classList.toggle('hidden', pendingCount === 0);
         }
 
-        async function renderApprovals() {
+        function renderApprovals() {
             if (!authState.isOwner) return;
             const pendingList = document.getElementById('approvals-pending-list');
             const reviewedList = document.getElementById('approvals-reviewed-list');
-            pendingList.innerHTML = `<div class="bg-white border border-slate-200 rounded-lg p-4 text-center text-slate-400">Loading…</div>`;
-            reviewedList.innerHTML = '';
 
-            try {
-                accountRegistry = await window.FB.listAllAccounts();
-            } catch (err) {
-                pendingList.innerHTML = `<div class="bg-rose-50 border border-rose-200 rounded-lg p-4 text-center text-rose-600">Could not load requests from Firestore. Check your connection and security rules, then reopen this tab.</div>`;
+            if (!accountsLoaded) {
+                pendingList.innerHTML = `<div class="bg-white border border-slate-200 rounded-lg p-4 text-center text-slate-400">Loading…</div>`;
+                reviewedList.innerHTML = '';
                 return;
             }
 
@@ -1831,18 +1993,18 @@
                     <div class="bg-white border border-amber-200 rounded-lg p-4 shadow-sm">
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
-                                <p class="font-bold text-slate-900">${a.company}</p>
-                                <p class="text-slate-500">${a.name} • <a href="mailto:${a.email}" class="text-blue-600 hover:underline">${a.email}</a></p>
-                                <p class="text-slate-500">${a.phone} • ${a.tg}</p>
+                                <p class="font-bold text-slate-900">${esc(a.company)}</p>
+                                <p class="text-slate-500">${esc(a.name)} • <a href="mailto:${esc(a.email)}" class="text-blue-600 hover:underline">${esc(a.email)}</a></p>
+                                <p class="text-slate-500">${esc(a.phone)} • ${esc(a.tg)}</p>
                                 <p class="text-[10px] text-slate-400 mt-1">Requested ${computeAge(tsToMillis(a.requestedAt)).text} ago via Google sign-in</p>
                             </div>
                             <span class="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold px-2 py-0.5 rounded flex-shrink-0">Pending</span>
                         </div>
                         <div class="flex gap-2 mt-3">
-                            <button onclick="approveAccount('${a.email}')" class="flex-1 justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded flex items-center space-x-1.5 transition">
+                            <button data-email="${esc(a.email)}" onclick="approveAccount(this.dataset.email)" class="flex-1 justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded flex items-center space-x-1.5 transition">
                                 <i data-lucide="check" class="w-3.5 h-3.5"></i><span>Approve</span>
                             </button>
-                            <button onclick="rejectAccount('${a.email}')" class="flex-1 justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold py-1.5 rounded border border-rose-200 flex items-center space-x-1.5 transition">
+                            <button data-email="${esc(a.email)}" onclick="rejectAccount(this.dataset.email)" class="flex-1 justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold py-1.5 rounded border border-rose-200 flex items-center space-x-1.5 transition">
                                 <i data-lucide="x" class="w-3.5 h-3.5"></i><span>Decline</span>
                             </button>
                         </div>
@@ -1854,11 +2016,11 @@
                 : reviewed.map(a => `
                     <div class="bg-white border border-slate-200 rounded-lg p-3 flex items-center justify-between gap-3">
                         <div class="min-w-0">
-                            <p class="font-semibold text-slate-800 truncate">${a.company} <span class="text-slate-400 font-normal">— ${a.email}</span></p>
+                            <p class="font-semibold text-slate-800 truncate">${esc(a.company)} <span class="text-slate-400 font-normal">— ${a.email}</span></p>
                         </div>
                         <div class="flex items-center gap-2 flex-shrink-0">
                             <span class="${a.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'} border text-[10px] font-bold px-2 py-0.5 rounded">${a.status === 'approved' ? 'Approved' : 'Declined'}</span>
-                            <button onclick="removeAccount('${a.email}')" title="Remove record" class="text-slate-300 hover:text-rose-600 transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                            <button data-email="${esc(a.email)}" onclick="removeAccount(this.dataset.email)" title="${a.status === 'approved' ? 'Revoke access & remove' : 'Remove record'}" class="text-slate-300 hover:text-rose-600 transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                         </div>
                     </div>
                 `).join('');
@@ -1867,12 +2029,16 @@
         }
 
         async function approveAccount(email) {
+            const account = accountRegistry.find(a => a.email === email);
             try {
                 await window.FB.setAccountStatus(email, 'approved');
-                renderApprovals();
-                updateApprovalBadge();
             } catch (err) {
                 alert('Could not approve this request — check your connection and Firestore security rules.');
+                return;
+            }
+            if (account) {
+                try { await window.FB.saveDirectoryEntry(email, directoryEntryFrom(account)); }
+                catch (err) { /* member republishes their own directory entry when they sign in */ }
             }
         }
 
@@ -1881,8 +2047,6 @@
             if (!confirm(`Decline the access request from ${account ? account.company : email}?`)) return;
             try {
                 await window.FB.setAccountStatus(email, 'rejected');
-                renderApprovals();
-                updateApprovalBadge();
             } catch (err) {
                 alert('Could not decline this request — check your connection and Firestore security rules.');
             }
@@ -1890,11 +2054,13 @@
 
         async function removeAccount(email) {
             const account = accountRegistry.find(a => a.email === email);
-            if (!confirm(`Permanently remove the reviewed request from ${account ? account.company : email}? They would need to request access again.`)) return;
+            const warning = account && account.status === 'approved'
+                ? `Revoke access for ${account.company}? They lose access immediately, disappear from the directory, and would need to request access again.`
+                : `Permanently remove the reviewed request from ${account ? account.company : email}? They would need to request access again.`;
+            if (!confirm(warning)) return;
             try {
                 await window.FB.deleteAccount(email);
-                renderApprovals();
-                updateApprovalBadge();
+                window.FB.deleteDirectoryEntry(email).catch(() => {});
             } catch (err) {
                 alert('Could not remove this record — check your connection and Firestore security rules.');
             }
@@ -1918,12 +2084,12 @@
                 const tr = document.createElement('tr');
                 tr.className = 'data-row hover:bg-slate-50 transition border-b border-slate-200';
                 tr.innerHTML = `
-                    <td class="cell-heading p-2.5 font-bold text-slate-900">${load.origin} → ${load.dest}</td>
-                    <td data-label="Pickup / Delivery" class="p-2.5 text-slate-600">${load.date} <span class="text-slate-400">/</span> ${load.deliveryDate || '--'}</td>
-                    <td data-label="Type & Weight" class="p-2.5"><span class="bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">${load.equip}</span> ${load.weight}t</td>
+                    <td class="cell-heading p-2.5 font-bold text-slate-900">${esc(load.origin)} → ${esc(load.dest)}</td>
+                    <td data-label="Pickup / Delivery" class="p-2.5 text-slate-600">${esc(load.date)} <span class="text-slate-400">/</span> ${esc(load.deliveryDate || '--')}</td>
+                    <td data-label="Type & Weight" class="p-2.5"><span class="bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">${esc(load.equip)}</span> ${load.weight}t</td>
                     <td data-label="Distance" class="p-2.5 text-slate-600">${load.dist.toLocaleString()} km</td>
                     <td data-label="Rate" class="p-2.5 font-bold text-emerald-600">${formatPrice(load.rateUSD)}</td>
-                    <td data-label="Commodity" class="p-2.5 text-slate-700 truncate max-w-[150px]" title="${load.commodity}">${load.commodity}</td>
+                    <td data-label="Commodity" class="p-2.5 text-slate-700 truncate max-w-[150px]" title="${esc(load.commodity)}">${esc(load.commodity)}</td>
                     <td class="p-2.5 text-center">
                         <div class="flex items-center justify-center space-x-1">
                             <button onclick="openEditModal(${load.id})" class="flex-1 md:flex-none justify-center bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2 py-1.5 md:py-1 rounded text-[10px] border border-blue-200 flex items-center space-x-1 transition" title="Edit Load">
@@ -1942,19 +2108,17 @@
             lucide.createIcons();
         }
 
-        function deleteMyLoad(loadId) {
+        async function deleteMyLoad(loadId) {
             const target = loadsDatabase.find(l => l.id === loadId);
             if (!target || target.ownerEmail !== authState.email) {
                 alert('Unauthorized: You can only remove your own posted loads.');
                 return;
             }
-
-            if (confirm('Are you sure you want to remove this load from the live board?')) {
-                loadsDatabase = loadsDatabase.filter(l => l.id !== loadId);
-                renderMyLoads();
-                applyLoadFilters();
-                updateNavBadges();
-                alert('✓ Load removed successfully!');
+            if (!confirm('Are you sure you want to remove this load from the live board?')) return;
+            try {
+                await window.FB.deleteLoad(loadId);
+            } catch (err) {
+                alert('Could not remove this load — check your connection and try again.');
             }
         }
 
@@ -1984,27 +2148,34 @@
             document.getElementById('modal-edit-load').classList.add('hidden');
         }
 
-        function handleEditLoadSubmit(e) {
+        async function handleEditLoadSubmit(e) {
             e.preventDefault();
             const loadId = parseInt(document.getElementById('edit-load-id').value);
             const load = loadsDatabase.find(l => l.id === loadId);
             if (!load || load.ownerEmail !== authState.email) return;
 
-            load.origin = document.getElementById('edit-orig').value;
-            load.dest = document.getElementById('edit-dest').value;
-            load.equip = document.getElementById('edit-equip').value;
-            load.fp = document.getElementById('edit-fp').value;
-            load.weight = parseFloat(document.getElementById('edit-weight').value);
-            load.rateUSD = parseFloat(document.getElementById('edit-rate').value);
-            load.date = document.getElementById('edit-date').value;
-            load.deliveryDate = document.getElementById('edit-delivery-date').value || null;
-            load.dist = parseInt(document.getElementById('edit-dist').value);
-            load.commodity = document.getElementById('edit-commodity').value;
+            const updated = {
+                ...load,
+                origin: document.getElementById('edit-orig').value,
+                dest: document.getElementById('edit-dest').value,
+                equip: document.getElementById('edit-equip').value,
+                fp: document.getElementById('edit-fp').value,
+                weight: parseFloat(document.getElementById('edit-weight').value),
+                rateUSD: parseFloat(document.getElementById('edit-rate').value),
+                date: document.getElementById('edit-date').value,
+                deliveryDate: document.getElementById('edit-delivery-date').value || null,
+                dist: parseInt(document.getElementById('edit-dist').value),
+                commodity: document.getElementById('edit-commodity').value
+            };
+            // drop the transient search-distance fields the filter adds to in-memory loads
+            delete updated.dho; delete updated.dhd;
 
-            closeEditModal();
-            renderMyLoads();
-            applyLoadFilters();
-            alert('✓ Load updated and synchronized across all active searchers!');
+            try {
+                await window.FB.saveLoad(updated);
+                closeEditModal();
+            } catch (err) {
+                alert('Could not save your changes — check your connection and try again.');
+            }
         }
 
         // ================= NAV BADGES (always reflect the live pool, not the current filtered view) =================
@@ -2027,11 +2198,18 @@
 
         function openGoogleMaps(origin, dest) {
             const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
-            window.open(url, '_blank');
+            window.open(url, '_blank', 'noopener');
         }
 
-        function copyContactInfo(company, name, phone, email, tg) {
-            const text = `Company: ${company}\nDispatcher: ${name}\nPhone: ${phone}\nEmail: ${email}\nTelegram: ${tg}`;
+        function openGoogleMapsForLoad(loadId) {
+            const load = loadsDatabase.find(l => l.id === loadId);
+            if (load) openGoogleMaps(load.origin, load.dest);
+        }
+
+        function copyContactForLoad(loadId) {
+            const load = loadsDatabase.find(l => l.id === loadId);
+            if (!load) return;
+            const text = `Company: ${load.company}\nDispatcher: ${load.contactPerson}\nPhone: ${load.phone}\nEmail: ${load.email}\nTelegram: ${load.tg}`;
             navigator.clipboard.writeText(text).then(() => {
                 alert((currentLang === 'ru' ? '✓ Контакты скопированы:\n\n' : '✓ Contact Details copied:\n\n') + text);
             });
@@ -2216,15 +2394,15 @@
                         <i data-lucide="${isExpanded ? 'chevron-down' : 'chevron-right'}" class="w-3.5 h-3.5 text-blue-600 transition-transform"></i>
                     </td>
                     <td data-label="${t.th_age}" class="py-2 px-2 text-slate-400 font-normal truncate">${age.text}</td>
-                    <td data-label="${t.th_date}" class="py-2 px-2 text-slate-600 truncate">${load.date.slice(5)}</td>
-                    <td class="cell-heading py-2 px-2.5 font-bold text-slate-900 truncate" title="${load.origin}">${load.origin} <span class="text-[10px] ${load.dho > 0 ? 'text-blue-600 font-bold' : 'text-slate-400 font-normal'}">(${load.dho}km)</span></td>
-                    <td class="cell-heading py-2 px-2.5 font-bold text-slate-900 truncate" title="${load.dest}">→ ${load.dest} <span class="text-[10px] ${load.dhd > 0 ? 'text-blue-600 font-bold' : 'text-slate-400 font-normal'}">(${load.dhd}km)</span></td>
-                    <td data-label="${t.th_type}" class="py-2 px-2 text-center"><span class="bg-blue-50 text-blue-800 font-bold px-1.5 py-0.5 rounded border border-blue-200 text-[10px]">${load.equip}</span></td>
-                    <td data-label="F/P" class="py-2 px-2 text-slate-600 truncate">${load.fp}</td>
+                    <td data-label="${t.th_date}" class="py-2 px-2 text-slate-600 truncate">${esc(load.date.slice(5))}</td>
+                    <td class="cell-heading py-2 px-2.5 font-bold text-slate-900 truncate" title="${esc(load.origin)}">${esc(load.origin)} <span class="text-[10px] ${load.dho > 0 ? 'text-blue-600 font-bold' : 'text-slate-400 font-normal'}">(${load.dho}km)</span></td>
+                    <td class="cell-heading py-2 px-2.5 font-bold text-slate-900 truncate" title="${esc(load.dest)}">→ ${esc(load.dest)} <span class="text-[10px] ${load.dhd > 0 ? 'text-blue-600 font-bold' : 'text-slate-400 font-normal'}">(${load.dhd}km)</span></td>
+                    <td data-label="${t.th_type}" class="py-2 px-2 text-center"><span class="bg-blue-50 text-blue-800 font-bold px-1.5 py-0.5 rounded border border-blue-200 text-[10px]">${esc(load.equip)}</span></td>
+                    <td data-label="F/P" class="py-2 px-2 text-slate-600 truncate">${esc(load.fp)}</td>
                     <td data-label="${t.th_weight}" class="py-2 px-2 text-slate-700 truncate">${load.weight}t / ${load.volume}m³</td>
                     <td data-label="${t.th_distance}" class="py-2 px-2 text-right text-slate-600 truncate">${load.dist.toLocaleString()} km</td>
                     <td data-label="${t.th_rate}" class="py-2 px-2.5 text-right font-bold text-emerald-600 truncate">${formatPrice(load.rateUSD)}</td>
-                    <td data-label="${t.th_company}" class="py-2 px-2.5 text-slate-800 font-medium truncate" title="${load.company}">${load.company}</td>
+                    <td data-label="${t.th_company}" class="py-2 px-2.5 text-slate-800 font-medium truncate" title="${esc(load.company)}">${esc(load.company)}</td>
                 `;
                 tbody.appendChild(tr);
 
@@ -2239,19 +2417,19 @@
                                     <div>
                                         <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
                                             <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">${t.lbl_cargo_specs}</span>
-                                            <span class="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">${load.equip} • ${load.fp}</span>
+                                            <span class="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">${esc(load.equip)} • ${esc(load.fp)}</span>
                                         </div>
                                         <div class="grid grid-cols-2 gap-2 text-[11px] pt-2">
-                                            <div><span class="text-slate-500">${t.lbl_commodity}:</span> <strong class="text-slate-800 font-medium block">${load.commodity}</strong></div>
+                                            <div><span class="text-slate-500">${t.lbl_commodity}:</span> <strong class="text-slate-800 font-medium block">${esc(load.commodity)}</strong></div>
                                             <div><span class="text-slate-500">${t.th_weight}:</span> <strong class="text-slate-800 font-mono block">${load.weight} t / ${load.volume} m³</strong></div>
-                                            <div><span class="text-slate-500">${t.lbl_pickup_date}:</span> <strong class="text-slate-800 font-mono block">${load.date}</strong></div>
-                                            <div><span class="text-slate-500">${t.lbl_delivery_date}:</span> <strong class="text-slate-800 font-mono block">${load.deliveryDate || '--'}</strong></div>
+                                            <div><span class="text-slate-500">${t.lbl_pickup_date}:</span> <strong class="text-slate-800 font-mono block">${esc(load.date)}</strong></div>
+                                            <div><span class="text-slate-500">${t.lbl_delivery_date}:</span> <strong class="text-slate-800 font-mono block">${esc(load.deliveryDate || '--')}</strong></div>
                                             <div class="col-span-2 pt-1 border-t border-slate-100"><span class="text-slate-500">${t.th_distance}:</span> <strong class="text-blue-700 font-mono">${load.dist.toLocaleString()} km (Estimated Route)</strong></div>
                                         </div>
                                     </div>
 
                                     <div class="pt-2 border-t border-slate-100">
-                                        <button onclick="event.stopPropagation(); openGoogleMaps('${load.origin}', '${load.dest}')" class="w-full bg-[#1a73e8] hover:bg-blue-600 text-white font-bold py-2 px-3 rounded flex items-center justify-center space-x-2 shadow-sm transition">
+                                        <button onclick="event.stopPropagation(); openGoogleMaps('${esc(load.origin)}', '${esc(load.dest)}')" class="w-full bg-[#1a73e8] hover:bg-blue-600 text-white font-bold py-2 px-3 rounded flex items-center justify-center space-x-2 shadow-sm transition">
                                             <i data-lucide="map-pin" class="w-4 h-4 text-amber-300"></i>
                                             <span>${t.lbl_maps_btn}</span>
                                             <i data-lucide="external-link" class="w-3.5 h-3.5 text-blue-200"></i>
@@ -2269,33 +2447,33 @@
                                         <div class="flex items-center justify-between">
                                             <div class="flex items-center space-x-1.5">
                                                 <i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i>
-                                                <strong class="text-slate-900">${load.company}</strong>
+                                                <strong class="text-slate-900">${esc(load.company)}</strong>
                                             </div>
-                                            <span class="text-slate-500 font-medium">${load.contactPerson}</span>
+                                            <span class="text-slate-500 font-medium">${esc(load.contactPerson)}</span>
                                         </div>
 
                                         <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-100">
                                             <div class="flex items-center space-x-2">
                                                 <i data-lucide="phone" class="w-3.5 h-3.5 text-blue-600"></i>
-                                                <a href="tel:${load.phone}" onclick="event.stopPropagation()" class="font-bold text-blue-700 hover:underline">${load.phone}</a>
+                                                <a href="tel:${esc(load.phone)}" onclick="event.stopPropagation()" class="font-bold text-blue-700 hover:underline">${esc(load.phone)}</a>
                                             </div>
-                                            <a href="tel:${load.phone}" onclick="event.stopPropagation()" class="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold hover:bg-blue-200">${t.lbl_call}</a>
+                                            <a href="tel:${esc(load.phone)}" onclick="event.stopPropagation()" class="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold hover:bg-blue-200">${t.lbl_call}</a>
                                         </div>
 
                                         <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-100">
                                             <div class="flex items-center space-x-2 truncate">
                                                 <i data-lucide="mail" class="w-3.5 h-3.5 text-amber-600"></i>
-                                                <a href="mailto:${load.email}" onclick="event.stopPropagation()" class="text-slate-800 hover:underline truncate">${load.email}</a>
+                                                <a href="mailto:${esc(load.email)}" onclick="event.stopPropagation()" class="text-slate-800 hover:underline truncate">${esc(load.email)}</a>
                                             </div>
-                                            <a href="mailto:${load.email}" onclick="event.stopPropagation()" class="text-[10px] bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-semibold hover:bg-slate-300">${t.lbl_email}</a>
+                                            <a href="mailto:${esc(load.email)}" onclick="event.stopPropagation()" class="text-[10px] bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-semibold hover:bg-slate-300">${t.lbl_email}</a>
                                         </div>
 
                                         <div class="grid grid-cols-2 gap-2 pt-1">
-                                            <a href="https://t.me/${load.tg.replace('@','')}" target="_blank" onclick="event.stopPropagation()" class="bg-[#229ED9] hover:bg-[#1e8bc0] text-white font-bold py-1.5 px-2 rounded flex items-center justify-center space-x-1.5 transition text-xs">
+                                            <a href="https://t.me/${esc(load.tg.replace('@',''))}" target="_blank" onclick="event.stopPropagation()" class="bg-[#229ED9] hover:bg-[#1e8bc0] text-white font-bold py-1.5 px-2 rounded flex items-center justify-center space-x-1.5 transition text-xs">
                                                 <i data-lucide="send" class="w-3 h-3"></i>
-                                                <span>${load.tg}</span>
+                                                <span>${esc(load.tg)}</span>
                                             </a>
-                                            <button onclick="event.stopPropagation(); copyContactInfo('${load.company}', '${load.contactPerson}', '${load.phone}', '${load.email}', '${load.tg}')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-1.5 px-2 rounded border border-slate-300 flex items-center justify-center space-x-1 transition text-xs">
+                                            <button onclick="event.stopPropagation(); copyContactInfo('${esc(load.company)}', '${esc(load.contactPerson)}', '${esc(load.phone)}', '${esc(load.email)}', '${esc(load.tg)}')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-1.5 px-2 rounded border border-slate-300 flex items-center justify-center space-x-1 transition text-xs">
                                                 <i data-lucide="copy" class="w-3 h-3"></i>
                                                 <span>${t.lbl_copy}</span>
                                             </button>
@@ -2314,7 +2492,7 @@
         }
 
         // ================= POST LOAD =================
-        function handlePostLoad(e) {
+        async function handlePostLoad(e) {
             e.preventDefault();
             const orig = document.getElementById('post-orig').value;
             const dest = document.getElementById('post-dest').value;
@@ -2327,8 +2505,8 @@
             }
 
             const newLoad = {
-                id: Date.now(),
-                ownerEmail: authState.email, // Bind ownership to logged-in user
+                id: newDocId(),
+                ownerEmail: authState.email, // ownership is bound to the signed-in account
                 postedAt: Date.now(),
                 date: document.getElementById('post-date').value,
                 deliveryDate: document.getElementById('post-delivery-date').value || null,
@@ -2348,15 +2526,21 @@
                 tg: document.getElementById('post-tg').value
             };
 
-            loadsDatabase.unshift(newLoad);
-            renderMyLoads();
-            applyLoadFilters();
-            updateNavBadges();
+            const btn = e.submitter;
+            if (btn) btn.disabled = true;
+            try {
+                await window.FB.saveLoad(newLoad);
+            } catch (err) {
+                alert('Could not publish your load — check your connection and try again.');
+                return;
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+
             alert(currentLang === 'ru' ? '✓ Груз успешно опубликован!' : '✓ Load published successfully!');
-            document.getElementById('post-orig').value = '';
-            document.getElementById('post-dest').value = '';
-            document.getElementById('post-dist').value = '';
-            document.getElementById('post-commodity').value = '';
+            ['post-orig', 'post-dest', 'post-dist', 'post-weight', 'post-vol', 'post-date', 'post-delivery-date', 'post-rate', 'post-commodity'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
         }
 
         // ================= TRUCKS (SEARCH & POST) =================
@@ -2364,23 +2548,28 @@
             const tbody = document.getElementById('trucks-tbody');
             tbody.innerHTML = '';
 
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400 font-sans">${trucksDatabase.length === 0 ? 'No trucks posted yet. Be the first — use "Post Trucks".' : 'No trucks match your search.'}</td></tr>`;
+                return;
+            }
+
             data.forEach(t => {
                 tbody.innerHTML += `
                     <tr class="data-row hover:bg-slate-50 transition border-b border-slate-200">
-                        <td data-label="Date" class="p-2.5 font-bold text-slate-800">${t.date}</td>
-                        <td class="cell-heading p-2.5 font-bold text-blue-700">${t.loc}</td>
-                        <td data-label="Destination" class="p-2.5 text-slate-700">${t.dest || '<span class="text-slate-400 italic">Anywhere / Any Direction</span>'}</td>
-                        <td data-label="Equipment" class="p-2.5 text-center"><span class="bg-blue-50 text-blue-800 font-bold px-1.5 py-0.5 rounded border border-blue-200 text-xs">${t.equip}</span></td>
+                        <td data-label="Date" class="p-2.5 font-bold text-slate-800">${esc(t.date)}${t.dateEnd ? ` <span class="text-slate-400 font-normal">→ ${esc(t.dateEnd)}</span>` : ''}</td>
+                        <td class="cell-heading p-2.5 font-bold text-blue-700">${esc(t.loc)}</td>
+                        <td data-label="Destination" class="p-2.5 text-slate-700">${t.dest ? esc(t.dest) : '<span class="text-slate-400 italic">Anywhere / Any Direction</span>'}</td>
+                        <td data-label="Equipment" class="p-2.5 text-center"><span class="bg-blue-50 text-blue-800 font-bold px-1.5 py-0.5 rounded border border-blue-200 text-xs">${esc(t.equip)}</span></td>
                         <td data-label="Capacity" class="p-2.5 text-slate-700">
-                            <div>${t.cap}</div>
-                            <div class="text-[10px] text-slate-500">${t.features || 'TIR Carnet'}</div>
+                            <div>${esc(t.cap)}</div>
+                            <div class="text-[10px] text-slate-500">${esc(t.features || 'TIR Carnet')}</div>
                         </td>
                         <td data-label="Min Rate" class="p-2.5 font-bold text-emerald-600">${t.minRateUSD ? formatPrice(t.minRateUSD) : 'Negotiable'}</td>
-                        <td data-label="Carrier" class="p-2.5 font-semibold text-slate-900">${t.carrier}</td>
+                        <td data-label="Carrier" class="p-2.5 font-semibold text-slate-900">${esc(t.carrier)}</td>
                         <td class="p-2.5 text-center">
                             <div class="flex items-center justify-center space-x-1.5">
-                                <a href="https://t.me/${t.tg.replace('@','')}" target="_blank" class="flex-1 md:flex-none text-center bg-[#229ED9] text-white hover:bg-blue-600 px-2 py-1.5 md:py-1 rounded text-[10px] font-bold">Telegram</a>
-                                <a href="tel:${t.phone}" class="flex-1 md:flex-none text-center bg-slate-200 text-slate-700 hover:bg-slate-300 px-2 py-1.5 md:py-1 rounded text-[10px] font-bold">Call</a>
+                                <a href="https://t.me/${esc(t.tg.replace('@', ''))}" target="_blank" rel="noopener" class="flex-1 md:flex-none text-center bg-[#229ED9] text-white hover:bg-blue-600 px-2 py-1.5 md:py-1 rounded text-[10px] font-bold">Telegram</a>
+                                <a href="tel:${esc(t.phone)}" class="flex-1 md:flex-none text-center bg-slate-200 text-slate-700 hover:bg-slate-300 px-2 py-1.5 md:py-1 rounded text-[10px] font-bold">Call</a>
                             </div>
                         </td>
                     </tr>
@@ -2389,11 +2578,52 @@
             lucide.createIcons();
         }
 
-        function handlePostTruck(e) {
+        function renderMyTrucks() {
+            const tbody = document.getElementById('my-trucks-tbody');
+            if (!tbody) return;
+            const mine = trucksDatabase.filter(t => t.ownerEmail === authState.email);
+            document.getElementById('my-trucks-count').innerText = mine.length;
+
+            if (mine.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400 font-sans">You have not posted any trucks yet. Post one above to manage it here.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = mine.map(t => `
+                <tr class="data-row hover:bg-slate-50 transition border-b border-slate-200">
+                    <td class="cell-heading p-2.5 font-bold text-slate-900">${esc(t.loc)} → ${esc(t.dest || 'Anywhere')}</td>
+                    <td data-label="Available" class="p-2.5 text-slate-600">${esc(t.date)}${t.dateEnd ? ` → ${esc(t.dateEnd)}` : ''}</td>
+                    <td data-label="Equipment" class="p-2.5"><span class="bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">${esc(t.equip)}</span> ${esc(t.cap)}</td>
+                    <td data-label="Min Rate" class="p-2.5 font-bold text-emerald-600">${t.minRateUSD ? formatPrice(t.minRateUSD) : 'Negotiable'}</td>
+                    <td class="p-2.5 text-center">
+                        <button onclick="removeMyTruck(${t.id})" class="w-full md:w-auto justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2 py-1.5 md:py-1 rounded text-[10px] border border-rose-200 inline-flex items-center space-x-1 transition" title="Remove truck">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i><span>Remove</span>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        async function removeMyTruck(id) {
+            const truck = trucksDatabase.find(t => t.id === id);
+            if (!truck || truck.ownerEmail !== authState.email) {
+                alert('Unauthorized: You can only remove your own posted trucks.');
+                return;
+            }
+            if (!confirm('Remove this truck from the live board?')) return;
+            try {
+                await window.FB.deleteTruck(id);
+            } catch (err) {
+                alert('Could not remove this truck — check your connection and try again.');
+            }
+        }
+
+        async function handlePostTruck(e) {
             e.preventDefault();
             const destVal = document.getElementById('truck-post-dest').value.trim();
             const minRateVal = document.getElementById('truck-post-min-rate').value;
-            
+
             const featList = [];
             if (document.getElementById('truck-feat-tir').checked) featList.push('TIR');
             if (document.getElementById('truck-feat-adr').checked) featList.push('ADR');
@@ -2401,24 +2631,40 @@
             if (document.getElementById('truck-feat-side').checked) featList.push('Side/Top Load');
 
             const newTruck = {
-                id: Date.now(),
+                id: newDocId(),
+                ownerEmail: authState.email,
+                postedAt: Date.now(),
                 date: document.getElementById('truck-post-date').value,
+                dateEnd: document.getElementById('truck-post-date-end').value || null,
                 loc: document.getElementById('truck-post-loc').value,
                 dest: destVal || 'Anywhere / Any Direction',
                 equip: document.getElementById('truck-post-equip').value,
                 cap: `${document.getElementById('truck-post-cap').value}t`,
                 features: featList.join(' • ') || 'Standard',
                 minRateUSD: minRateVal ? parseFloat(minRateVal) : null,
-                carrier: authState.company || 'KazTrans Logistics (You)',
+                carrier: authState.company,
                 tg: document.getElementById('truck-post-tg').value,
                 phone: document.getElementById('truck-post-phone').value
             };
 
-            trucksDatabase.unshift(newTruck);
+            const btn = e.submitter;
+            if (btn) btn.disabled = true;
+            try {
+                await window.FB.saveTruck(newTruck);
+            } catch (err) {
+                alert('Could not publish your truck — check your connection and try again.');
+                return;
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+
+            ['truck-post-loc', 'truck-post-dest', 'truck-post-cap', 'truck-post-min-rate', 'truck-post-date', 'truck-post-date-end'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+            // Clear the truck search filters so the truck you just posted can't be hidden by an old search
+            ['search-truck-loc', 'search-truck-dest', 'search-truck-equip'].forEach(id => { document.getElementById(id).value = ''; });
             alert(currentLang === 'ru' ? '✓ Транспорт успешно опубликован!' : '✓ Available Truck posted successfully!');
             setTab('search-trucks');
-            renderTrucks(trucksDatabase);
-            updateNavBadges();
         }
 
         function filterTrucks() {
@@ -2447,75 +2693,124 @@
         // ================= CARRIER DIRECTORY =================
         function renderDirectory(data) {
             const grid = document.getElementById('directory-grid');
-            grid.innerHTML = '';
             document.getElementById('dir-count').innerText = data.length;
 
-            data.forEach(c => {
-                grid.innerHTML += `
+            if (data.length === 0) {
+                grid.innerHTML = `<div class="col-span-full bg-white border border-slate-200 rounded-lg p-6 text-center text-slate-400">${directoryDatabase.length === 0 ? 'No companies listed yet — approved members appear here automatically.' : 'No companies match your search.'}</div>`;
+                return;
+            }
+
+            grid.innerHTML = data.map(c => {
+                const sub = [c.location ? esc(c.location) : '', c.tir ? `<span class="text-blue-700 font-mono font-semibold">${esc(c.tir)}</span>` : ''].filter(Boolean).join(' • ');
+                return `
                     <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm space-y-2.5">
                         <div class="flex justify-between items-start border-b border-slate-100 pb-2">
-                            <div>
-                                <h3 class="font-bold text-slate-900 text-sm">${c.name}</h3>
-                                <p class="text-[11px] text-slate-500">${c.city}, ${c.country} • <span class="text-blue-700 font-mono font-semibold">${c.tir}</span></p>
+                            <div class="min-w-0">
+                                <h3 class="font-bold text-slate-900 text-sm">${esc(c.name)}</h3>
+                                ${sub ? `<p class="text-[11px] text-slate-500">${sub}</p>` : ''}
                             </div>
                             <span class="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200">Verified</span>
                         </div>
                         <div class="space-y-1 text-[11px] text-slate-600">
-                            <div><strong class="text-slate-700">Fleet:</strong> ${c.fleet}</div>
-                            <div><strong class="text-slate-700">Primary Lanes:</strong> ${c.routes}</div>
-                            <div><strong class="text-slate-700">Lead Dispatcher:</strong> ${c.dispatcher}</div>
+                            ${c.fleet ? `<div><strong class="text-slate-700">Fleet:</strong> ${esc(c.fleet)}</div>` : ''}
+                            ${c.routes ? `<div><strong class="text-slate-700">Primary Lanes:</strong> ${esc(c.routes)}</div>` : ''}
+                            <div><strong class="text-slate-700">Lead Dispatcher:</strong> ${esc(c.dispatcher)}</div>
                         </div>
                         <div class="pt-2 border-t border-slate-100 grid grid-cols-3 gap-2 text-[10px]">
-                            <a href="tel:${c.phone}" class="bg-blue-50 text-blue-700 font-bold py-1.5 px-2 rounded text-center hover:bg-blue-100 transition flex items-center justify-center space-x-1">
+                            <a href="tel:${esc(c.phone)}" class="bg-blue-50 text-blue-700 font-bold py-1.5 px-2 rounded text-center hover:bg-blue-100 transition flex items-center justify-center space-x-1">
                                 <i data-lucide="phone" class="w-3 h-3"></i>
-                                <span>${c.phone}</span>
+                                <span>${esc(c.phone)}</span>
                             </a>
-                            <a href="mailto:${c.email}" class="bg-slate-100 text-slate-700 font-semibold py-1.5 px-2 rounded text-center hover:bg-slate-200 transition flex items-center justify-center space-x-1 truncate">
+                            <a href="mailto:${esc(c.email)}" class="bg-slate-100 text-slate-700 font-semibold py-1.5 px-2 rounded text-center hover:bg-slate-200 transition flex items-center justify-center space-x-1 truncate">
                                 <i data-lucide="mail" class="w-3 h-3"></i>
                                 <span class="truncate">Email</span>
                             </a>
-                            <a href="https://t.me/${c.tg.replace('@','')}" target="_blank" class="bg-[#229ED9] text-white font-bold py-1.5 px-2 rounded text-center hover:bg-[#1e8bc0] transition flex items-center justify-center space-x-1">
+                            <a href="https://t.me/${esc(c.tg.replace('@', ''))}" target="_blank" rel="noopener" class="bg-[#229ED9] text-white font-bold py-1.5 px-2 rounded text-center hover:bg-[#1e8bc0] transition flex items-center justify-center space-x-1">
                                 <i data-lucide="send" class="w-3 h-3"></i>
-                                <span>${c.tg}</span>
+                                <span>${esc(c.tg)}</span>
                             </a>
                         </div>
                     </div>
                 `;
-            });
+            }).join('');
             lucide.createIcons();
         }
 
         function filterDirectory(query) {
-            const q = query.toLowerCase().trim();
-            const filtered = directoryDatabase.filter(c => 
-                c.name.toLowerCase().includes(q) || 
-                c.city.toLowerCase().includes(q) || 
-                c.tir.toLowerCase().includes(q) ||
-                c.routes.toLowerCase().includes(q)
+            const q = (query || '').toLowerCase().trim();
+            const filtered = directoryDatabase.filter(c =>
+                !q || [c.name, c.location, c.tir, c.routes, c.dispatcher].some(f => f.toLowerCase().includes(q))
             );
             renderDirectory(filtered);
         }
 
         // ================= ACCOUNT & SETTINGS =================
-        function saveAccountSettings() {
-            authState.company = document.getElementById('setting-company-name').value;
-            authState.name = document.getElementById('setting-dispatcher-name').value;
-            authState.phone = document.getElementById('setting-phone').value;
-            authState.tg = document.getElementById('setting-tg').value;
-            authState.email = document.getElementById('setting-email').value;
-            const defaultDh = document.getElementById('setting-default-dh').value;
+        // Fill the profile form, account header and the post-load/post-truck contact fields from the
+        // signed-in account, so what you see (and what gets attached to your posts) is your real profile.
+        function populateProfileForms() {
+            if (!authState.isLoggedIn) return;
+            const setVal = (id, v) => { document.getElementById(id).value = v || ''; };
+            setVal('setting-company-name', authState.company);
+            setVal('setting-dispatcher-name', authState.name);
+            setVal('setting-phone', authState.phone);
+            setVal('setting-tg', authState.tg);
+            setVal('setting-email', authState.email);
+            setVal('setting-location', authState.location);
+            setVal('setting-tir', authState.tir);
+            setVal('setting-fleet', authState.fleet);
+            setVal('setting-routes', authState.routes);
 
             document.getElementById('acc-title-name').innerText = authState.company;
-            document.getElementById('acc-big-avatar').innerText = authState.company.slice(0,2).toUpperCase();
+            document.getElementById('acc-big-avatar').innerText = authState.isOwner ? '👑' : authState.company.slice(0, 2).toUpperCase();
+            document.getElementById('acc-status-badge').innerText = authState.isOwner ? 'Platform Owner' : 'Approved Member';
+            document.getElementById('acc-sub-details').innerText =
+                [authState.tir ? `TIR Carnet ${authState.tir}` : 'No TIR Carnet on file', authState.location || 'Location not set'].join(' • ');
 
+            // Contact details attached to new posts default to the profile (still editable per post)
+            setVal('post-contact-name', authState.name);
+            setVal('post-phone', authState.phone);
+            setVal('post-email', authState.email);
+            setVal('post-tg', authState.tg);
+            setVal('truck-post-phone', authState.phone);
+            setVal('truck-post-tg', authState.tg);
+        }
+
+        async function saveAccountSettings() {
+            const fields = {
+                company: document.getElementById('setting-company-name').value.trim(),
+                name: document.getElementById('setting-dispatcher-name').value.trim(),
+                phone: document.getElementById('setting-phone').value.trim(),
+                tg: document.getElementById('setting-tg').value.trim(),
+                location: document.getElementById('setting-location').value.trim(),
+                tir: document.getElementById('setting-tir').value.trim(),
+                fleet: document.getElementById('setting-fleet').value.trim(),
+                routes: document.getElementById('setting-routes').value.trim()
+            };
+            if (!fields.company) { alert('Company name is required.'); return; }
+
+            const defaultDh = document.getElementById('setting-default-dh').value;
             if (defaultDh) {
                 document.getElementById('filter-dho').value = defaultDh;
                 document.getElementById('filter-dhd').value = defaultDh;
             }
 
-            renderAuthSidebar();
-            renderMyLoads();
-            alert(currentLang === 'ru' ? '✓ Настройки профиля успешно сохранены!' : '✓ Account profile & preferences saved successfully!');
+            if (authState.isOwner) {
+                // The owner has no member account doc; changes apply to this session only.
+                Object.assign(authState, fields);
+                renderAuthSidebar();
+                populateProfileForms();
+                alert('✓ Saved for this session.');
+                return;
+            }
+
+            try {
+                // The live account listener (handleFirebaseUser) refreshes authState, sidebar and forms from this write.
+                await window.FB.updateAccountProfile(authState.email, fields);
+                await window.FB.saveDirectoryEntry(authState.email, directoryEntryFrom({ ...fields, email: authState.email }));
+                alert(currentLang === 'ru' ? '✓ Настройки профиля успешно сохранены!' : '✓ Account profile & preferences saved successfully!');
+            } catch (err) {
+                alert('Could not save your profile — check your connection and try again.');
+            }
         }
 
         function testTgWebhook() {
@@ -2573,8 +2868,9 @@
                 applyLoadFilters();
             }
             if(tabName === 'post-loads') renderMyLoads();
-            if(tabName === 'search-trucks') renderTrucks(trucksDatabase);
-            if(tabName === 'directory') renderDirectory(directoryDatabase);
+            if(tabName === 'search-trucks') filterTrucks();
+            if(tabName === 'post-trucks') renderMyTrucks();
+            if(tabName === 'directory') filterDirectory(document.getElementById('directory-search').value);
             if(tabName === 'approvals') renderApprovals();
             lucide.createIcons();
 
@@ -2596,7 +2892,8 @@
             currentCurrency = curr;
             applyLoadFilters();
             renderMyLoads();
-            renderTrucks(trucksDatabase);
+            filterTrucks();
+            renderMyTrucks();
         }
 
         function changeLanguage(lang) {
@@ -2612,8 +2909,9 @@
             renderSearchTabs();
             applyLoadFilters();
             renderMyLoads();
-            renderTrucks(trucksDatabase);
-            renderDirectory(directoryDatabase);
+            filterTrucks();
+            renderMyTrucks();
+            filterDirectory(document.getElementById('directory-search').value);
             lucide.createIcons();
         }
 
@@ -2634,10 +2932,21 @@
             updateSortIndicators();
             applyLoadFilters();
             renderMyLoads();
-            renderTrucks(trucksDatabase);
-            renderDirectory(directoryDatabase);
+            filterTrucks();
+            renderMyTrucks();
+            filterDirectory('');
             updateNavBadges();
             lucide.createIcons();
+
+            // If Firebase never reports the session state (blocked CDN, offline), don't leave the
+            // sign-in button stuck on "Checking your session…" forever.
+            setTimeout(() => {
+                const btn = document.getElementById('google-signin-btn');
+                if (btn.disabled && !authState.isLoggedIn) {
+                    setGoogleButtonReady();
+                    showAuthError('Could not reach Firebase to check your session. Check your connection and try signing in again.');
+                }
+            }, 10000);
 
             // Keep "posted X ago" ages ticking forward without requiring user interaction
             setInterval(() => {
