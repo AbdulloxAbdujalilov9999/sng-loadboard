@@ -7,12 +7,20 @@ import { createPool } from '../src/db.js';
 import { loadConfig } from '../src/config.js';
 
 const config = loadConfig({ ...process.env, DATABASE_URL: process.env.DATABASE_URL || 'postgres://unused' });
-if (!config.geminiApiKey) { console.error('Set GEMINI_API_KEY first (https://aistudio.google.com/apikey).'); process.exit(1); }
-if (!process.env.DATABASE_URL) { console.error('Set DATABASE_URL too (the city list is read from your database).'); process.exit(1); }
+if (!config.geminiApiKey) { console.error('Put GEMINI_API_KEY=... in the .env file first (key from https://aistudio.google.com/apikey).'); process.exit(1); }
 
-const pool = createPool(config);
-const { rows } = await pool.query('SELECT id, label, name, name_ru, country, lat, lng FROM cities ORDER BY id');
-await pool.end();
+// City list: from your database if DATABASE_URL is set, otherwise from a throw-away local PostgreSQL.
+let rows;
+if (process.env.DATABASE_URL) {
+  const pool = createPool(config);
+  ({ rows } = await pool.query('SELECT id, label, name, name_ru, country, lat, lng FROM cities ORDER BY id'));
+  await pool.end();
+} else {
+  const { startTestEnv } = await import('../test/helpers.js');
+  const env = await startTestEnv();
+  ({ rows } = await env.pool.query('SELECT id, label, name, name_ru, country, lat, lng FROM cities ORDER BY id'));
+  await env.close();
+}
 const index = buildCityIndex(rows);
 
 const sample = `🇷🇺МОСКВА ЭЛЕКТРОГОРСК

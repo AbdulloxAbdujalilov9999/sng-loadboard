@@ -12,7 +12,7 @@
     "dev": "node --watch --env-file-if-exists=.env server/src/index.js",
     "migrate": "node --env-file-if-exists=.env server/src/migrate.js",
     "build:web": "node scripts/build-web.mjs",
-    "dev:fake-auth": "node server/scripts/dev-server.js",
+    "dev:fake-auth": "node --env-file-if-exists=.env server/scripts/dev-server.js",
     "test": "node --test --test-concurrency=1 \"server/test/**/*.test.js\"",
     "seed": "node --env-file-if-exists=.env server/scripts/seed.js",
     "bench": "node server/scripts/bench.js",
