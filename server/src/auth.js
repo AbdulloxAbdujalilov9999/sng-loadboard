@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { forbidden, unauthorized } from './lib/errors.js';
 import { TtlCache } from './lib/ttl.js';
+import { phoneIdentity } from './lib/identity.js';
 
 const FIREBASE_JWKS = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 
@@ -18,15 +19,23 @@ export function createFirebaseVerifier({ projectId, keySet }) {
       algorithms: ['RS256'],
       clockTolerance: 30,
     });
-    if (!payload.sub || typeof payload.email !== 'string') throw new Error('token has no subject/email');
-    if (payload.email_verified !== true) throw new Error('email not verified');
-    if (payload.firebase?.sign_in_provider !== 'google.com') throw new Error('unsupported sign-in provider');
-    return {
-      uid: payload.sub,
-      email: payload.email.toLowerCase(),
-      name: typeof payload.name === 'string' ? payload.name : '',
-      picture: typeof payload.picture === 'string' ? payload.picture : '',
-    };
+    if (!payload.sub) throw new Error('token has no subject');
+    const provider = payload.firebase?.sign_in_provider;
+    const name = typeof payload.name === 'string' ? payload.name : '';
+    const picture = typeof payload.picture === 'string' ? payload.picture : '';
+
+    if (provider === 'phone') {
+      // Phone numbers are verified by the SMS code itself; there is no e-mail on these tokens.
+      const phone = payload.phone_number;
+      if (typeof phone !== 'string' || !/^\+\d{8,15}$/.test(phone)) throw new Error('bad phone number');
+      return { uid: payload.sub, email: phoneIdentity(phone), loginEmail: '', phone, provider, name, picture };
+    }
+    if (provider !== 'google.com' && provider !== 'password') throw new Error('unsupported sign-in provider');
+    // E-mail + password accounts can be created for ANY address, so the mailbox must be proven first - otherwise
+    // someone could register the owner's address and become the owner.
+    if (typeof payload.email !== 'string' || payload.email_verified !== true) throw new Error('email not verified');
+    const email = payload.email.toLowerCase();
+    return { uid: payload.sub, email, loginEmail: email, phone: '', provider, name, picture };
   };
 }
 

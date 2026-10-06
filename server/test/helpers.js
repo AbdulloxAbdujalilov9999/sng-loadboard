@@ -7,6 +7,7 @@ import { loadConfig } from '../src/config.js';
 import { createPool } from '../src/db.js';
 import { runMigrations } from '../src/migrate.js';
 import { buildApp } from '../src/app.js';
+import { phoneIdentity } from '../src/lib/identity.js';
 
 const freePort = () => new Promise((resolve, reject) => {
   const srv = net.createServer();
@@ -15,12 +16,15 @@ const freePort = () => new Promise((resolve, reject) => {
 });
 
 /** Test token format: "test:<email>[:<name>]". Only the injected test verifier understands it. */
-export const tokenFor = (email, name) => `test:${email}${name ? `:${name}` : ''}`;
+export const tokenFor = (email, name) => (/^\+\d/.test(email) ? `testphone:${email}` : `test:${email}${name ? `:${name}` : ''}`);
 
 async function testVerifier(token) {
   const [prefix, email, name] = String(token).split(':');
+  if (prefix === 'testphone' && /^\+\d{8,15}$/.test(email ?? '')) {
+    return { uid: `uid-${email}`, email: phoneIdentity(email), loginEmail: '', phone: email, provider: 'phone', name: '', picture: '' };
+  }
   if (prefix !== 'test' || !email) throw new Error('bad test token');
-  return { uid: `uid-${email}`, email: email.toLowerCase(), name: name ?? email.split('@')[0], picture: '' };
+  return { uid: `uid-${email}`, email: email.toLowerCase(), loginEmail: email.toLowerCase(), phone: '', provider: 'google.com', name: name ?? email.split('@')[0], picture: '' };
 }
 
 /** Boots a throwaway real PostgreSQL + the real app (migrations included). */

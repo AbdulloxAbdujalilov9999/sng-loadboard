@@ -12,6 +12,8 @@ browser ──HTTPS──▶ Fastify (N workers) ──▶ PostgreSQL
 
 ## What it does
 
+- **Sign in your way**: Google, email + password (with email confirmation, *forgot password* and *change password*), or phone number with an SMS code.
+- **Three languages** (English, Русский, O‘zbekcha) and **light / dark / auto** appearance, switchable from the sign-in screen, the header, and Account → Preferences.
 - **Members only.** Anyone can sign in with Google and request access; they see nothing until an owner approves them (Approvals page, live).
 - **Loads**: post, edit, close; search by origin/destination **with deadhead radius**, equipment, dates, weight, rate, distance, free text; sort by any column; infinite scroll.
 - **AI paste import**: paste one or many Telegram/WhatsApp posts (Russian Cyrillic or Uzbek Latin/Cyrillic); Gemini splits them into separate loads and fills cities, cargo, truck type and notes; the member reviews and posts them all in one click. Details below.
@@ -49,6 +51,22 @@ This is a Node server plus PostgreSQL, so it cannot run on static hosts (Vercel/
 3. After the first deploy, open the service URL — the page loads, but Google sign-in will say the domain is not authorized until you do step 4.
 4. In the Firebase console (project `sng-pro`) → **Authentication → Settings → Authorized domains → Add** your `*.onrender.com` address (and your own domain later). Also make sure **Google** is enabled under Sign-in method.
 5. Sign in with the owner email: you are the owner and can approve other companies. Any other host that can run a Docker container (Railway, Fly.io, a VPS) works the same way; use the `Dockerfile` and the variables in `.env.example`.
+
+### Sign-in methods: what to switch on in Firebase
+
+In the [Firebase console](https://console.firebase.google.com) → project `sng-pro` → **Authentication → Sign-in method**:
+
+| Method | Switch on | Notes |
+| --- | --- | --- |
+| Google | **Google** provider | already on |
+| Email + password | **Email/Password** provider | people must confirm their email before the platform lets them in (otherwise anyone could register the owner's address) |
+| Phone (SMS code) | **Phone** provider | SMS is paid per message after a free quota and may need the pay-as-you-go (Blaze) plan. Under **Settings → SMS region policy** allow Uzbekistan, Russia, Kazakhstan… Add **test phone numbers** there to try it for free |
+
+Also under **Authentication → Settings → Authorized domains** add your site's domain (e.g. `your-app.onrender.com`), and under **Templates** you can edit the wording and sender name of the *Password reset* and *Email verification* messages (Firebase sends them in the visitor's language).
+
+How identities work: Google and email accounts are identified by their verified email; phone accounts by the phone number (stored internally as `p<digits>@phone.sng`, never shown). The owner is only ever matched on a verified email in `OWNER_EMAILS`.
+
+Password reset: Firebase emails a secure single-use link (not a typed code); the person opens it, chooses a new password, and signs in. Signed-in users can also change their password in Account → Sign-in & Security.
 
 ### One-time Firebase setup
 In the Firebase console for project `sng-pro` (Authentication):
@@ -118,7 +136,7 @@ SOAK_BASE=http://127.0.0.1:8080 SOAK_USERS=20000 npm run soak
 ## Tests
 
 ```bash
-npm test      # 68 tests against a real, embedded PostgreSQL: auth, approval flow, search, quotas, security, SSE, boot/cluster
+npm test      # 75 tests against a real, embedded PostgreSQL: auth, approval flow, search, quotas, security, SSE, boot/cluster
 ```
 
 ## Layout

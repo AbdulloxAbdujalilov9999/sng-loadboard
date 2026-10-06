@@ -56,7 +56,7 @@ const Admin = (() => {
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <p class="font-bold text-slate-900">${esc(m.company)}</p>
-          <p class="text-slate-500">${esc(m.contactName)} • <a href="mailto:${esc(m.email)}" class="text-blue-600 hover:underline">${esc(m.email)}</a></p>
+          <p class="text-slate-500">${esc(m.contactName)} • ${m.email ? `<a href="mailto:${esc(m.email)}" class="text-blue-600 hover:underline">${esc(m.email)}</a>` : `<a href="tel:${esc(m.login)}" class="text-blue-600 hover:underline">${esc(m.login)}</a>`}</p>
           <p class="text-slate-500">${esc(m.phone)} • ${esc(m.telegram)}</p>
           <p class="text-[10px] text-slate-400 mt-1">${esc(t('requested_ago', { age: when }))}</p>
         </div>

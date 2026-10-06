@@ -19,6 +19,7 @@ export const accessRequestBody = z.object({
   company: trimmed(120),
   phone,
   telegram,
+  contactEmail: z.union([z.literal(''), email]).optional(),
   contactName: optionalText(120),
 }).strict();
 

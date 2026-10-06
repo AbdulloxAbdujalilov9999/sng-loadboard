@@ -19,6 +19,10 @@ fs.mkdirSync(path.join(dist, 'vendor'), { recursive: true });
 execFileSync(process.execPath, [nm('tailwindcss', 'lib', 'cli.js'), '-c', path.join(root, 'tailwind.config.cjs'),
   '-i', path.join(web, 'src', 'styles.css'), '-o', path.join(dist, 'styles.css'), '--minify'], { stdio: 'inherit', cwd: root });
 
+// 1b. Dark theme: overrides generated from the colour classes the app actually uses (see scripts/dark-css.mjs)
+import { darkCss, readSources } from './dark-css.mjs';
+fs.appendFileSync(path.join(dist, 'styles.css'), `\n${darkCss(readSources(root))}\n`);
+
 // 2. App scripts + static files
 for (const f of fs.readdirSync(path.join(web, 'js'))) fs.copyFileSync(path.join(web, 'js', f), path.join(dist, 'js', f));
 if (fs.existsSync(path.join(web, 'public'))) {
@@ -32,6 +36,7 @@ const vendor = [
   [nm('flatpickr', 'dist', 'flatpickr.min.css'), 'flatpickr.min.css'],
   [nm('flatpickr', 'dist', 'themes', 'material_blue.css'), 'flatpickr-theme.css'],
   [nm('flatpickr', 'dist', 'l10n', 'ru.js'), 'flatpickr-ru.js'],
+  [nm('flatpickr', 'dist', 'l10n', 'uz_latn.js'), 'flatpickr-uz.js'],
 ];
 for (const [src, name] of vendor) fs.copyFileSync(src, path.join(dist, 'vendor', name));
 

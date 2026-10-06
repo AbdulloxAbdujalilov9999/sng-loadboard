@@ -13,6 +13,7 @@ import { runMigrations } from '../src/migrate.js';
 import { insertLoads, insertMembers, insertTrucks } from './lib/generate.js';
 import { createGeminiParser } from '../src/lib/ai/gemini.js';
 import { createHeuristicParser } from '../src/lib/ai/heuristic.js';
+import { phoneIdentity } from '../src/lib/identity.js';
 
 if (process.env.NODE_ENV === 'production') { console.error('dev-server refuses to run in production.'); process.exit(1); }
 
@@ -64,9 +65,13 @@ if (isPrimary && soakMembers > 0) {
 }
 
 async function fakeVerify(token) {
-  const [prefix, email, name] = String(token).split(':');
-  if (prefix !== 'dev' || !/^[^@\s:]+@[^@\s:]+$/.test(email ?? '')) throw new Error('bad dev token');
-  return { uid: `dev-${email}`, email: email.toLowerCase(), name: name || email.split('@')[0], picture: '' };
+  const [prefix, who, name] = String(token).split(':');
+  if (prefix === 'devphone' && /^\+\d{8,15}$/.test(who ?? '')) {
+    return { uid: `dev-${who}`, email: phoneIdentity(who), loginEmail: '', phone: who, provider: 'phone', name: '', picture: '' };
+  }
+  if (prefix !== 'dev' || !/^[^@\s:]+@[^@\s:]+$/.test(who ?? '')) throw new Error('bad dev token');
+  const email = who.toLowerCase();
+  return { uid: `dev-${email}`, email, loginEmail: email, phone: '', provider: 'google.com', name: name || email.split('@')[0], picture: '' };
 }
 
 const stopDb = async () => { try { await pg?.stop(); } catch { /* already stopped */ } };

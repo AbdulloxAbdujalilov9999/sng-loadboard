@@ -72,3 +72,55 @@
   .responsive-table tr.status-row { border: none; margin: 0; box-shadow: none; }
   .responsive-table tr.status-row td { text-align: center; }
 }
+
+/* ---------- theme toggle icons (moon shown in light mode, sun in dark mode) ---------- */
+.icon-to-light { display: none; }
+.dark .icon-to-light { display: inline-block; }
+.dark .icon-to-dark { display: none; }
+
+/* ---------- dark theme: things that are not utility classes ---------- */
+/* (utility-class colours are generated at build time by scripts/dark-css.mjs) */
+.dark ::-webkit-scrollbar-track { background: #0b1220; }
+.dark ::-webkit-scrollbar-thumb { background: #334155; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+.dark ::selection { background: rgba(56, 189, 248, 0.35); }
+.dark .tab-active { background-color: #1e293b; }
+.dark .row-expanded { background-color: #0e1a2e !important; }
+.dark .search-tab-active { background-color: #111a2e; color: #60a5fa; border-bottom-color: #60a5fa; }
+.dark .search-tab-inactive { background-color: #1c2740; color: #94a3b8; }
+.dark .search-tab-inactive:hover { background-color: #243049; color: #cbd5e1; }
+.dark .field-invalid { background-color: rgba(244, 63, 94, 0.12); border-color: #fb7185 !important; }
+.dark .field-error { color: #fda4af; }
+.dark .city-dd { background: #111a2e; border-color: #334155; box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5); }
+.dark .city-dd [role="option"] { color: #cbd5e1; border-bottom-color: #1c2740; }
+.dark .city-dd [role="option"][aria-selected="true"], .dark .city-dd [role="option"]:hover { background: #1e3a5f; color: #bfdbfe; }
+.dark .city-dd .city-dd-empty { color: #64748b; }
+.dark .skeleton-bar { background: #243049; }
+.dark .toast-info { background: #1e3a5f; }
+.dark input, .dark select, .dark textarea { background-color: #0f1829; color: #e2e8f0; border-color: #3a4a66; }
+.dark input::placeholder, .dark textarea::placeholder { color: #64748b; }
+.dark input:disabled, .dark select:disabled, .dark textarea:disabled { opacity: 0.6; }
+.dark input[type="checkbox"], .dark input[type="radio"] { background-color: initial; accent-color: #2563eb; }
+.dark #main-sidebar { border-right-color: #1e293b; }
+@media (max-width: 767px) {
+  .dark .responsive-table tr.data-row { border-color: #2a3750; box-shadow: none; }
+  .dark .responsive-table tr.data-row.row-expanded { border-color: #2563eb; }
+  .dark .responsive-table td { border-bottom-color: #1c2740; }
+  .dark .responsive-table td[data-label]::before { color: #7c8aa0; }
+  .dark .responsive-table td.cell-heading { background: #172036; }
+}
+
+/* flatpickr (date picker) */
+.dark .flatpickr-calendar { background: #111a2e; border: 1px solid #334155; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55); }
+.dark .flatpickr-calendar.arrowTop:before, .dark .flatpickr-calendar.arrowTop:after { border-bottom-color: #111a2e; }
+.dark .flatpickr-months .flatpickr-month, .dark .flatpickr-current-month .flatpickr-monthDropdown-months, .dark .flatpickr-current-month input.cur-year { color: #e2e8f0; background: transparent; }
+.dark .flatpickr-weekdays, .dark span.flatpickr-weekday { background: transparent; color: #94a3b8; }
+.dark .flatpickr-day { color: #cbd5e1; border-color: transparent; }
+.dark .flatpickr-day:hover, .dark .flatpickr-day:focus { background: #243049; border-color: #243049; }
+.dark .flatpickr-day.prevMonthDay, .dark .flatpickr-day.nextMonthDay, .dark .flatpickr-day.flatpickr-disabled { color: #475569; }
+.dark .flatpickr-day.today { border-color: #38bdf8; }
+.dark .flatpickr-day.inRange { background: #1e3a5f; border-color: #1e3a5f; box-shadow: -5px 0 0 #1e3a5f, 5px 0 0 #1e3a5f; color: #e2e8f0; }
+.dark .flatpickr-day.selected, .dark .flatpickr-day.startRange, .dark .flatpickr-day.endRange { background: #2563eb; border-color: #2563eb; color: #fff; }
+.dark .flatpickr-months .flatpickr-prev-month svg, .dark .flatpickr-months .flatpickr-next-month svg { fill: #94a3b8; }
+.dark .numInputWrapper span.arrowUp:after { border-bottom-color: #94a3b8; }
+.dark .numInputWrapper span.arrowDown:after { border-top-color: #94a3b8; }

@@ -9,18 +9,10 @@ const App = (() => {
   let statsTimer = null;
 
   // ---------------------------------------------------------------- config / currency
-  function fillCurrencies() {
-    const sel = $('currency-select');
-    sel.innerHTML = Object.entries(U.fx.rates).map(([code, c]) => `<option value="${esc(code)}">${esc(code)} (${esc(c.symbol)})</option>`).join('');
-    const saved = U.store.get('sng.currency', 'USD');
-    U.fx.currency = U.fx.rates[saved] ? saved : 'USD';
-    sel.value = U.fx.currency;
-  }
-
   function applyConfig(cfg) {
     config = cfg;
     U.fx.rates = cfg.currencies;
-    fillCurrencies();
+    Prefs.fillCurrencies();
   }
 
   async function refreshConfig() {
@@ -136,10 +128,12 @@ const App = (() => {
   // ---------------------------------------------------------------- language / currency
   function rerender() {
     I18N.apply();
+    Session.relabel();
+    if (!entered) return; // on the sign-in screen only static texts need translating
     $('page-title').textContent = t(TITLES[view]);
-    Loads.render(); Loads.renderMine(); Trucks.render(); Trucks.renderMine(); Directory.render(); Admin.render();
-    if (entered) { Account.populate(); renderSidebarUser(); }
-    Session.me && I18N.setHtmlLang();
+    Loads.renderTabs(); Loads.render(); Loads.renderMine(); Trucks.render(); Trucks.renderMine(); Directory.render(); Admin.render();
+    Account.populate(); renderSidebarUser();
+    I18N.setHtmlLang();
   }
 
   function boot() {
@@ -155,9 +149,7 @@ const App = (() => {
     $('sidebar-backdrop').addEventListener('click', () => toggleSidebar(false));
     $('logout-btn').addEventListener('click', () => Session.signOut());
 
-    $('lang-select').value = I18N.lang;
-    $('lang-select').addEventListener('change', (e) => { I18N.setLang(e.target.value); rerender(); });
-    $('currency-select').addEventListener('change', (e) => { U.fx.currency = e.target.value; U.store.set('sng.currency', e.target.value); rerender(); });
+    Prefs.init(); // language / theme / currency controls (header, sign-in screen, Account)
 
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;

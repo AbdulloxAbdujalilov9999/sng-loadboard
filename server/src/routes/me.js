@@ -1,6 +1,7 @@
 import { accessRequestBody, profileBody } from '../lib/schemas.js';
 import { memberDto } from '../lib/dto.js';
 import { conflict, forbidden } from '../lib/errors.js';
+import { loginLabel } from '../lib/identity.js';
 import { publish } from '../events.js';
 import { withTx } from '../db.js';
 
@@ -9,7 +10,9 @@ export default async function meRoutes(app, { pool, config }) {
   app.get('/api/me', { preHandler: app.guards.authed }, async (req) => {
     const m = req.member;
     return {
-      email: req.user.email,
+      email: req.user.loginEmail,                 // real e-mail ('' for phone sign-in)
+      login: loginLabel(req.user.email),          // what to show as "you sign in with": e-mail or +phone
+      provider: req.user.provider,
       name: req.user.name,
       picture: req.user.picture,
       status: m ? m.status : 'none',
@@ -28,11 +31,12 @@ export default async function meRoutes(app, { pool, config }) {
     const body = accessRequestBody.parse(req.body);
     const row = await withTx(pool, async (db) => {
       const { rows: [created] } = await db.query(
-        `INSERT INTO members (email, firebase_uid, company, contact_name, phone, telegram)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO members (email, firebase_uid, company, contact_name, phone, telegram, contact_email)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (email) DO NOTHING
          RETURNING *`,
-        [req.user.email, req.user.uid, body.company, body.contactName || req.user.name, body.phone, body.telegram],
+        [req.user.email, req.user.uid, body.company, body.contactName || req.user.name, body.phone, body.telegram,
+          req.user.loginEmail ? '' : (body.contactEmail ?? '')], // phone sign-ins may leave a contact e-mail
       );
       if (created) await publish(db, { entity: 'members', op: 'insert', id: created.id });
       return created;

@@ -20,6 +20,7 @@ const Live = (() => {
     const palette = { live: 'bg-emerald-500', connecting: 'bg-amber-400', offline: 'bg-rose-400', off: 'bg-slate-300' };
     dot.className = `w-2 h-2 rounded-full ${palette[state] || palette.off}`;
     text.textContent = t({ live: 'live_on', connecting: 'live_connecting', offline: 'live_offline', off: 'live_connecting' }[state]);
+    U.$('live-indicator').title = text.textContent; // the text itself is hidden on narrow screens
   }
 
   function parseFrames(buffer) {

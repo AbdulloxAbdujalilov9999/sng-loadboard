@@ -1,7 +1,7 @@
 // Load board: saved multi-tab searches, server-side filter/sort, infinite scroll, my loads, post & edit.
 const Loads = (() => {
   const { $, esc } = U;
-  const tabsKey = () => `sng.searchTabs.v2:${Session.me?.email || ''}`; // per user: shared computers don't leak searches
+  const tabsKey = () => `sng.searchTabs.v2:${Session.me?.login || ''}`; // per user: shared computers don't leak searches
   const MAX_TABS = 9;
   const PAGE = window.APP_CONFIG.pageSize;
   const CAP = window.APP_CONFIG.maxRenderedRows;
@@ -588,7 +588,7 @@ const Loads = (() => {
   /** Called when the user navigates back to the Search tab. */
   function onShow() { if (stale) reload({ silent: true }); }
 
-  return { init, enter, leave, onShow, render, renderMine, loadMine, closeEdit, markStale() { stale = true; }, get stale() { return stale; } };
+  return { init, enter, leave, onShow, render, renderTabs, renderMine, loadMine, closeEdit, markStale() { stale = true; }, get stale() { return stale; } };
 })();
 
 window.Loads = Loads;

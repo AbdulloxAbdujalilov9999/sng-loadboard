@@ -9,7 +9,7 @@ before(async () => { env = await startTestEnv(); await env.approvedMember('sec@t
 after(async () => { await env.close(); });
 
 // ------------------------------------------------------------ token verification (the real verifier)
-test('Firebase token verifier accepts only correctly signed, current, Google-sign-in, verified tokens', async () => {
+test('Firebase token verifier accepts only correctly signed, current tokens from Google / verified e-mail+password / phone sign-in', async () => {
   const { publicKey, privateKey } = await generateKeyPair('RS256');
   const other = await generateKeyPair('RS256');
   const jwk = { ...(await exportJWK(publicKey)), kid: 'k1', alg: 'RS256', use: 'sig' };
@@ -29,8 +29,26 @@ test('Firebase token verifier accepts only correctly signed, current, Google-sig
   await rejects(await sign({}, { iss: 'https://securetoken.google.com/other' }), 'wrong issuer');
   await rejects(await sign({}, { exp: Math.floor(Date.now() / 1000) - 3600 }), 'expired');
   await rejects(await sign({ email_verified: false }), 'unverified email');
-  await rejects(await sign({ firebase: { sign_in_provider: 'password' } }), 'non-Google provider');
   await rejects(await sign({ email: undefined }), 'no email');
+  for (const provider of ['anonymous', 'custom', 'facebook.com', 'github.com']) await rejects(await sign({ firebase: { sign_in_provider: provider } }), `provider ${provider} is not offered`);
+
+  // e-mail + password: allowed, but ONLY once the mailbox is proven (otherwise anyone could register the owner's address)
+  const pw = await verify(await sign({ firebase: { sign_in_provider: 'password' } }));
+  assert.equal(pw.email, 'user@gmail.com');
+  assert.equal(pw.provider, 'password');
+  await rejects(await sign({ firebase: { sign_in_provider: 'password' }, email_verified: false }), 'password account with an unverified e-mail');
+
+  // phone: no e-mail on the token; identity is a synthetic key nobody can spoof with a real mailbox
+  const phoneToken = await sign({ email: undefined, email_verified: undefined, phone_number: '+998901234567', firebase: { sign_in_provider: 'phone' } });
+  const ph = await verify(phoneToken);
+  assert.equal(ph.email, 'p998901234567@phone.sng');
+  assert.equal(ph.loginEmail, '');
+  assert.equal(ph.phone, '+998901234567');
+  await rejects(await sign({ email: undefined, phone_number: 'not-a-phone', firebase: { sign_in_provider: 'phone' } }), 'malformed phone number');
+  await rejects(await sign({ email: undefined, firebase: { sign_in_provider: 'phone' } }), 'phone token without a phone number');
+  // a Google account that merely CLAIMS the synthetic domain is still just an ordinary (and unverifiable) address
+  const spoof = await verify(await sign({ email: 'p998901234567@phone.sng' })).catch(() => null);
+  assert.ok(!spoof || spoof.provider === 'google.com');
   // alg=none / tampered token
   const [h, p] = (await sign()).split('.');
   await rejects(`${h}.${p}.`, 'unsigned token');
@@ -46,6 +64,7 @@ test('security headers are set; Google popup sign-in is not broken by COOP', asy
   assert.equal(res.headers['cross-origin-opener-policy'], 'same-origin-allow-popups');
   assert.ok(res.headers['content-security-policy-report-only'], 'CSP ships in report-only until CSP_ENFORCE=true');
   assert.match(res.headers['content-security-policy-report-only'], /frame-ancestors 'none'/);
+  assert.match(res.headers['content-security-policy-report-only'], /script-src[^;]*recaptcha/, 'phone sign-in needs reCAPTCHA');
   assert.equal(res.headers['x-powered-by'], undefined);
 });
 

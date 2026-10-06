@@ -28,12 +28,12 @@ function cspDirectives(config) {
   const fb = `https://${config.firebaseProjectId}.firebaseapp.com`;
   return {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", 'https://www.gstatic.com', 'https://apis.google.com'],
+    scriptSrc: ["'self'", 'https://www.gstatic.com', 'https://apis.google.com', 'https://www.google.com', 'https://www.recaptcha.net'], // google.com/recaptcha: phone sign-in check
     scriptSrcAttr: ["'unsafe-inline'"], // the UI uses inline onclick handlers
     styleSrc: ["'self'", "'unsafe-inline'"],
     imgSrc: ["'self'", 'data:', 'https://*.googleusercontent.com'],
-    connectSrc: ["'self'", 'https://*.googleapis.com', 'https://www.googleapis.com', 'https://securetoken.googleapis.com', 'https://identitytoolkit.googleapis.com'],
-    frameSrc: [fb, 'https://accounts.google.com', 'https://*.firebaseapp.com'],
+    connectSrc: ["'self'", 'https://*.googleapis.com', 'https://www.googleapis.com', 'https://securetoken.googleapis.com', 'https://identitytoolkit.googleapis.com', 'https://www.google.com'],
+    frameSrc: [fb, 'https://accounts.google.com', 'https://*.firebaseapp.com', 'https://www.google.com', 'https://www.recaptcha.net'],
     objectSrc: ["'none'"],
     baseUri: ["'self'"],
     frameAncestors: ["'none'"],

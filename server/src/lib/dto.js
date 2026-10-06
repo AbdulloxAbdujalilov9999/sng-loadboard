@@ -1,5 +1,6 @@
 // Row -> API shape mappers. Keeping these in one place means the wire format is explicit and a new
 // DB column never leaks to clients by accident.
+import { loginLabel, publicEmail, realEmail } from './identity.js';
 const num = (v) => (v === null || v === undefined ? null : Number(v));
 const iso = (d) => (d instanceof Date ? d.toISOString() : d ?? null);
 // List queries return created_at as epoch-ms (cheap to decode); single-row queries return a Date.
@@ -7,7 +8,8 @@ const createdIso = (r) => (r.created_ms !== undefined ? new Date(Number(r.create
 
 export const memberDto = (m) => ({
   id: m.id,
-  email: m.email,
+  email: realEmail(m.email),
+  login: loginLabel(m.email),
   company: m.company,
   contactName: m.contact_name,
   phone: m.phone,
@@ -28,7 +30,7 @@ export const directoryDto = (m) => ({
   company: m.company,
   contactName: m.contact_name,
   phone: m.phone,
-  email: m.email,
+  email: publicEmail(m.email, m.contact_email),
   telegram: m.telegram,
   location: m.location,
   tirCarnet: m.tir_carnet,
