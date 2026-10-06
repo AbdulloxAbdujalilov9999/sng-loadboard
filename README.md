@@ -40,6 +40,16 @@ npm start                # runs migrations, then serves API + web on :8080
 
 or with Docker (Postgres + API): `OWNER_EMAILS=you@gmail.com docker compose up --build`.
 
+### Deploying (Render, ~10 minutes)
+
+This is a Node server plus PostgreSQL, so it cannot run on static hosts (Vercel/Netlify/GitHub Pages show a 404). Render hosts both:
+
+1. Push this repository to GitHub, then on <https://render.com>: **New + → Blueprint** → select the repo. It reads [`render.yaml`](render.yaml) and creates the database and the web service.
+2. When asked, enter `OWNER_EMAILS` (your Google email) and `GEMINI_API_KEY`.
+3. After the first deploy, open the service URL — the page loads, but Google sign-in will say the domain is not authorized until you do step 4.
+4. In the Firebase console (project `sng-pro`) → **Authentication → Settings → Authorized domains → Add** your `*.onrender.com` address (and your own domain later). Also make sure **Google** is enabled under Sign-in method.
+5. Sign in with the owner email: you are the owner and can approve other companies. Any other host that can run a Docker container (Railway, Fly.io, a VPS) works the same way; use the `Dockerfile` and the variables in `.env.example`.
+
 ### One-time Firebase setup
 In the Firebase console for project `sng-pro` (Authentication):
 1. **Sign-in method** → enable **Google**.
