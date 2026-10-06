@@ -24,7 +24,7 @@ async function testVerifier(token) {
 }
 
 /** Boots a throwaway real PostgreSQL + the real app (migrations included). */
-export async function startTestEnv(envOverrides = {}) {
+export async function startTestEnv(envOverrides = {}, { ai = null } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sng-pg-'));
   const port = await freePort();
   const pg = new EmbeddedPostgres({
@@ -42,7 +42,7 @@ export async function startTestEnv(envOverrides = {}) {
   });
   const pool = createPool(config);
   await runMigrations(pool, { log() {}, info() {} });
-  const app = await buildApp({ config, pool, verifyToken: testVerifier });
+  const app = await buildApp({ config, pool, verifyToken: testVerifier, ai });
   await app.ready();
 
   const as = (email, name) => {

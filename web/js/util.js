@@ -167,5 +167,5 @@
 
   const todayIso = () => new Date().toISOString().slice(0, 10);
 
-  window.U = { $, esc, debounce, liveThrottle, store, toast, confirmDialog, clearFormErrors, fieldError, applyFormErrors, setBusy, fx, money, ageText, shortDate, fmtCount, badgeCount, haversineKm, todayIso };
+  window.U = { $, esc, debounce, liveThrottle, detailText, store, toast, confirmDialog, clearFormErrors, fieldError, applyFormErrors, setBusy, fx, money, ageText, shortDate, fmtCount, badgeCount, haversineKm, todayIso };
 })();

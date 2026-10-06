@@ -47,7 +47,7 @@ export default async function meRoutes(app, { pool, config }) {
     const body = profileBody.parse(req.body);
     if (req.member.role === 'owner' && Object.keys(body).length === 0) throw forbidden('Nothing to update');
     const map = {
-      company: 'company', contactName: 'contact_name', phone: 'phone', telegram: 'telegram',
+      company: 'company', contactName: 'contact_name', phone: 'phone', telegram: 'telegram', contactEmail: 'contact_email',
       location: 'location', tirCarnet: 'tir_carnet', fleet: 'fleet', routes: 'routes',
     };
     const sets = [];

@@ -327,6 +327,25 @@
 
             <!-- ================= POST & MANAGE LOADS ================= -->
             <section id="view-post-loads" class="hidden flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100 space-y-4 sm:space-y-6">
+                <div id="ai-import" class="max-w-4xl mx-auto bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg shadow-sm border border-indigo-200 p-4 sm:p-5 space-y-3">
+                    <div class="flex items-start gap-3">
+                        <div class="w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center flex-shrink-0"><i data-lucide="sparkles" class="w-4 h-4"></i></div>
+                        <div class="min-w-0">
+                            <h3 class="text-base font-bold text-slate-800" data-i18n="ai_title">Paste loads, let AI fill them in</h3>
+                            <p class="text-xs text-slate-600" data-i18n="ai_hint">Paste one or many posts from Telegram or WhatsApp, in Russian or Uzbek. AI splits them into separate loads and fills in cities, cargo, truck type and notes. You check everything before it is posted.</p>
+                        </div>
+                    </div>
+                    <div id="ai-unavailable" class="hidden text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded p-2" data-i18n="ai_unavailable">AI import is not set up on this server yet.</div>
+                    <form id="ai-form" class="space-y-2" novalidate>
+                        <textarea id="ai-text" rows="6" maxlength="12000" data-i18n-placeholder="ai_placeholder" placeholder="🇷🇺 ТОМСК&#10;🇺🇿 ТОШКЕНТ&#10;ДСП МДФ&#10;ТЕНТ&#10;ОПЛАТА НАХТ&#10;+998 90 123 45 67" class="w-full border border-indigo-200 rounded p-2.5 text-xs font-mono bg-white focus:border-indigo-500"></textarea>
+                        <div class="flex flex-wrap items-center gap-2 justify-between">
+                            <span class="text-[10px] text-slate-500"><span id="ai-count">0</span> / 12000</span>
+                            <button type="submit" id="ai-read-btn" class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold py-2 px-4 rounded text-xs shadow flex items-center space-x-2"><i data-lucide="wand-2" class="w-4 h-4"></i><span data-i18n="ai_btn_read">Read with AI</span></button>
+                        </div>
+                    </form>
+                    <div id="ai-review" class="hidden space-y-3"></div>
+                </div>
+
                 <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
                     <div class="flex flex-wrap gap-2 justify-between items-center border-b pb-3">
                         <div>
@@ -397,6 +416,10 @@
                                 <label class="block font-semibold text-slate-700 mb-1" for="post-contact-name" data-i18n="lbl_disp_name">Contact Dispatcher Name</label>
                                 <input type="text" id="post-contact-name" name="contactName" maxlength="120" required class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
                             </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between items-center mb-1"><label class="font-semibold text-slate-700" for="post-notes" data-i18n="lbl_notes">Notes</label><span class="text-[9px] text-slate-400 italic" data-i18n="lbl_optional">Optional</span></div>
+                            <textarea id="post-notes" name="notes" rows="2" maxlength="500" data-i18n-placeholder="ph_notes" placeholder="Payment, loading, advance, other terms..." class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs"></textarea>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div>
@@ -605,14 +628,9 @@
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
                         <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
-                            <h4 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2"><i data-lucide="building" class="w-4 h-4 text-blue-600"></i><span data-i18n="lbl_comp_info">Company & Contact Information</span></h4>
+                            <h4 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2"><i data-lucide="building" class="w-4 h-4 text-blue-600"></i><span data-i18n="lbl_comp_info2">Company Information</span></h4>
                             <div class="space-y-2.5">
                                 <div><label class="block font-semibold text-slate-700 mb-1" for="setting-company-name" data-i18n="lbl_comp_name">Company Registered Name</label><input type="text" id="setting-company-name" name="company" maxlength="120" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                                <div><label class="block font-semibold text-slate-700 mb-1" for="setting-dispatcher-name" data-i18n="lbl_head_disp">Head Dispatcher Name</label><input type="text" id="setting-dispatcher-name" name="contactName" maxlength="120" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    <div><label class="block font-semibold text-slate-700 mb-1" for="setting-phone" data-i18n="lbl_phone">Phone</label><input type="tel" id="setting-phone" name="phone" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                                    <div><label class="block font-semibold text-slate-700 mb-1" for="setting-tg" data-i18n="lbl_telegram">Telegram</label><input type="text" id="setting-tg" name="telegram" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                                </div>
                                 <div><label class="block font-semibold text-slate-700 mb-1" for="setting-email" data-i18n="lbl_login_email">Login Email (Google)</label><input type="email" id="setting-email" readonly class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 text-slate-500"></div>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     <div><label class="block font-semibold text-slate-700 mb-1" for="setting-location" data-i18n="lbl_base_location">Base Location</label><input type="text" id="setting-location" name="location" maxlength="120" placeholder="Almaty, KZ" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
@@ -622,6 +640,19 @@
                                 <div><label class="block font-semibold text-slate-700 mb-1" for="setting-routes" data-i18n="lbl_routes">Primary Lanes</label><input type="text" id="setting-routes" name="routes" maxlength="300" placeholder="Kazakhstan ↔ Central Asia ↔ Russia" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
                             </div>
                         </div>
+                        <div class="space-y-5">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-blue-200 space-y-3">
+                            <h4 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2"><i data-lucide="contact" class="w-4 h-4 text-blue-600"></i><span data-i18n="acc_contact_title">Default contact info</span></h4>
+                            <p class="text-[11px] text-slate-500" data-i18n="acc_contact_hint">Filled in automatically on every new load and truck you post. You can still change it on each post.</p>
+                            <div class="space-y-2.5">
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="setting-dispatcher-name" data-i18n="lbl_head_disp">Head Dispatcher Name</label><input type="text" id="setting-dispatcher-name" name="contactName" maxlength="120" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div><label class="block font-semibold text-slate-700 mb-1" for="setting-phone" data-i18n="lbl_phone">Phone</label><input type="tel" id="setting-phone" name="phone" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                    <div><label class="block font-semibold text-slate-700 mb-1" for="setting-tg" data-i18n="lbl_telegram">Telegram</label><input type="text" id="setting-tg" name="telegram" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                </div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="setting-contact-email" data-i18n="lbl_contact_email">Contact email</label><input type="email" id="setting-contact-email" name="contactEmail" maxlength="254" autocomplete="off" data-i18n-placeholder="ph_contact_email" placeholder="Leave empty to use your Google login email" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                            </div>
+                        </div>
                         <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
                             <h4 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2"><i data-lucide="sliders-horizontal" class="w-4 h-4 text-sky-600"></i><span data-i18n="lbl_disp_pref">Search Preferences</span></h4>
                             <div>
@@ -629,6 +660,7 @@
                                 <input type="number" id="setting-default-dh" min="0" max="2000" class="w-full border border-slate-300 rounded p-2 text-xs">
                                 <p class="text-[10px] text-slate-400 mt-0.5" data-i18n="lbl_default_dh_hint">Used as the radius for new searches. Saved in this browser.</p>
                             </div>
+                        </div>
                         </div>
                     </div>
                 </form>
@@ -688,6 +720,7 @@
                     <div><label class="block font-semibold text-slate-700 mb-1" for="edit-dist" data-i18n="lbl_distance_km">Est. Distance (km)</label><input type="text" id="edit-dist" readonly tabindex="-1" class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 font-bold text-blue-700"></div>
                 </div>
                 <div><label class="block font-semibold text-slate-700 mb-1" for="edit-commodity" data-i18n="lbl_commodity">Commodity Description</label><input type="text" id="edit-commodity" name="commodity" maxlength="200" required class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                <div><label class="block font-semibold text-slate-700 mb-1" for="edit-notes" data-i18n="lbl_notes">Notes</label><textarea id="edit-notes" name="notes" rows="2" maxlength="500" class="w-full border border-slate-300 rounded p-2 text-xs"></textarea></div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div><label class="block font-semibold text-slate-700 mb-1" for="edit-contact-name" data-i18n="lbl_disp_name">Contact Dispatcher Name</label><input type="text" id="edit-contact-name" name="contactName" required class="w-full border border-slate-300 rounded p-2 text-xs"></div>
                     <div><label class="block font-semibold text-slate-700 mb-1" for="edit-phone" data-i18n="lbl_phone">Phone Number</label><input type="tel" id="edit-phone" name="contactPhone" required class="w-full border border-slate-300 rounded p-2 text-xs"></div>
@@ -715,6 +748,7 @@
     <script src="/js/live.js?v=__BUILD__"></script>
     <script src="/js/cities.js?v=__BUILD__"></script>
     <script src="/js/loads.js?v=__BUILD__"></script>
+    <script src="/js/aiimport.js?v=__BUILD__"></script>
     <script src="/js/trucks.js?v=__BUILD__"></script>
     <script src="/js/directory.js?v=__BUILD__"></script>
     <script src="/js/account.js?v=__BUILD__"></script>

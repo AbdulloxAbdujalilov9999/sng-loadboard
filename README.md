@@ -14,6 +14,8 @@ browser ──HTTPS──▶ Fastify (N workers) ──▶ PostgreSQL
 
 - **Members only.** Anyone can sign in with Google and request access; they see nothing until an owner approves them (Approvals page, live).
 - **Loads**: post, edit, close; search by origin/destination **with deadhead radius**, equipment, dates, weight, rate, distance, free text; sort by any column; infinite scroll.
+- **AI paste import**: paste one or many Telegram/WhatsApp posts (Russian Cyrillic or Uzbek Latin/Cyrillic); Gemini splits them into separate loads and fills cities, cargo, truck type and notes; the member reviews and posts them all in one click. Details below.
+- **Default contact info** in Account: pre-fills the contact fields of every new load and truck (still editable per post).
 - **Trucks**: post availability with end date (auto-expires after 30 days without one); same radius/equipment/date search.
 - **Carrier directory** of approved companies; **display currencies** (USD, RUB, KZT, UZS, KGS, TJS, BYN, AZN, GEL, AMD) with owner-editable rates; **English / Russian** UI; mobile layout.
 - **Live updates**: new posts, approvals and rate changes reach open browsers within a second (Server-Sent Events, backed by Postgres `LISTEN/NOTIFY`).
@@ -60,6 +62,14 @@ See [`.env.example`](.env.example) for every variable. The important ones:
 
 Migrations in `server/migrations` run automatically at boot under an advisory lock (safe with many instances); `npm run migrate` runs them alone.
 
+## AI paste import (Gemini)
+
+`POST /api/ai/parse-loads` sends the pasted text plus our city list to Gemini with a strict JSON schema; the server then **verifies everything** (city labels against the database with a fuzzy fallback for Cyrillic/Uzbek spellings, enums, dates, numbers) and returns one draft per load. Nothing is posted until the member reviews the drafts; posting goes through `POST /api/loads/bulk` (all-or-nothing, max 40, quotas apply to the whole batch). Fields the text did not contain (weight, price, date) are filled with visible defaults and highlighted for checking; everything else from the post (payment terms, loading readiness, advance, extra destinations) is kept in the load's **Notes**.
+
+Setup: create a key at <https://aistudio.google.com/apikey>, set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`) on the server, then run `npm run ai:check` — it makes one real call and prints what the AI understood. Without a key the feature shows "not set up"; the local dev server falls back to a simple rule-based reader so the UI can be tried offline.
+
+Privacy/safety: pasted text (including phone numbers) is sent to Google's Gemini API — say so in your terms. The API key never reaches the browser; the pasted text is never logged; the pasted text is treated as data, not instructions; each member has an hourly budget (`AI_RATE_PER_HOUR`) and parallel calls are capped (`AI_MAX_PARALLEL`).
+
 ## Design for thousands of simultaneous users
 
 What actually limits a marketplace is not requests per second but **what every open browser costs while it sits there**, and what happens when thousands of them react to the same event. The design targets that:
@@ -98,7 +108,7 @@ SOAK_BASE=http://127.0.0.1:8080 SOAK_USERS=20000 npm run soak
 ## Tests
 
 ```bash
-npm test      # 58 tests against a real, embedded PostgreSQL: auth, approval flow, search, quotas, security, SSE, boot/cluster
+npm test      # 66 tests against a real, embedded PostgreSQL: auth, approval flow, search, quotas, security, SSE, boot/cluster
 ```
 
 ## Layout

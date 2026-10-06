@@ -27,6 +27,7 @@ export const profileBody = z.object({
   contactName: trimmed(120),
   phone,
   telegram,
+  contactEmail: z.union([z.literal(''), email]),
   location: optionalText(120),
   tirCarnet: optionalText(60),
   fleet: optionalText(200),
@@ -47,11 +48,14 @@ export const loadBody = z.object({
   deliveryDate: isoDate.nullish().transform((v) => v ?? null),
   rateUsd: money,
   commodity: trimmed(200),
+  notes: z.string().trim().max(500).optional(), // optional (no default) so PATCH never wipes it by accident
   contactName: trimmed(120),
   contactPhone: phone,
   contactEmail: email,
   contactTelegram: telegram,
 }).strict();
+
+export const loadsBulkBody = z.object({ loads: z.array(loadBody).min(1).max(40) }).strict();
 
 export const loadPatchBody = loadBody.partial().strict();
 

@@ -11,6 +11,8 @@ import { start } from '../src/start.js';
 import { createPool } from '../src/db.js';
 import { runMigrations } from '../src/migrate.js';
 import { insertLoads, insertMembers, insertTrucks } from './lib/generate.js';
+import { createGeminiParser } from '../src/lib/ai/gemini.js';
+import { createHeuristicParser } from '../src/lib/ai/heuristic.js';
 
 if (process.env.NODE_ENV === 'production') { console.error('dev-server refuses to run in production.'); process.exit(1); }
 
@@ -68,5 +70,7 @@ async function fakeVerify(token) {
 }
 
 const stopDb = async () => { try { await pg?.stop(); } catch { /* already stopped */ } };
-const app = await start({ config, verifyToken: fakeVerify, onShutdown: stopDb });
+// Real Gemini when GEMINI_API_KEY is set, otherwise the offline rule-based reader so the feature can be tried locally.
+const ai = config.geminiApiKey ? createGeminiParser({ apiKey: config.geminiApiKey, model: config.geminiModel }) : createHeuristicParser();
+const app = await start({ config, verifyToken: fakeVerify, onShutdown: stopDb, ai });
 if (app) console.log(`\nDEV server on http://localhost:${port}  (fake sign-in; owner = ${config.ownerEmails.join(', ')})`);

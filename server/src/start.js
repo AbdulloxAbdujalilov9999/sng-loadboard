@@ -8,9 +8,9 @@ import { runMigrations } from './migrate.js';
  * the listening port (the API is stateless, so throughput scales with cores). The primary applies
  * migrations once, restarts crashed workers, and drains everything on SIGTERM.
  */
-export async function start({ config, verifyToken, onShutdown }) {
+export async function start({ config, verifyToken, onShutdown, ai = null }) {
   if (config.workers > 1 && cluster.isPrimary) return startPrimary(config, onShutdown);
-  return startWorker({ config, verifyToken, migrate: cluster.isPrimary, onShutdown });
+  return startWorker({ config, verifyToken, migrate: cluster.isPrimary, onShutdown, ai });
 }
 
 async function startPrimary(config, onShutdown) {
@@ -64,11 +64,11 @@ async function assertDatabaseReachable(pool, attempts = 5) {
   }
 }
 
-async function startWorker({ config, verifyToken, migrate, onShutdown }) {
+async function startWorker({ config, verifyToken, migrate, onShutdown, ai }) {
   const pool = createPool(config);
   await assertDatabaseReachable(pool);
   if (migrate && config.autoMigrate) await runMigrations(pool, console);
-  const app = await buildApp({ config, pool, verifyToken });
+  const app = await buildApp({ config, pool, verifyToken, ai });
 
   let closing = false;
   const shutdown = async (signal) => {

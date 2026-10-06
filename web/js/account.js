@@ -14,6 +14,7 @@ const Account = (() => {
     set('setting-phone', p.phone);
     set('setting-tg', p.telegram);
     set('setting-email', p.email);
+    set('setting-contact-email', p.contactEmail);
     set('setting-location', p.location);
     set('setting-tir', p.tirCarnet);
     set('setting-fleet', p.fleet);
@@ -40,7 +41,7 @@ const Account = (() => {
       el.value = v || '';
       el.dataset.auto = el.value;
     };
-    fill('post-contact-name', p.contactName); fill('post-phone', p.phone); fill('post-email', p.email); fill('post-tg', p.telegram);
+    fill('post-contact-name', p.contactName); fill('post-phone', p.phone); fill('post-email', p.contactEmail || p.email); fill('post-tg', p.telegram);
     fill('truck-post-phone', p.phone); fill('truck-post-tg', p.telegram);
   }
 
@@ -60,7 +61,7 @@ const Account = (() => {
       populate();
       U.toast(t('toast_profile_saved'), 'success');
     } catch (err) {
-      const mapped = { company: 'setting-company-name', contactName: 'setting-dispatcher-name', phone: 'setting-phone', telegram: 'setting-tg' };
+      const mapped = { company: 'setting-company-name', contactName: 'setting-dispatcher-name', phone: 'setting-phone', telegram: 'setting-tg', contactEmail: 'setting-contact-email' };
       if (err.code === 'validation_error') for (const d of err.details || []) { const id = mapped[d.path]; if (id) U.fieldError($(id), d.message); } else U.toast(err.message, 'error');
     } finally {
       U.setBusy(form, false);

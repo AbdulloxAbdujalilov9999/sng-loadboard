@@ -1,4 +1,4 @@
-import { idParam, loadBody, loadPatchBody, loadQuery } from '../lib/schemas.js';
+import { idParam, loadBody, loadPatchBody, loadQuery, loadsBulkBody } from '../lib/schemas.js';
 import { likePattern, loadDto } from '../lib/dto.js';
 import { badRequest, forbidden, notFound, tooMany } from '../lib/errors.js';
 import { detail } from '../lib/validation.js';
@@ -13,7 +13,7 @@ const COUNT_CAP = 10_000;
 // reads (coordinates, search_text, three timestamps) - trimming it roughly doubled throughput.
 const LIST_COLS = `l.id, l.owner_id, (extract(epoch from l.created_at) * 1000)::bigint AS created_ms,
   l.origin_city_id, l.origin_city, l.dest_city_id, l.dest_city, l.equip, l.fp, l.weight_t, l.volume_m3,
-  l.pickup_date, l.delivery_date, l.distance_km, l.rate_usd, l.commodity, l.company_name,
+  l.pickup_date, l.delivery_date, l.distance_km, l.rate_usd, l.commodity, l.notes, l.company_name,
   l.contact_name, l.contact_phone, l.contact_email, l.contact_tg`; // "10,000+" - counting further buys nothing and costs time
 
 // API sort name -> column + cast used when binding the keyset cursor value.
@@ -110,42 +110,67 @@ export default async function loadRoutes(app, { pool, config }) {
   });
 
   // ---------- create ----------
-  app.post('/api/loads', write, async (req, reply) => {
-    const body = loadBody.parse(req.body);
-    if (body.originCityId === body.destCityId) throw badRequest('Origin and destination must differ', [detail('destCityId', 'dest_same_as_origin')]);
-    assertDates(body.pickupDate, body.deliveryDate);
-
-    const created = await withTx(pool, async (db) => {
-      const cities = await getCities(db, [body.originCityId, body.destCityId]);
-      const o = cities.get(body.originCityId);
-      const d = cities.get(body.destCityId);
-      if (!o) throw badRequest('Unknown origin city', [detail('originCityId', 'pick_city')]);
-      if (!d) throw badRequest('Unknown destination city', [detail('destCityId', 'pick_city')]);
+  // Shared by single create and bulk create: validates cross-field rules, enforces quotas for `bodies.length`
+  // new loads under the member's advisory lock, inserts them and announces each one.
+  async function createLoads(member, bodies, pathPrefix = '') {
+    const at = (i, f) => (pathPrefix ? `${pathPrefix}.${i}.${f}` : f);
+    bodies.forEach((body, i) => {
+      if (body.originCityId === body.destCityId) throw badRequest('Origin and destination must differ', [detail(at(i, 'destCityId'), 'dest_same_as_origin')]);
+      try { assertDates(body.pickupDate, body.deliveryDate); } catch (e) {
+        if (e.details) e.details = e.details.map((d) => ({ ...d, path: at(i, d.path) }));
+        throw e;
+      }
+    });
+    return withTx(pool, async (db) => {
+      const ids = [...new Set(bodies.flatMap((b) => [b.originCityId, b.destCityId]))];
+      const cities = await getCities(db, ids);
+      bodies.forEach((body, i) => {
+        if (!cities.get(body.originCityId)) throw badRequest('Unknown origin city', [detail(at(i, 'originCityId'), 'pick_city')]);
+        if (!cities.get(body.destCityId)) throw badRequest('Unknown destination city', [detail(at(i, 'destCityId'), 'pick_city')]);
+      });
 
       // Serialise this member's posting so the quota checks can't be raced by parallel requests.
-      await db.query('SELECT pg_advisory_xact_lock($1)', [req.member.id]);
+      await db.query('SELECT pg_advisory_xact_lock($1)', [member.id]);
       // Two index-served counts (a single FILTERed count would scan the member's whole history).
       const [{ rows: [{ active }] }, { rows: [{ lasthour }] }] = await Promise.all([
-        db.query(`SELECT count(*)::int AS active FROM loads WHERE owner_id = $1 AND status = 'active'`, [req.member.id]),
-        db.query(`SELECT count(*)::int AS lasthour FROM loads WHERE owner_id = $1 AND created_at > now() - interval '1 hour'`, [req.member.id]),
+        db.query(`SELECT count(*)::int AS active FROM loads WHERE owner_id = $1 AND status = 'active'`, [member.id]),
+        db.query(`SELECT count(*)::int AS lasthour FROM loads WHERE owner_id = $1 AND created_at > now() - interval '1 hour'`, [member.id]),
       ]);
-      if (active >= config.maxActiveLoadsPerMember) throw tooMany(`You have reached the limit of ${config.maxActiveLoadsPerMember} active loads. Remove some to post more.`);
-      if (lasthour >= config.maxPostsPerHour) throw tooMany('Posting too fast - please try again later.');
+      if (active + bodies.length > config.maxActiveLoadsPerMember) throw tooMany(`You have reached the limit of ${config.maxActiveLoadsPerMember} active loads. Remove some to post more.`);
+      if (lasthour + bodies.length > config.maxPostsPerHour) throw tooMany('Posting too fast - please try again later.');
 
-      const { rows: [row] } = await db.query(
-        `INSERT INTO loads (owner_id, origin_city_id, origin_city, origin_lat, origin_lng,
-                            dest_city_id, dest_city, dest_lat, dest_lng, equip, fp, weight_t, volume_m3,
-                            pickup_date, delivery_date, distance_km, rate_usd, commodity, company_name,
-                            contact_name, contact_phone, contact_email, contact_tg)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
-         RETURNING *`,
-        [req.member.id, o.id, o.label, o.lat, o.lng, d.id, d.label, d.lat, d.lng, body.equip, body.fp, body.weightT,
-          body.volumeM3, body.pickupDate, body.deliveryDate, roadDistanceKm(o, d, config.roadFactor), body.rateUsd,
-          body.commodity, req.member.company, body.contactName, body.contactPhone, body.contactEmail, body.contactTelegram]);
-      await publish(db, { entity: 'loads', op: 'insert', id: row.id, ownerId: req.member.id });
-      return row;
+      const rows = [];
+      for (const body of bodies) {
+        const o = cities.get(body.originCityId);
+        const d = cities.get(body.destCityId);
+        const { rows: [row] } = await db.query(
+          `INSERT INTO loads (owner_id, origin_city_id, origin_city, origin_lat, origin_lng,
+                              dest_city_id, dest_city, dest_lat, dest_lng, equip, fp, weight_t, volume_m3,
+                              pickup_date, delivery_date, distance_km, rate_usd, commodity, notes, company_name,
+                              contact_name, contact_phone, contact_email, contact_tg)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+           RETURNING *`,
+          [member.id, o.id, o.label, o.lat, o.lng, d.id, d.label, d.lat, d.lng, body.equip, body.fp, body.weightT,
+            body.volumeM3, body.pickupDate, body.deliveryDate, roadDistanceKm(o, d, config.roadFactor), body.rateUsd,
+            body.commodity, body.notes ?? '', member.company, body.contactName, body.contactPhone, body.contactEmail, body.contactTelegram]);
+        await publish(db, { entity: 'loads', op: 'insert', id: row.id, ownerId: member.id });
+        rows.push(row);
+      }
+      return rows;
     });
+  }
+
+  app.post('/api/loads', write, async (req, reply) => {
+    const [created] = await createLoads(req.member, [loadBody.parse(req.body)]);
     return reply.code(201).send(loadDto(created, req.member.id));
+  });
+
+  // Up to 40 loads at once (used by "paste from Telegram/WhatsApp"). All-or-nothing: one bad row rejects the
+  // batch with errors pointing at `loads.<index>.<field>`, so nothing is half-posted.
+  app.post('/api/loads/bulk', write, async (req, reply) => {
+    const { loads } = loadsBulkBody.parse(req.body);
+    const created = await createLoads(req.member, loads, 'loads');
+    return reply.code(201).send({ items: created.map((r) => loadDto(r, req.member.id)) });
   });
 
   // ---------- edit ----------
@@ -176,7 +201,7 @@ export default async function loadRoutes(app, { pool, config }) {
             origin_city_id = $2, origin_city = $3, origin_lat = $4, origin_lng = $5,
             dest_city_id = $6, dest_city = $7, dest_lat = $8, dest_lng = $9,
             equip = $10, fp = $11, weight_t = $12, volume_m3 = $13, pickup_date = $14, delivery_date = $15,
-            distance_km = $16, rate_usd = $17, commodity = $18,
+            distance_km = $16, rate_usd = $17, commodity = $18, notes = $23,
             contact_name = $19, contact_phone = $20, contact_email = $21, contact_tg = $22, updated_at = now()
           WHERE id = $1 RETURNING *`,
         [id, o.id, o.label, o.lat, o.lng, d.id, d.label, d.lat, d.lng,
@@ -184,7 +209,7 @@ export default async function loadRoutes(app, { pool, config }) {
           patch.volumeM3 === undefined ? cur.volume_m3 : patch.volumeM3, pickup, delivery,
           roadDistanceKm(o, d, config.roadFactor), patch.rateUsd ?? cur.rate_usd, patch.commodity ?? cur.commodity,
           patch.contactName ?? cur.contact_name, patch.contactPhone ?? cur.contact_phone,
-          patch.contactEmail ?? cur.contact_email, patch.contactTelegram ?? cur.contact_tg]);
+          patch.contactEmail ?? cur.contact_email, patch.contactTelegram ?? cur.contact_tg, patch.notes ?? cur.notes]);
       await publish(db, { entity: 'loads', op: 'update', id, ownerId: cur.owner_id });
       return row;
     });

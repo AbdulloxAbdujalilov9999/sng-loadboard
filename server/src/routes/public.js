@@ -1,4 +1,4 @@
-export default async function publicRoutes(app, { pool, config }) {
+export default async function publicRoutes(app, { pool, config, ai }) {
   // Liveness + DB readiness for load balancers / orchestrators.
   app.get('/healthz', async (req, reply) => {
     try {
@@ -19,6 +19,7 @@ export default async function publicRoutes(app, { pool, config }) {
       equipTypes: ['T', 'R', 'F', 'V', 'AC'],
       roadFactor: config.roadFactor,
       ownerContact: config.ownerEmails[0] ?? null,
+      aiImport: Boolean(ai), // whether "paste loads" can be offered
       devAuth: config.devAuth, // true only for the local dev server: lets the UI offer a fake sign-in
     };
   });

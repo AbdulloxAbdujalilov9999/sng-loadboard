@@ -91,7 +91,7 @@ const App = (() => {
     $('menu-approvals').classList.toggle('hidden', !owner);
     Account.populate();
     if (!first) return; // later calls are profile refreshes
-    Loads.enter(); Trucks.enter(); Directory.enter(); Admin.enter();
+    Loads.enter(); AiImport.enter(); Trucks.enter(); Directory.enter(); Admin.enter();
     setView(U.store.get('sng.view', 'search-loads'));
     setTimeout(refreshStats, 0);
     statsTimer = setInterval(refreshStats, 45000 + Math.random() * 30000);
@@ -101,7 +101,7 @@ const App = (() => {
     if (!entered) return;
     entered = false;
     clearInterval(statsTimer);
-    Loads.leave(); Trucks.leave(); Directory.leave(); Admin.leave();
+    Loads.leave(); AiImport.leave(); Trucks.leave(); Directory.leave(); Admin.leave();
     resetForms();
     showSyncBanner('');
     $('app-workspace').classList.add('hidden');
@@ -144,7 +144,7 @@ const App = (() => {
 
   function boot() {
     I18N.init();
-    Account.init(); Session.init(); Loads.init(); Trucks.init(); Directory.init(); Admin.init();
+    Account.init(); Session.init(); Loads.init(); AiImport.init(); Trucks.init(); Directory.init(); Admin.init();
 
     document.addEventListener('click', (e) => {
       const nav = e.target.closest('[data-view]');

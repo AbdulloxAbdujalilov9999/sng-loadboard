@@ -11,6 +11,7 @@ import { EventHub } from './events.js';
 import { TtlCache } from './lib/ttl.js';
 import { HttpError } from './lib/errors.js';
 import { describeIssue } from './lib/validation.js';
+import { buildCityIndex } from './lib/ai/cities.js';
 import publicRoutes from './routes/public.js';
 import meRoutes from './routes/me.js';
 import adminRoutes from './routes/admin.js';
@@ -20,6 +21,7 @@ import truckRoutes from './routes/trucks.js';
 import directoryRoutes from './routes/directory.js';
 import eventRoutes from './routes/events.js';
 import statsRoutes from './routes/stats.js';
+import aiRoutes from './routes/ai.js';
 
 // Sign-in uses Firebase Auth (Google popup), so these Google/Firebase origins must be reachable.
 function cspDirectives(config) {
@@ -52,7 +54,7 @@ function pgErrorToHttp(err) {
   return null;
 }
 
-export async function buildApp({ config, pool, verifyToken, hub: providedHub, logger }) {
+export async function buildApp({ config, pool, verifyToken, hub: providedHub, logger, ai = null }) {
   const app = Fastify({
     logger: logger ?? { level: config.logLevel, redact: ['req.headers.authorization'] },
     bodyLimit: 64 * 1024,
@@ -83,14 +85,17 @@ export async function buildApp({ config, pool, verifyToken, hub: providedHub, lo
   // Rows are identical for every approved member; only the per-user `mine` flag is added afterwards.
   app.decorate('searchCache', new TtlCache({ ttlMs: config.searchCacheMs, max: 1000 }));
   // The 160 cities never change at runtime: one query, then pure memory. (Saves a DB round trip per search.)
-  let cityMap = null; let cityMapAt = 0;
-  app.decorate('cityById', async (id) => {
-    if (!cityMap || Date.now() - cityMapAt > 600_000) {
-      const { rows } = await pool.query('SELECT id, label, lat, lng FROM cities');
-      cityMap = new Map(rows.map((r) => [r.id, r])); cityMapAt = Date.now();
+  let cityState = null; let cityStateAt = 0;
+  const loadCities = async () => {
+    if (!cityState || Date.now() - cityStateAt > 600_000) {
+      const { rows } = await pool.query('SELECT id, label, name, name_ru, country, lat, lng FROM cities ORDER BY id');
+      cityState = { list: rows, byId: new Map(rows.map((r) => [r.id, r])), index: buildCityIndex(rows) };
+      cityStateAt = Date.now();
     }
-    return cityMap.get(id);
-  });
+    return cityState;
+  };
+  app.decorate('cityById', async (id) => (await loadCities()).byId.get(id));
+  app.decorate('cityIndex', async () => (await loadCities()).index);
   // Load shedding: when this instance already has a long line of requests waiting for a database connection,
   // new API calls fail FAST with 503 + Retry-After rather than joining a queue that would only time out
   // (which would make every user's experience worse, not just the overflow's).
@@ -140,7 +145,7 @@ export async function buildApp({ config, pool, verifyToken, hub: providedHub, lo
     return reply.code(status).send({ error: { code: err.code ?? `http_${status}`, message: err.message } });
   });
 
-  const opts = { pool, config, hub };
+  const opts = { pool, config, hub, ai };
   await app.register(publicRoutes, opts);
   await app.register(meRoutes, opts);
   await app.register(adminRoutes, opts);
@@ -150,6 +155,7 @@ export async function buildApp({ config, pool, verifyToken, hub: providedHub, lo
   await app.register(directoryRoutes, opts);
   await app.register(eventRoutes, opts);
   await app.register(statsRoutes, opts);
+  await app.register(aiRoutes, opts);
 
   // Serve the built web app (same origin as the API => no CORS needed in the default deployment).
   const webRoot = path.resolve(config.webRoot);

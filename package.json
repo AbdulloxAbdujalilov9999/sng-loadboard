@@ -16,7 +16,8 @@
     "test": "node --test --test-concurrency=1 \"server/test/**/*.test.js\"",
     "seed": "node --env-file-if-exists=.env server/scripts/seed.js",
     "bench": "node server/scripts/bench.js",
-    "soak": "node server/scripts/soak.js"
+    "soak": "node server/scripts/soak.js",
+    "ai:check": "node --env-file-if-exists=.env server/scripts/ai-check.js"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

@@ -200,6 +200,9 @@ const Loads = (() => {
     return Array.from({ length: 8 }, () => `<tr class="status-row"><td colspan="11" class="py-3 px-3"><div class="skeleton-bar w-full"></div></td></tr>`).join('');
   }
 
+  // Rate 0 means "not stated / negotiable" (e.g. a pasted post with no price).
+  const rateText = (usd) => (usd > 0 ? U.money(usd) : t('negotiable'));
+
   function rowHtml(l) {
     const open = list.expanded === l.id;
     const dh = (v) => (v === null ? '' : ` <span class="text-[10px] ${v > 0 ? 'text-blue-600 font-bold' : 'text-slate-400 font-normal'}">(${v}km)</span>`);
@@ -213,7 +216,7 @@ const Loads = (() => {
       <td data-label="F/P" class="py-2 px-2 text-slate-600 truncate">${esc(t(l.fp === 'Full' ? 'opt_full' : 'opt_partial'))}</td>
       <td data-label="${esc(t('th_weight'))}" class="py-2 px-2 text-slate-700 truncate">${esc(l.weightT)}t${l.volumeM3 ? ` / ${esc(l.volumeM3)}m³` : ''}</td>
       <td data-label="${esc(t('th_distance'))}" class="py-2 px-2 text-right text-slate-600 truncate">${esc(l.distanceKm.toLocaleString())} km</td>
-      <td data-label="${esc(t('th_rate'))}" class="py-2 px-2.5 text-right font-bold text-emerald-600 truncate">${esc(U.money(l.rateUsd))}</td>
+      <td data-label="${esc(t('th_rate'))}" class="py-2 px-2.5 text-right font-bold text-emerald-600 truncate">${esc(rateText(l.rateUsd))}</td>
       <td data-label="${esc(t('th_company'))}" class="py-2 px-2.5 text-slate-800 font-medium truncate" title="${esc(l.company)}">${esc(l.company)}${l.mine ? ` <span class="text-[9px] bg-amber-100 text-amber-800 px-1 rounded font-bold">${esc(t('badge_yours'))}</span>` : ''}</td>
     </tr>`;
   }
@@ -238,6 +241,7 @@ const Loads = (() => {
                 <div class="col-span-2 pt-1 border-t border-slate-100"><span class="text-slate-500">${esc(t('th_distance'))}:</span> <strong class="text-blue-700 font-mono">${esc(l.distanceKm.toLocaleString())} km (${esc(t('lbl_estimated_route'))})</strong></div>
               </div>
             </div>
+            ${l.notes ? `<div class="text-[11px] bg-amber-50 border border-amber-200 rounded p-2 text-slate-800"><span class="text-[10px] uppercase font-bold text-amber-700 tracking-wider block mb-0.5">${esc(t('lbl_notes'))}</span><span class="whitespace-pre-line break-words">${esc(l.notes)}</span></div>` : ''}
             <div class="pt-2 border-t border-slate-100">
               <a href="${maps}" target="_blank" rel="noopener noreferrer" class="w-full bg-[#1a73e8] hover:bg-blue-600 text-white font-bold py-2 px-3 rounded flex items-center justify-center space-x-2 shadow-sm transition">
                 <i data-lucide="map-pin" class="w-4 h-4 text-amber-300"></i><span>${esc(t('lbl_maps_btn'))}</span><i data-lucide="external-link" class="w-3.5 h-3.5 text-blue-200"></i>
@@ -247,7 +251,7 @@ const Loads = (() => {
           <div class="md:col-span-6 bg-white p-3 rounded border border-blue-100 shadow-sm space-y-2">
             <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
               <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">${esc(t('lbl_direct_contacts'))}</span>
-              <span class="text-sm font-black text-emerald-600 font-mono">${esc(U.money(l.rateUsd))}</span>
+              <span class="text-sm font-black text-emerald-600 font-mono">${esc(rateText(l.rateUsd))}</span>
             </div>
             <div class="space-y-2 text-slate-700 text-[11px] pt-1">
               <div class="flex items-center justify-between"><div class="flex items-center space-x-1.5"><i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i><strong class="text-slate-900">${esc(l.company)}</strong></div><span class="text-slate-500 font-medium">${esc(l.contactName)}</span></div>
@@ -387,7 +391,7 @@ const Loads = (() => {
       <td data-label="${esc(t('th_pickup_delivery'))}" class="p-2.5 text-slate-600">${esc(l.pickupDate)} <span class="text-slate-400">/</span> ${esc(l.deliveryDate || '--')}</td>
       <td data-label="${esc(t('th_type_weight'))}" class="p-2.5"><span class="bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">${esc(l.equip)}</span> ${esc(l.weightT)}t</td>
       <td data-label="${esc(t('th_distance'))}" class="p-2.5 text-slate-600">${esc(l.distanceKm.toLocaleString())} km</td>
-      <td data-label="${esc(t('th_rate'))}" class="p-2.5 font-bold text-emerald-600">${esc(U.money(l.rateUsd))}</td>
+      <td data-label="${esc(t('th_rate'))}" class="p-2.5 font-bold text-emerald-600">${esc(rateText(l.rateUsd))}</td>
       <td data-label="${esc(t('lbl_commodity_short'))}" class="p-2.5 text-slate-700 truncate max-w-[150px]" title="${esc(l.commodity)}">${esc(l.commodity)}</td>
       <td class="p-2.5 text-center"><div class="flex items-center justify-center space-x-1">
         <button type="button" data-action="edit" data-id="${l.id}" class="flex-1 md:flex-none justify-center bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2 py-1.5 md:py-1 rounded text-[10px] border border-blue-200 flex items-center space-x-1 transition"><i data-lucide="edit-2" class="w-3 h-3"></i><span>${esc(t('btn_edit'))}</span></button>
@@ -452,6 +456,7 @@ const Loads = (() => {
     $('edit-delivery-date').value = l.deliveryDate || '';
     $('edit-dist').value = `${l.distanceKm.toLocaleString()} km`;
     $('edit-commodity').value = l.commodity;
+    $('edit-notes').value = l.notes || '';
     $('edit-contact-name').value = l.contactName;
     $('edit-phone').value = l.contactPhone;
     $('edit-email').value = l.contactEmail;
@@ -583,7 +588,7 @@ const Loads = (() => {
   /** Called when the user navigates back to the Search tab. */
   function onShow() { if (stale) reload({ silent: true }); }
 
-  return { init, enter, leave, onShow, render, renderMine, loadMine, closeEdit, get stale() { return stale; } };
+  return { init, enter, leave, onShow, render, renderMine, loadMine, closeEdit, markStale() { stale = true; }, get stale() { return stale; } };
 })();
 
 window.Loads = Loads;

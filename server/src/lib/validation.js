@@ -51,6 +51,8 @@ export function describeIssue(issue) {
     case 'invalid_format':
       if (issue.message in TEMPLATES) return detail(path, issue.message); // our regex rules use the code as their message
       return detail(path, issue.format === 'email' ? 'email' : 'invalid');
+    case 'invalid_union':
+      return detail(path, 'email'); // the only union in our schemas is "empty or e-mail"
     case 'invalid_value':
       return detail(path, 'choice');
     case 'unrecognized_keys':
