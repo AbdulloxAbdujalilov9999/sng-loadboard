@@ -1,0 +1,38 @@
+{
+  "name": "sng-one",
+  "version": "1.0.0",
+  "description": "SNG ONE freight marketplace: load board, truck board and carrier directory for CIS/Eurasia",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.9"
+  },
+  "scripts": {
+    "start": "node server/src/index.js",
+    "dev": "node --watch --env-file-if-exists=.env server/src/index.js",
+    "migrate": "node --env-file-if-exists=.env server/src/migrate.js",
+    "build:web": "node scripts/build-web.mjs",
+    "dev:fake-auth": "node server/scripts/dev-server.js",
+    "test": "node --test --test-concurrency=1 \"server/test/**/*.test.js\"",
+    "seed": "node --env-file-if-exists=.env server/scripts/seed.js",
+    "bench": "node server/scripts/bench.js",
+    "soak": "node server/scripts/soak.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.0",
+    "@fastify/helmet": "^13.1.1",
+    "@fastify/rate-limit": "^11.2.0",
+    "@fastify/static": "^10.1.5",
+    "fastify": "^5.12.5",
+    "jose": "^6.2.12",
+    "pg": "^8.23.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "autocannon": "^8.0.0",
+    "embedded-postgres": "^18.4.0-beta.17",
+    "flatpickr": "^4.6.13",
+    "lucide": "^1.52.0",
+    "tailwindcss": "^3.4.19"
+  }
+}

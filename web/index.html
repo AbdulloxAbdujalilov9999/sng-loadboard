@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNG ONE — Freight Marketplace</title>
+    <meta name="description" content="Load board, truck board and carrier directory for freight across Central Asia, Russia, the Caucasus and Eastern Europe.">
+    <meta name="theme-color" content="#0a192f">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/styles.css?v=__BUILD__">
+    <link rel="stylesheet" href="/vendor/flatpickr.min.css?v=__BUILD__">
+    <link rel="stylesheet" href="/vendor/flatpickr-theme.css?v=__BUILD__">
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans antialiased h-screen flex overflow-hidden">
+
+    <div id="toast-root" role="status" aria-live="polite"></div>
+    <div id="live-region" class="sr-only-live" aria-live="polite"></div>
+
+    <!-- ================= CONFIRM DIALOG (replaces window.confirm) ================= -->
+    <div id="confirm-modal" class="hidden fixed inset-0 bg-slate-900/60 z-[90] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <div class="bg-white rounded-lg shadow-2xl max-w-sm w-full p-5 space-y-4 text-xs">
+            <h3 id="confirm-title" class="text-sm font-bold text-slate-800"></h3>
+            <p id="confirm-message" class="text-slate-600 leading-relaxed"></p>
+            <div class="flex gap-2 justify-end">
+                <button id="confirm-cancel" type="button" class="px-4 py-2 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold" data-i18n="btn_cancel">Cancel</button>
+                <button id="confirm-ok" type="button" class="px-4 py-2 rounded bg-rose-600 hover:bg-rose-700 text-white font-bold"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= SIGN-IN GATEWAY ================= -->
+    <div id="auth-lockout-screen" class="fixed inset-0 bg-[#0a192f] z-50 flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-white rounded-xl shadow-2xl border border-slate-700 text-xs max-h-[95vh] overflow-y-auto">
+            <div class="bg-[#071324] p-6 text-center text-white border-b border-slate-800">
+                <div class="w-12 h-12 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center font-black text-white text-2xl tracking-wider mx-auto mb-2 shadow-lg">S1</div>
+                <h1 class="text-lg font-bold tracking-tight">SNG <span class="text-sky-400">ONE</span> <span data-i18n="brand_tagline">Freight Marketplace</span></h1>
+                <p class="text-slate-400 text-[11px] mt-1" data-i18n="auth_gate_sub">Sign in with Google to access live load boards, post equipment, and manage your freight.</p>
+            </div>
+
+            <!-- Start -->
+            <div id="auth-pane-start" class="p-6 space-y-4">
+                <button type="button" id="google-signin-btn" disabled class="disabled:opacity-60 disabled:cursor-wait w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-2.5 rounded text-xs transition shadow border border-slate-300 flex items-center justify-center space-x-2">
+                    <svg class="w-4 h-4" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.5 6 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.5 6 29.5 4 24 4 16.3 4 9.6 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-1.8 14-5l-6.5-5.4C29.5 35.2 26.9 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5c3.3 6.5 10 10.9 17.8 10.9z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.5 5.4C41.1 35.9 44 30.4 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
+                    <span id="google-signin-btn-label">…</span>
+                </button>
+
+                <!-- Local development only: the server advertises devAuth, production never does. -->
+                <form id="dev-signin" class="hidden space-y-2 border border-dashed border-amber-300 bg-amber-50 rounded p-3">
+                    <p class="text-[11px] font-bold text-amber-800">Dev sign-in (local server only)</p>
+                    <input id="dev-email" type="email" required value="owner@dev.local" class="w-full border border-amber-300 rounded p-2 text-xs" aria-label="Dev email">
+                    <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 rounded text-xs">Sign in as this email</button>
+                </form>
+
+                <p class="text-[10px] text-slate-400 text-center leading-relaxed" data-i18n="auth_start_hint">New companies fill in a few details after signing in and wait for the platform owner to approve access. Returning members and the owner get in immediately.</p>
+                <p id="auth-start-error" role="alert" class="hidden text-rose-600 bg-rose-50 border border-rose-200 rounded p-2 text-[11px] font-semibold"></p>
+            </div>
+
+            <!-- New Google sign-in with no account yet -->
+            <div id="auth-pane-complete-profile" class="hidden p-6 space-y-4">
+                <p class="text-[11px] text-slate-500" data-i18n="lbl_request_sub">You're signed in with Google. Add your company details to send an access request — you'll be able to use the platform once the owner approves it.</p>
+                <form id="request-form" class="space-y-3" novalidate>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1" for="gate-request-name" data-i18n="lbl_google_name">Name (Google)</label>
+                            <input type="text" id="gate-request-name" name="contactName" class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 text-slate-600" readonly>
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1" for="gate-request-email" data-i18n="lbl_google_email">Google Email</label>
+                            <input type="email" id="gate-request-email" class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 text-slate-600" readonly>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1" for="gate-request-company" data-i18n="lbl_company">Company Name</label>
+                        <input type="text" id="gate-request-company" name="company" maxlength="120" required placeholder="SilkRoad Trans LLC" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1" for="gate-request-phone" data-i18n="lbl_phone">Phone Number</label>
+                            <input type="tel" id="gate-request-phone" name="phone" required placeholder="+998 (90) 123-45-67" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1" for="gate-request-tg" data-i18n="lbl_telegram">Telegram Handle</label>
+                            <input type="text" id="gate-request-tg" name="telegram" required placeholder="@alisher_disp" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <p id="request-error" role="alert" class="hidden text-rose-600 bg-rose-50 border border-rose-200 rounded p-2 text-[11px] font-semibold"></p>
+                    <button type="submit" id="request-submit-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs transition shadow flex items-center justify-center space-x-2">
+                        <i data-lucide="send" class="w-4 h-4"></i>
+                        <span data-i18n="btn_signup_submit">Submit Access Request</span>
+                    </button>
+                    <button type="button" data-action="gate-signout" class="w-full text-slate-400 hover:text-slate-600 text-[11px] font-semibold" data-i18n="btn_other_account">Use a different Google account</button>
+                </form>
+            </div>
+
+            <!-- Pending -->
+            <div id="auth-pane-pending" class="hidden p-6 space-y-4 text-center">
+                <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto"><i data-lucide="clock" class="w-6 h-6"></i></div>
+                <div>
+                    <h2 class="text-sm font-bold text-slate-800" data-i18n="modal_pending_title">Request Submitted</h2>
+                    <p class="text-slate-500 text-[11px] mt-1">
+                        <span data-i18n="lbl_pending_sub">Your access request has been sent to the platform owner. This page updates by itself as soon as it is approved.</span>
+                        <strong id="pending-target-email" class="text-slate-800 block mt-1"></strong>
+                    </p>
+                </div>
+                <button type="button" data-action="gate-signout" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded text-xs transition" data-i18n="btn_logout">Sign Out</button>
+            </div>
+
+            <!-- Declined -->
+            <div id="auth-pane-rejected" class="hidden p-6 space-y-4 text-center">
+                <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto"><i data-lucide="x-circle" class="w-6 h-6"></i></div>
+                <div>
+                    <h2 class="text-sm font-bold text-slate-800" data-i18n="rejected_title">Access Request Declined</h2>
+                    <p class="text-slate-500 text-[11px] mt-1"><span data-i18n="rejected_sub">The platform owner declined this access request. If you think this is a mistake, contact</span> <a id="owner-contact-link" href="#" class="text-blue-600 hover:underline"></a></p>
+                </div>
+                <button type="button" data-action="gate-signout" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded text-xs transition" data-i18n="btn_logout">Sign Out</button>
+            </div>
+
+            <!-- Can't reach the server -->
+            <div id="auth-pane-error" class="hidden p-6 space-y-4 text-center">
+                <div class="w-12 h-12 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center mx-auto"><i data-lucide="wifi-off" class="w-6 h-6"></i></div>
+                <div>
+                    <h2 class="text-sm font-bold text-slate-800" data-i18n="err_connect_title">Can't reach the server</h2>
+                    <p id="auth-error-msg" class="text-slate-500 text-[11px] mt-1"></p>
+                </div>
+                <button type="button" id="auth-retry-btn" class="w-full bg-[#0066cc] hover:bg-blue-700 text-white font-bold py-2.5 rounded text-xs transition" data-i18n="btn_retry">Try again</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= MAIN APP ================= -->
+    <div id="app-workspace" class="hidden flex-1 flex h-screen overflow-hidden">
+
+        <div id="sidebar-backdrop" class="hidden md:hidden fixed inset-0 bg-slate-900/50 z-50"></div>
+
+        <aside id="main-sidebar" class="w-60 bg-[#0a192f] text-slate-300 flex flex-col flex-shrink-0 z-20 border-r border-slate-800 select-none" aria-label="Main navigation">
+            <div class="h-14 px-4 flex items-center justify-between border-b border-slate-800 bg-[#071324]">
+                <div class="flex items-center space-x-2">
+                    <div class="w-7 h-7 rounded bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center font-black text-white text-base tracking-wider">S1</div>
+                    <div>
+                        <span class="font-bold text-white text-sm tracking-tight">SNG <span class="text-sky-400">ONE</span></span>
+                        <span class="block text-[9px] text-slate-400 uppercase tracking-widest leading-none" data-i18n="brand_sub">Freight Marketplace</span>
+                    </div>
+                </div>
+                <button id="sidebar-close" class="md:hidden text-slate-400 hover:text-white p-1" aria-label="Close menu"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+
+            <nav class="flex-1 py-3 px-2 space-y-1 overflow-y-auto text-xs font-medium">
+                <div class="px-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider" data-i18n="nav_operations">Freight Operations</div>
+
+                <button data-view="search-loads" id="menu-search-loads" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition tab-active">
+                    <i data-lucide="search" class="w-4 h-4"></i>
+                    <span class="flex-1 text-left" data-i18n="nav_search_loads">Search Loads</span>
+                    <span class="bg-sky-900/60 text-sky-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono" id="badge-total-loads">–</span>
+                </button>
+                <button data-view="post-loads" id="menu-post-loads" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    <span class="flex-1 text-left" data-i18n="nav_post_loads">Post & Manage Loads</span>
+                </button>
+                <button data-view="search-trucks" id="menu-search-trucks" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="truck" class="w-4 h-4"></i>
+                    <span class="flex-1 text-left" data-i18n="nav_search_trucks">Search Trucks</span>
+                    <span class="bg-emerald-950 text-emerald-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono" id="badge-total-trucks">–</span>
+                </button>
+                <button data-view="post-trucks" id="menu-post-trucks" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="navigation" class="w-4 h-4"></i>
+                    <span class="flex-1 text-left" data-i18n="nav_post_trucks">Post Trucks</span>
+                </button>
+
+                <div class="pt-3 px-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider" data-i18n="nav_directory_sec">Directory & Network</div>
+                <button data-view="directory" id="menu-directory" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="book-open" class="w-4 h-4"></i>
+                    <span class="flex-1 text-left" data-i18n="nav_directory">Carrier Directory</span>
+                </button>
+                <button data-view="account-settings" id="menu-account-settings" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    <span class="flex-1 text-left" data-i18n="nav_settings">Account & Settings</span>
+                </button>
+
+                <div id="nav-admin-section" class="hidden pt-3 px-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider" data-i18n="nav_admin_sec">Administration</div>
+                <button data-view="approvals" id="menu-approvals" class="hidden w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="user-check" class="w-4 h-4"></i>
+                    <span class="flex-1 text-left" data-i18n="nav_approvals">Users to Approve</span>
+                    <span class="hidden bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-mono" id="badge-approvals">0</span>
+                </button>
+            </nav>
+
+            <div id="sidebar-auth-section" class="p-3 border-t border-slate-800 bg-[#071324] text-xs"></div>
+        </aside>
+
+        <div class="flex-1 flex flex-col min-w-0 bg-slate-100 overflow-hidden">
+
+            <header class="bg-white border-b border-slate-200 px-3 md:px-4 py-2 md:h-14 md:py-0 flex flex-wrap md:flex-nowrap items-center justify-between gap-y-2 shadow-sm z-20 flex-shrink-0">
+                <div class="flex items-center space-x-2 md:space-x-3 min-w-0">
+                    <button id="sidebar-open" class="md:hidden text-slate-600 hover:text-slate-900 p-1 -ml-1 flex-shrink-0" aria-label="Open menu"><i data-lucide="menu" class="w-5 h-5"></i></button>
+                    <h2 class="text-sm md:text-base font-bold text-slate-800 tracking-tight truncate" id="page-title">Search Loads</h2>
+                </div>
+                <div class="flex items-center flex-wrap gap-1.5 md:gap-0 md:space-x-3 text-xs order-3 md:order-none w-full md:w-auto">
+                    <div class="flex items-center space-x-1 bg-slate-100 p-1 rounded border border-slate-200">
+                        <label for="lang-select" class="hidden sm:inline text-slate-500 font-medium pl-1 text-[11px]" data-i18n="lang_label">Lang:</label>
+                        <select id="lang-select" class="bg-white font-bold text-slate-700 rounded px-1.5 py-0.5 text-xs border border-slate-200 focus:outline-none cursor-pointer">
+                            <option value="en">English (EN)</option>
+                            <option value="ru">Русский (RU)</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center space-x-1 bg-slate-100 p-1 rounded border border-slate-200">
+                        <label for="currency-select" class="hidden sm:inline text-slate-500 font-medium pl-1 text-[11px]" data-i18n="currency_label">Currency:</label>
+                        <select id="currency-select" class="bg-white font-bold text-slate-700 rounded px-1.5 py-0.5 text-xs border border-slate-200 focus:outline-none cursor-pointer"></select>
+                    </div>
+                    <div id="live-indicator" class="flex items-center space-x-1.5 bg-slate-50 text-slate-500 px-2.5 py-1 rounded border border-slate-200 text-xs" title="">
+                        <span id="live-dot" class="w-2 h-2 rounded-full bg-slate-300"></span>
+                        <span id="live-text" data-i18n="live_connecting">Connecting…</span>
+                    </div>
+                    <button id="logout-btn" class="text-slate-500 hover:text-rose-600 font-semibold text-xs border border-slate-200 px-2.5 py-1 rounded bg-slate-50 hover:bg-rose-50 transition flex items-center space-x-1">
+                        <i data-lucide="log-out" class="w-3 h-3"></i>
+                        <span class="hidden sm:inline" data-i18n="btn_logout">Logout</span>
+                    </button>
+                </div>
+            </header>
+
+            <div id="sync-banner" role="alert" class="hidden bg-amber-50 border-b border-amber-300 text-amber-900 text-[11px] font-semibold px-4 py-2 flex-shrink-0"></div>
+
+            <!-- ================= SEARCH LOADS ================= -->
+            <section id="view-search-loads" class="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div class="bg-slate-200/90 px-3 pt-1.5 border-b border-slate-300 flex items-center space-x-1 flex-shrink-0 z-30 overflow-x-auto select-none" id="multi-search-tabs-bar" role="tablist"></div>
+
+                <div class="bg-white p-2.5 border-b border-slate-200 shadow-sm flex-shrink-0 relative z-30">
+                    <form id="load-filter-form" class="grid grid-cols-2 md:grid-cols-12 gap-2 text-xs" novalidate>
+                        <div class="col-span-2 md:col-span-3 relative">
+                            <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-origin" data-i18n="filter_origin">Origin (City, Country)</label>
+                            <div class="flex">
+                                <input type="text" id="filter-origin" data-city-picker autocomplete="off" placeholder="e.g. Andijan, UZ" class="w-full border border-slate-300 rounded-l px-2 py-1.5 focus:border-blue-500 focus:outline-none text-xs">
+                                <input type="number" id="filter-dho" min="0" max="2000" value="100" title="Origin search radius (km)" aria-label="Origin radius km" class="w-16 border-t border-b border-r border-slate-300 rounded-r px-1 py-1.5 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
+                            </div>
+                        </div>
+                        <div class="col-span-2 md:col-span-3 relative">
+                            <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-dest" data-i18n="filter_dest">Destination (City, Country)</label>
+                            <div class="flex">
+                                <input type="text" id="filter-dest" data-city-picker autocomplete="off" placeholder="e.g. Moscow, RU" class="w-full border border-slate-300 rounded-l px-2 py-1.5 focus:border-blue-500 focus:outline-none text-xs">
+                                <input type="number" id="filter-dhd" min="0" max="2000" value="100" title="Destination search radius (km)" aria-label="Destination radius km" class="w-16 border-t border-b border-r border-slate-300 rounded-r px-1 py-1.5 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
+                            </div>
+                        </div>
+                        <div class="col-span-1 md:col-span-2">
+                            <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-equip" data-i18n="filter_type">Trailer Type</label>
+                            <select id="filter-equip" class="w-full border border-slate-300 rounded px-2 py-1.5 focus:border-blue-500 text-xs">
+                                <option value="" data-i18n="opt_all_types">All Types</option>
+                                <option value="T" data-i18n="eq_T">T</option><option value="R" data-i18n="eq_R">R</option>
+                                <option value="F" data-i18n="eq_F">F</option><option value="V" data-i18n="eq_V">V</option>
+                                <option value="AC" data-i18n="eq_AC">AC</option>
+                            </select>
+                        </div>
+                        <div class="col-span-1 md:col-span-1">
+                            <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-fp">F/P</label>
+                            <select id="filter-fp" class="w-full border border-slate-300 rounded px-1 py-1.5 focus:border-blue-500 text-xs">
+                                <option value="" data-i18n="opt_both">Both</option>
+                                <option value="Full" data-i18n="opt_full">Full</option>
+                                <option value="Partial" data-i18n="opt_partial">Partial</option>
+                            </select>
+                        </div>
+                        <div class="col-span-2 md:col-span-2">
+                            <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-date-range" data-i18n="filter_date_range">Pickup Date Range</label>
+                            <div class="relative">
+                                <input type="text" id="filter-date-range" readonly data-i18n-placeholder="ph_date_range" placeholder="Select Date or Range" class="w-full border border-slate-300 rounded px-2 py-1.5 focus:border-blue-500 text-xs bg-white cursor-pointer pr-7">
+                                <i data-lucide="calendar" class="w-3.5 h-3.5 absolute right-2 top-2 text-slate-400 pointer-events-none"></i>
+                            </div>
+                        </div>
+                        <div class="col-span-2 md:col-span-1 flex items-end">
+                            <button type="submit" class="w-full bg-[#0066cc] hover:bg-blue-700 text-white font-bold py-1.5 px-2 rounded flex items-center justify-center space-x-1 shadow transition text-xs">
+                                <i data-lucide="filter" class="w-3.5 h-3.5"></i><span data-i18n="btn_search">Search</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="flex-1 flex flex-col bg-white overflow-hidden relative z-10">
+                    <div class="bg-slate-50 px-4 py-1.5 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2 text-xs flex-shrink-0">
+                        <div class="flex items-center space-x-3 text-[11px]">
+                            <span class="font-bold text-slate-700"><span data-i18n="lbl_matches">Matches</span>: <span id="filtered-count" class="text-blue-600 font-extrabold">–</span></span>
+                            <span class="hidden sm:inline text-slate-300">|</span>
+                            <span class="hidden sm:inline text-slate-500 italic" data-i18n="lbl_radius_info">Origin & destination match all loads within the chosen deadhead radius</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <select id="mobile-sort-select" aria-label="Sort" class="md:hidden border border-slate-300 rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 bg-white focus:outline-none">
+                                <option value="created-desc" data-i18n="sort_newest">Newest first</option>
+                                <option value="created-asc" data-i18n="sort_oldest">Oldest first</option>
+                                <option value="pickup-asc" data-i18n="sort_pickup_asc">Pickup date ↑</option>
+                                <option value="pickup-desc" data-i18n="sort_pickup_desc">Pickup date ↓</option>
+                                <option value="rate-desc" data-i18n="sort_rate_desc">Rate: high → low</option>
+                                <option value="rate-asc" data-i18n="sort_rate_asc">Rate: low → high</option>
+                                <option value="distance-asc" data-i18n="sort_dist_asc">Distance: shortest</option>
+                                <option value="distance-desc" data-i18n="sort_dist_desc">Distance: longest</option>
+                            </select>
+                            <button id="reset-filters-btn" class="hover:bg-slate-200 text-slate-600 font-medium px-2 py-0.5 rounded transition text-xs flex items-center space-x-1">
+                                <i data-lucide="rotate-ccw" class="w-3 h-3"></i><span data-i18n="btn_reset">Reset</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="live-banner" class="hidden bg-sky-50 border-b border-sky-200 text-sky-800 text-[11px] font-semibold px-4 py-1.5 flex items-center justify-between flex-shrink-0">
+                        <span id="live-banner-text"></span>
+                        <button id="live-banner-btn" class="bg-sky-600 hover:bg-sky-700 text-white px-2.5 py-0.5 rounded font-bold" data-i18n="btn_refresh">Refresh</button>
+                    </div>
+
+                    <div id="loads-scroll" class="flex-1 overflow-y-auto overflow-x-hidden">
+                        <table class="responsive-table w-full text-left text-[11px] border-collapse font-mono md:table-fixed">
+                            <thead class="bg-[#0f2942] text-white uppercase text-[10px] tracking-wider sticky top-0 z-10 select-none">
+                                <tr>
+                                    <th class="py-2.5 px-1.5 w-6 text-center"></th>
+                                    <th data-sort="created" class="py-2.5 px-2 w-14 sortable-th" title="Sort by age"><div class="flex items-center space-x-1"><span data-i18n="th_age">Age</span><span id="sort-icon-created" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="pickup" class="py-2.5 px-2 w-16 sortable-th" title="Sort by pickup date"><div class="flex items-center space-x-1"><span data-i18n="th_date">Date</span><span id="sort-icon-pickup" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="origin" class="py-2.5 px-2.5 w-[20%] sortable-th" title="Sort by origin"><div class="flex items-center space-x-1"><span data-i18n="th_origin">Origin / DHO</span><span id="sort-icon-origin" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="dest" class="py-2.5 px-2.5 w-[20%] sortable-th" title="Sort by destination"><div class="flex items-center space-x-1"><span data-i18n="th_dest">Destination / DHD</span><span id="sort-icon-dest" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="equip" class="py-2.5 px-2 w-12 text-center sortable-th" title="Sort by type"><div class="flex items-center justify-center space-x-1"><span data-i18n="th_type">Type</span><span id="sort-icon-equip" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th class="py-2.5 px-2 w-14">F/P</th>
+                                    <th data-sort="weight" class="py-2.5 px-2 w-24 sortable-th" title="Sort by weight"><div class="flex items-center space-x-1"><span data-i18n="th_weight">Weight/Vol</span><span id="sort-icon-weight" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="distance" class="py-2.5 px-2 w-20 text-right sortable-th" title="Sort by distance"><div class="flex items-center justify-end space-x-1"><span data-i18n="th_distance">Distance</span><span id="sort-icon-distance" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="rate" class="py-2.5 px-2.5 w-24 text-right sortable-th" title="Sort by rate"><div class="flex items-center justify-end space-x-1"><span data-i18n="th_rate">Rate</span><span id="sort-icon-rate" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="company" class="py-2.5 px-2.5 sortable-th" title="Sort by company"><div class="flex items-center space-x-1"><span data-i18n="th_company">Company / Contact</span><span id="sort-icon-company" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                </tr>
+                            </thead>
+                            <tbody id="loads-tbody" class="divide-y divide-slate-200"></tbody>
+                        </table>
+                        <div id="loads-sentinel" class="h-1"></div>
+                        <div id="loads-footer" class="py-4 text-center text-[11px] text-slate-400 font-sans"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= POST & MANAGE LOADS ================= -->
+            <section id="view-post-loads" class="hidden flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100 space-y-4 sm:space-y-6">
+                <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
+                    <div class="flex flex-wrap gap-2 justify-between items-center border-b pb-3">
+                        <div>
+                            <h3 class="text-base font-bold text-slate-800" data-i18n="post_load_heading">Post Freight Load</h3>
+                            <p class="text-xs text-slate-500" data-i18n="post_load_sub">Fill in cargo parameters. Distance (km) is calculated automatically.</p>
+                        </div>
+                        <span class="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded font-semibold border border-blue-200"><span data-i18n="lbl_posting_as">Posting as:</span> <strong id="posting-as-company"></strong></span>
+                    </div>
+
+                    <form id="post-load-form" class="space-y-4 text-xs" novalidate>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="relative">
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-orig" data-i18n="lbl_origin_city">Origin City & Country</label>
+                                <input type="text" id="post-orig" name="originCityId" data-city-picker autocomplete="off" required data-i18n-placeholder="ph_city" placeholder="Type a city, e.g. Tashkent" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                            <div class="relative">
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-dest" data-i18n="lbl_dest_city">Destination City & Country</label>
+                                <input type="text" id="post-dest" name="destCityId" data-city-picker autocomplete="off" required data-i18n-placeholder="ph_city" placeholder="Type a city, e.g. Moscow" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-equip" data-i18n="filter_type">Trailer Type</label>
+                                <select id="post-equip" name="equip" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                                    <option value="T" data-i18n="eq_T">T</option><option value="R" data-i18n="eq_R">R</option><option value="F" data-i18n="eq_F">F</option>
+                                    <option value="V" data-i18n="eq_V">V</option><option value="AC" data-i18n="eq_AC">AC</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-fp" data-i18n="lbl_load_type">Load Type</label>
+                                <select id="post-fp" name="fp" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                                    <option value="Full" data-i18n="opt_ftl">Full (FTL)</option><option value="Partial" data-i18n="opt_ltl">Partial (LTL)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-weight" data-i18n="lbl_weight_tons">Weight (Tons)</label>
+                                <input type="number" id="post-weight" name="weightT" step="0.1" min="0.1" max="100" required placeholder="21.5" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-vol" data-i18n="lbl_vol_cube">Volume (m³)</label>
+                                <input type="number" id="post-vol" name="volumeM3" min="1" max="200" placeholder="86" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-date" data-i18n="lbl_pickup_date">Pickup Date</label>
+                                <input type="date" id="post-date" name="pickupDate" required class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                            <div>
+                                <div class="flex justify-between items-center mb-1"><label class="font-semibold text-slate-700" for="post-delivery-date" data-i18n="lbl_delivery_date">Delivery Date</label><span class="text-[9px] text-slate-400 italic" data-i18n="lbl_optional">Optional</span></div>
+                                <input type="date" id="post-delivery-date" name="deliveryDate" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-dist" data-i18n="lbl_distance_km">Estimated Distance (km)</label>
+                                <input type="text" id="post-dist" readonly tabindex="-1" placeholder="auto" class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 font-bold text-blue-700">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-rate" data-i18n="lbl_target_rate">Rate ($ USD)</label>
+                                <input type="number" id="post-rate" name="rateUsd" min="0" step="1" required placeholder="3400" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-commodity" data-i18n="lbl_commodity">Commodity Description</label>
+                                <input type="text" id="post-commodity" name="commodity" maxlength="200" required placeholder="e.g. Fresh Fruits (+4C)" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-contact-name" data-i18n="lbl_disp_name">Contact Dispatcher Name</label>
+                                <input type="text" id="post-contact-name" name="contactName" maxlength="120" required class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-phone" data-i18n="lbl_phone">Phone Number</label>
+                                <input type="tel" id="post-phone" name="contactPhone" required class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-email" data-i18n="lbl_email">Email</label>
+                                <input type="email" id="post-email" name="contactEmail" required class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-tg" data-i18n="lbl_telegram">Telegram Username</label>
+                                <input type="text" id="post-tg" name="contactTelegram" required class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-[#0066cc] hover:bg-blue-700 disabled:opacity-60 text-white font-bold py-2.5 px-4 rounded text-xs transition shadow flex items-center justify-center space-x-2">
+                            <i data-lucide="upload-cloud" class="w-4 h-4"></i><span data-i18n="btn_publish_load">Publish Load to Live Exchange</span>
+                        </button>
+                    </form>
+                </div>
+
+                <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden text-xs">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap justify-between items-center gap-2">
+                        <div class="flex items-center space-x-2"><i data-lucide="layers" class="w-4 h-4 text-blue-600"></i><h3 class="font-bold text-slate-800 text-sm"><span data-i18n="my_loads_title">My Active Posted Loads</span> (<span id="my-loads-count" class="text-blue-600">0</span>)</h3></div>
+                        <span class="text-[11px] text-slate-500" data-i18n="my_loads_hint">Only you can edit or remove your company's posts</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="responsive-table w-full text-left text-[11px] border-collapse font-mono">
+                            <thead class="bg-slate-100 text-slate-600 uppercase text-[10px]"><tr class="border-b border-slate-200">
+                                <th class="p-2.5" data-i18n="th_route">Origin → Destination</th><th class="p-2.5" data-i18n="th_pickup_delivery">Pickup / Delivery</th><th class="p-2.5" data-i18n="th_type_weight">Type & Weight</th>
+                                <th class="p-2.5" data-i18n="th_distance">Distance</th><th class="p-2.5" data-i18n="th_rate">Rate</th><th class="p-2.5" data-i18n="lbl_commodity_short">Commodity</th><th class="p-2.5 text-center" data-i18n="th_actions">Actions</th>
+                            </tr></thead>
+                            <tbody id="my-loads-tbody" class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= SEARCH TRUCKS ================= -->
+            <section id="view-search-trucks" class="hidden flex-1 flex flex-col min-h-0 bg-white overflow-hidden">
+                <form id="truck-filter-form" class="p-3 border-b border-slate-200 bg-white flex-shrink-0 relative z-30" novalidate>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                        <div class="relative">
+                            <label class="block font-semibold text-slate-600 mb-1" for="search-truck-loc" data-i18n="lbl_truck_loc">Truck Location</label>
+                            <div class="flex">
+                                <input type="text" id="search-truck-loc" data-city-picker autocomplete="off" data-i18n-placeholder="ph_city" placeholder="Type a city" class="w-full border border-slate-300 rounded-l p-1.5 text-xs">
+                                <input type="number" id="search-truck-radius" min="0" max="2000" value="150" title="Search radius (km)" aria-label="Radius km" class="w-14 border-t border-b border-r border-slate-300 rounded-r px-1 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-600 mb-1" for="search-truck-dest" data-i18n="lbl_truck_dest_pref">Destination Preferred</label>
+                            <input type="text" id="search-truck-dest" autocomplete="off" data-i18n-placeholder="ph_any_direction" placeholder="Anywhere / Any Direction" class="w-full border border-slate-300 rounded p-1.5 text-xs">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-600 mb-1" for="search-truck-equip" data-i18n="filter_type">Trailer Type</label>
+                            <select id="search-truck-equip" class="w-full border border-slate-300 rounded p-1.5 text-xs">
+                                <option value="" data-i18n="opt_all_types">All Types</option>
+                                <option value="T" data-i18n="eq_T">T</option><option value="R" data-i18n="eq_R">R</option><option value="F" data-i18n="eq_F">F</option>
+                                <option value="V" data-i18n="eq_V">V</option><option value="AC" data-i18n="eq_AC">AC</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end"><button type="submit" class="w-full bg-[#0066cc] hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded text-xs transition" data-i18n="btn_find_trucks">Find Available Trucks</button></div>
+                    </div>
+                </form>
+                <div class="bg-slate-50 px-4 py-1.5 border-b border-slate-200 flex justify-between items-center text-[11px] flex-shrink-0">
+                    <span class="font-bold text-slate-700"><span data-i18n="lbl_matches">Matches</span>: <span id="truck-count" class="text-blue-600 font-extrabold">–</span></span>
+                    <button id="reset-truck-filters-btn" class="hover:bg-slate-200 text-slate-600 font-medium px-2 py-0.5 rounded transition text-xs flex items-center space-x-1"><i data-lucide="rotate-ccw" class="w-3 h-3"></i><span data-i18n="btn_reset">Reset</span></button>
+                </div>
+                <div id="trucks-scroll" class="flex-1 overflow-auto relative z-10">
+                    <table class="responsive-table w-full text-left text-[11px] border-collapse font-mono">
+                        <thead class="bg-[#0f2942] text-white uppercase text-[10px] tracking-wider sticky top-0"><tr>
+                            <th class="p-2.5" data-i18n="th_available">Available</th><th class="p-2.5" data-i18n="th_location">Location</th><th class="p-2.5" data-i18n="th_pref_dest">Preferred Destination</th>
+                            <th class="p-2.5 text-center" data-i18n="th_equipment">Equipment</th><th class="p-2.5" data-i18n="th_capacity">Capacity & Specs</th><th class="p-2.5" data-i18n="th_min_rate">Min Rate</th>
+                            <th class="p-2.5" data-i18n="th_carrier">Carrier Company</th><th class="p-2.5 text-center" data-i18n="th_contact">Contact</th>
+                        </tr></thead>
+                        <tbody id="trucks-tbody" class="divide-y divide-slate-200"></tbody>
+                    </table>
+                    <div id="trucks-sentinel" class="h-1"></div>
+                    <div id="trucks-footer" class="py-4 text-center text-[11px] text-slate-400 font-sans"></div>
+                </div>
+            </section>
+
+            <!-- ================= POST TRUCKS ================= -->
+            <section id="view-post-trucks" class="hidden flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100">
+                <div class="max-w-3xl mx-auto bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-6 space-y-5 text-xs">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800" data-i18n="post_truck_heading">Post Available Truck</h3>
+                        <p class="text-xs text-slate-500" data-i18n="post_truck_sub">Broadcast your empty trailer capacity to shippers and brokers across SNG corridors.</p>
+                    </div>
+                    <form id="post-truck-form" class="space-y-4" novalidate>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="relative">
+                                <label class="block font-semibold text-slate-700 mb-1" for="truck-post-loc" data-i18n="lbl_truck_loc_full">Current Location (City, Country)</label>
+                                <input type="text" id="truck-post-loc" name="locCityId" data-city-picker autocomplete="off" required data-i18n-placeholder="ph_city" placeholder="Type a city" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="truck-post-dest" data-i18n="lbl_truck_dest">Desired Destination</label>
+                                <input type="text" id="truck-post-dest" name="destPref" maxlength="120" data-i18n-placeholder="ph_truck_dest" placeholder="e.g. Moscow, RU or Anywhere" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="truck-post-equip" data-i18n="filter_type">Trailer Type</label>
+                                <select id="truck-post-equip" name="equip" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                                    <option value="T" data-i18n="eq_T">T</option><option value="R" data-i18n="eq_R">R</option><option value="F" data-i18n="eq_F">F</option>
+                                    <option value="V" data-i18n="eq_V">V</option><option value="AC" data-i18n="eq_AC">AC</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="truck-post-cap" data-i18n="lbl_max_payload">Max Payload (Tons)</label>
+                                <input type="number" id="truck-post-cap" name="capacityT" step="0.1" min="0.1" max="100" required placeholder="22.0" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="truck-post-min-rate" data-i18n="lbl_min_target_rate">Min Rate ($ USD, optional)</label>
+                                <input type="number" id="truck-post-min-rate" name="minRateUsd" min="0" placeholder="e.g. 1800" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="truck-post-date" data-i18n="lbl_avail_from">Available From Date</label>
+                                <input type="date" id="truck-post-date" name="availableFrom" required class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="truck-post-date-end" data-i18n="lbl_avail_until">Available Until (Optional)</label>
+                                <input type="date" id="truck-post-date-end" name="availableTo" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="truck-post-vol" data-i18n="lbl_vol_cube">Volume (m³)</label>
+                                <input type="number" id="truck-post-vol" name="volumeM3" min="1" max="200" placeholder="92" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                        </div>
+                        <fieldset class="bg-slate-50 p-3 rounded border border-slate-200 space-y-2">
+                            <legend class="font-bold text-slate-700 text-[11px] px-1" data-i18n="lbl_trailer_features">Equipment Features & Permissions:</legend>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-slate-700">
+                                <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="truck-feat-tir" name="hasTir" checked class="rounded text-blue-600"><span data-i18n="feat_tir">TIR Carnet</span></label>
+                                <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="truck-feat-adr" name="hasAdr" class="rounded text-blue-600"><span data-i18n="feat_adr">ADR (Hazardous)</span></label>
+                                <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="truck-feat-gps" name="hasGps" checked class="rounded text-blue-600"><span data-i18n="feat_gps">GPS Live Tracking</span></label>
+                                <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="truck-feat-side" name="sideLoading" checked class="rounded text-blue-600"><span data-i18n="feat_side">Side & Top Loading</span></label>
+                            </div>
+                        </fieldset>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="truck-post-phone" data-i18n="lbl_disp_phone">Dispatcher Phone</label>
+                                <input type="tel" id="truck-post-phone" name="contactPhone" required class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="truck-post-tg" data-i18n="lbl_telegram">Telegram Username</label>
+                                <input type="text" id="truck-post-tg" name="contactTelegram" required class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs shadow transition flex items-center justify-center space-x-2">
+                            <i data-lucide="check-circle" class="w-4 h-4"></i><span data-i18n="btn_publish_truck">Publish Available Equipment</span>
+                        </button>
+                    </form>
+                </div>
+
+                <div class="max-w-3xl mx-auto mt-4 sm:mt-6 bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden text-xs">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap justify-between items-center gap-2">
+                        <div class="flex items-center space-x-2"><i data-lucide="truck" class="w-4 h-4 text-emerald-600"></i><h3 class="font-bold text-slate-800 text-sm"><span data-i18n="my_trucks_title">My Active Posted Trucks</span> (<span id="my-trucks-count" class="text-emerald-600">0</span>)</h3></div>
+                        <span class="text-[11px] text-slate-500" data-i18n="my_trucks_hint">Visible to every member on Search Trucks; only you can remove yours</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="responsive-table w-full text-left text-[11px] border-collapse font-mono">
+                            <thead class="bg-slate-100 text-slate-600 uppercase text-[10px]"><tr class="border-b border-slate-200">
+                                <th class="p-2.5" data-i18n="th_route_truck">Location → Destination</th><th class="p-2.5" data-i18n="th_available">Available</th><th class="p-2.5" data-i18n="th_equipment">Equipment</th><th class="p-2.5" data-i18n="th_min_rate">Min Rate</th><th class="p-2.5 text-center" data-i18n="th_actions">Actions</th>
+                            </tr></thead>
+                            <tbody id="my-trucks-tbody" class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= CARRIER DIRECTORY ================= -->
+            <section id="view-directory" class="hidden flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100">
+                <div class="max-w-5xl mx-auto space-y-4">
+                    <div class="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                        <div class="relative w-full sm:w-80">
+                            <label for="directory-search" class="sr-only-live" data-i18n="dir_search_label">Search the directory</label>
+                            <input type="search" id="directory-search" data-i18n-placeholder="ph_dir_search" placeholder="Search company, TIR, lanes or city…" class="w-full border border-slate-300 rounded px-3 py-2 text-xs focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <span class="text-xs text-slate-500 font-medium"><span id="dir-count">–</span> <span data-i18n="lbl_verified_companies">Registered Logistics Companies</span></span>
+                    </div>
+                    <div id="directory-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs"></div>
+                    <div class="text-center"><button id="directory-more" class="hidden bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs px-4 py-2 rounded" data-i18n="btn_load_more">Load more</button></div>
+                </div>
+            </section>
+
+            <!-- ================= ACCOUNT & SETTINGS ================= -->
+            <section id="view-account-settings" class="hidden flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100">
+                <form id="profile-form" class="max-w-4xl mx-auto space-y-5" novalidate>
+                    <div class="bg-white p-4 sm:p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center text-white font-bold text-xl border-2 border-white shadow flex-shrink-0" id="acc-big-avatar"></div>
+                            <div class="min-w-0">
+                                <div class="flex items-center flex-wrap gap-2">
+                                    <h3 class="text-base font-bold text-slate-900" id="acc-title-name"></h3>
+                                    <span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded" id="acc-status-badge"></span>
+                                </div>
+                                <p class="text-xs text-slate-500" id="acc-sub-details"></p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button type="button" data-action="logout" class="flex-1 sm:flex-none justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-3 py-2 rounded text-xs border border-rose-200 flex items-center space-x-1.5 transition"><i data-lucide="log-out" class="w-3.5 h-3.5"></i><span data-i18n="btn_logout">Log Out</span></button>
+                            <button type="submit" class="flex-1 sm:flex-none justify-center bg-[#0066cc] hover:bg-blue-700 disabled:opacity-60 text-white font-bold px-4 py-2 rounded text-xs shadow flex items-center space-x-1.5 transition"><i data-lucide="save" class="w-3.5 h-3.5"></i><span data-i18n="btn_save_settings">Save Profile</span></button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
+                            <h4 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2"><i data-lucide="building" class="w-4 h-4 text-blue-600"></i><span data-i18n="lbl_comp_info">Company & Contact Information</span></h4>
+                            <div class="space-y-2.5">
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="setting-company-name" data-i18n="lbl_comp_name">Company Registered Name</label><input type="text" id="setting-company-name" name="company" maxlength="120" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="setting-dispatcher-name" data-i18n="lbl_head_disp">Head Dispatcher Name</label><input type="text" id="setting-dispatcher-name" name="contactName" maxlength="120" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div><label class="block font-semibold text-slate-700 mb-1" for="setting-phone" data-i18n="lbl_phone">Phone</label><input type="tel" id="setting-phone" name="phone" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                    <div><label class="block font-semibold text-slate-700 mb-1" for="setting-tg" data-i18n="lbl_telegram">Telegram</label><input type="text" id="setting-tg" name="telegram" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                </div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="setting-email" data-i18n="lbl_login_email">Login Email (Google)</label><input type="email" id="setting-email" readonly class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 text-slate-500"></div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div><label class="block font-semibold text-slate-700 mb-1" for="setting-location" data-i18n="lbl_base_location">Base Location</label><input type="text" id="setting-location" name="location" maxlength="120" placeholder="Almaty, KZ" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                    <div><label class="block font-semibold text-slate-700 mb-1" for="setting-tir" data-i18n="lbl_tir">TIR Carnet #</label><input type="text" id="setting-tir" name="tirCarnet" maxlength="60" placeholder="TIR-KZ 98214" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                </div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="setting-fleet" data-i18n="lbl_fleet">Fleet</label><input type="text" id="setting-fleet" name="fleet" maxlength="200" placeholder="65 Units (Standard Tent, Flatbed)" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="setting-routes" data-i18n="lbl_routes">Primary Lanes</label><input type="text" id="setting-routes" name="routes" maxlength="300" placeholder="Kazakhstan ↔ Central Asia ↔ Russia" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
+                            <h4 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2"><i data-lucide="sliders-horizontal" class="w-4 h-4 text-sky-600"></i><span data-i18n="lbl_disp_pref">Search Preferences</span></h4>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="setting-default-dh" data-i18n="lbl_default_dh">Default Deadhead Radius (km)</label>
+                                <input type="number" id="setting-default-dh" min="0" max="2000" class="w-full border border-slate-300 rounded p-2 text-xs">
+                                <p class="text-[10px] text-slate-400 mt-0.5" data-i18n="lbl_default_dh_hint">Used as the radius for new searches. Saved in this browser.</p>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </section>
+
+            <!-- ================= USERS TO APPROVE (OWNER) ================= -->
+            <section id="view-approvals" class="hidden flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100">
+                <div class="max-w-4xl mx-auto space-y-5">
+                    <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                        <h3 class="text-base font-bold text-slate-800 flex items-center space-x-2"><i data-lucide="shield-check" class="w-4 h-4 text-blue-600"></i><span data-i18n="nav_approvals">Users to Approve</span></h3>
+                        <p class="text-xs text-slate-500 mt-1" data-i18n="approvals_sub">New companies request access with Google sign-in. Approve or decline each request — approved companies can then sign in and use the platform.</p>
+                    </div>
+                    <div class="flex gap-1 text-xs font-semibold" role="tablist" id="approvals-tabs">
+                        <button data-status="pending" class="px-3 py-1.5 rounded-t bg-white border border-b-0 border-slate-200 text-blue-700"><span data-i18n="st_pending">Pending</span> (<span id="cnt-pending">0</span>)</button>
+                        <button data-status="approved" class="px-3 py-1.5 rounded-t bg-slate-200 text-slate-600"><span data-i18n="st_approved">Approved</span> (<span id="cnt-approved">0</span>)</button>
+                        <button data-status="rejected" class="px-3 py-1.5 rounded-t bg-slate-200 text-slate-600"><span data-i18n="st_rejected">Declined</span> (<span id="cnt-rejected">0</span>)</button>
+                    </div>
+                    <div id="approvals-list" class="space-y-3 text-xs"></div>
+
+                    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 text-xs space-y-3">
+                        <h4 class="font-bold text-slate-800 text-sm flex items-center space-x-2"><i data-lucide="coins" class="w-4 h-4 text-amber-600"></i><span data-i18n="fx_title">Display currency rates</span></h4>
+                        <p class="text-slate-500" data-i18n="fx_sub">Units of each currency per 1 USD. All prices are stored in USD; this only changes what members see.</p>
+                        <form id="fx-form" class="space-y-3">
+                            <div id="fx-grid" class="grid grid-cols-2 sm:grid-cols-5 gap-2"></div>
+                            <button type="submit" class="bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-bold px-4 py-2 rounded" data-i18n="btn_save_rates">Save rates</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- ================= EDIT LOAD MODAL ================= -->
+    <div id="modal-edit-load" class="hidden fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="edit-title">
+        <div class="bg-white rounded-lg shadow-2xl border border-slate-200 max-w-xl w-full p-4 sm:p-6 space-y-4 text-xs max-h-[92vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 id="edit-title" class="text-sm font-bold text-slate-800 flex items-center space-x-2"><i data-lucide="edit" class="w-4 h-4 text-blue-600"></i><span data-i18n="edit_title">Edit Posted Freight Load</span></h3>
+                <button type="button" id="edit-close" class="text-slate-400 hover:text-slate-600" aria-label="Close"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <form id="edit-load-form" class="space-y-3" novalidate>
+                <input type="hidden" id="edit-load-id">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="relative"><label class="block font-semibold text-slate-700 mb-1" for="edit-orig" data-i18n="filter_origin">Origin</label><input type="text" id="edit-orig" name="originCityId" data-city-picker autocomplete="off" required class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500"></div>
+                    <div class="relative"><label class="block font-semibold text-slate-700 mb-1" for="edit-dest" data-i18n="filter_dest">Destination</label><input type="text" id="edit-dest" name="destCityId" data-city-picker autocomplete="off" required class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500"></div>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-equip" data-i18n="filter_type">Trailer Type</label>
+                        <select id="edit-equip" name="equip" class="w-full border border-slate-300 rounded p-2 text-xs"><option value="T" data-i18n="eq_T">T</option><option value="R" data-i18n="eq_R">R</option><option value="F" data-i18n="eq_F">F</option><option value="V" data-i18n="eq_V">V</option><option value="AC" data-i18n="eq_AC">AC</option></select></div>
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-fp">F/P</label>
+                        <select id="edit-fp" name="fp" class="w-full border border-slate-300 rounded p-2 text-xs"><option value="Full" data-i18n="opt_full">Full</option><option value="Partial" data-i18n="opt_partial">Partial</option></select></div>
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-weight" data-i18n="lbl_weight_tons">Weight (Tons)</label><input type="number" id="edit-weight" name="weightT" step="0.1" min="0.1" max="100" required class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-rate" data-i18n="lbl_target_rate">Rate ($ USD)</label><input type="number" id="edit-rate" name="rateUsd" min="0" required class="w-full border border-slate-300 rounded p-2 text-xs font-bold text-emerald-600"></div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-date" data-i18n="lbl_pickup_date">Pickup Date</label><input type="date" id="edit-date" name="pickupDate" required class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-delivery-date"><span data-i18n="lbl_delivery_date">Delivery Date</span> <span class="text-slate-400 font-normal" data-i18n="lbl_optional_paren">(optional)</span></label><input type="date" id="edit-delivery-date" name="deliveryDate" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-dist" data-i18n="lbl_distance_km">Est. Distance (km)</label><input type="text" id="edit-dist" readonly tabindex="-1" class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 font-bold text-blue-700"></div>
+                </div>
+                <div><label class="block font-semibold text-slate-700 mb-1" for="edit-commodity" data-i18n="lbl_commodity">Commodity Description</label><input type="text" id="edit-commodity" name="commodity" maxlength="200" required class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-contact-name" data-i18n="lbl_disp_name">Contact Dispatcher Name</label><input type="text" id="edit-contact-name" name="contactName" required class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-phone" data-i18n="lbl_phone">Phone Number</label><input type="tel" id="edit-phone" name="contactPhone" required class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-email" data-i18n="lbl_email">Email</label><input type="email" id="edit-email" name="contactEmail" required class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-tg" data-i18n="lbl_telegram">Telegram Username</label><input type="text" id="edit-tg" name="contactTelegram" required class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                </div>
+                <div class="flex space-x-2 pt-2 border-t">
+                    <button type="button" id="edit-cancel" class="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded text-xs transition" data-i18n="btn_cancel">Cancel</button>
+                    <button type="submit" class="w-2/3 bg-[#0066cc] hover:bg-blue-700 disabled:opacity-60 text-white font-bold py-2 rounded text-xs transition shadow flex items-center justify-center space-x-1.5"><i data-lucide="check" class="w-3.5 h-3.5"></i><span data-i18n="btn_save_changes">Save Changes</span></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts: classic scripts, order matters. Firebase Auth is the only third-party runtime dependency. -->
+    <script src="/vendor/lucide.min.js?v=__BUILD__"></script>
+    <script src="/vendor/flatpickr.min.js?v=__BUILD__"></script>
+    <script src="/vendor/flatpickr-ru.js?v=__BUILD__"></script>
+    <script src="/js/config.js?v=__BUILD__"></script>
+    <script src="/js/util.js?v=__BUILD__"></script>
+    <script src="/js/i18n.js?v=__BUILD__"></script>
+    <script src="/js/api.js?v=__BUILD__"></script>
+    <script type="module" src="/js/firebase.js?v=__BUILD__"></script>
+    <script src="/js/session.js?v=__BUILD__"></script>
+    <script src="/js/live.js?v=__BUILD__"></script>
+    <script src="/js/cities.js?v=__BUILD__"></script>
+    <script src="/js/loads.js?v=__BUILD__"></script>
+    <script src="/js/trucks.js?v=__BUILD__"></script>
+    <script src="/js/directory.js?v=__BUILD__"></script>
+    <script src="/js/account.js?v=__BUILD__"></script>
+    <script src="/js/admin.js?v=__BUILD__"></script>
+    <script src="/js/app.js?v=__BUILD__"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+# Local / single-host deployment: PostgreSQL + the API (which also serves the web app).
+#   OWNER_EMAILS=you@gmail.com docker compose up --build
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sng
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sng-local-only}
+      POSTGRES_DB: sng
+      LANG: C.UTF-8
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sng -d sng"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    command: ["postgres", "-c", "max_connections=200", "-c", "shared_buffers=512MB"]
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://sng:${POSTGRES_PASSWORD:-sng-local-only}@db:5432/sng
+      OWNER_EMAILS: ${OWNER_EMAILS:?set OWNER_EMAILS to the owner Google email}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-auto}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
