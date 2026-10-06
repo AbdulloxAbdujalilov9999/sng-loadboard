@@ -269,3 +269,32 @@ test('profile: contact fields can be saved one at a time and cleared; /api/confi
   const real = await startTestEnv({}, { ai: createGeminiParser({ apiKey: 'k' }) });
   try { assert.equal((await real.app.inject({ method: 'GET', url: '/api/config' })).json().aiImport, 'ai'); } finally { await real.close(); }
 });
+
+test('Gemini client: falls through retired/overloaded models, retries once, and stops on a bad key', async () => {
+  const calls = [];
+  const ok = { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"loads":[]}' }] } }] }) };
+  const reply = (status) => ({ ok: false, status, text: async () => `err ${status}` });
+  const scripted = (plan) => async (url) => { const m = /models\/([^:]+):/.exec(url)[1]; calls.push(m); return plan(m, calls.filter((c) => c === m).length); };
+  const make = (plan, model = 'a,b,c') => createGeminiParser({ apiKey: 'K', model, retryDelayMs: 1, fetchImpl: scripted(plan) });
+  const run = (g) => g.parseLoads({ text: 'x', cities: [], today: '' });
+
+  calls.length = 0;
+  assert.deepEqual(await run(make((m) => (m === 'a' ? reply(404) : ok))), { loads: [] });
+  assert.deepEqual(calls, ['a', 'b'], 'a retired model (404) hands over immediately');
+
+  calls.length = 0;
+  assert.deepEqual(await run(make((m, n) => (m === 'a' && n === 1 ? reply(503) : ok))), { loads: [] });
+  assert.deepEqual(calls, ['a', 'a'], 'an overloaded model is retried once');
+
+  calls.length = 0;
+  assert.deepEqual(await run(make((m) => (m === 'c' ? ok : reply(503)))), { loads: [] });
+  assert.deepEqual(calls, ['a', 'a', 'b', 'b', 'c'], 'persistent overload moves down the list');
+
+  calls.length = 0;
+  await assert.rejects(run(make(() => reply(403))), (e) => e.code === 'ai_failed');
+  assert.deepEqual(calls, ['a'], 'a rejected key is not retried on other models');
+
+  calls.length = 0;
+  await assert.rejects(run(make(() => reply(503))), (e) => e.code === 'ai_busy' && e.status === 503);
+  await assert.rejects(run(make(() => reply(429))), (e) => e.code === 'ai_busy');
+});

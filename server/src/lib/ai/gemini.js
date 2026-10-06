@@ -62,41 +62,67 @@ Rules:
 CITY LIST: ${list}`;
 }
 
-export function createGeminiParser({ apiKey, model = 'gemini-2.5-flash', timeoutMs = 45_000, fetchImpl = fetch }) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+// Models are tried in order; one that is retired (404), rate-limited (429) or overloaded (5xx, after a quick retry)
+// hands over to the next, so a single model outage or deprecation does not take the feature down.
+export const DEFAULT_MODELS = 'gemini-3.1-flash-lite,gemini-3.5-flash,gemini-3.8-flash';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+export function createGeminiParser({ apiKey, model = DEFAULT_MODELS, timeoutMs = 45_000, retryDelayMs = 800, fetchImpl = fetch }) {
+  const models = String(model).split(',').map((m) => m.trim()).filter(Boolean);
+  const urlFor = (m) => `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`;
+
+  async function callOnce(m, body) {
+    try {
+      return await fetchImpl(urlFor(m), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+        signal: AbortSignal.timeout(timeoutMs),
+        body,
+      });
+    } catch (err) {
+      return { ok: false, status: 0, timeout: true, text: async () => String(err.message) };
+    }
+  }
+
   return {
-    name: `gemini:${model}`,
+    name: `gemini:${models[0]}`,
     async parseLoads({ text, cities, today }) {
-      let res;
-      try {
-        res = await fetchImpl(url, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-          signal: AbortSignal.timeout(timeoutMs),
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: buildSystemPrompt({ cities, today }) }] },
-            contents: [{ role: 'user', parts: [{ text }] }],
-            generationConfig: { temperature: 0, maxOutputTokens: 16384, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },
-          }),
-        });
-      } catch (err) {
-        throw new HttpError(504, 'ai_timeout', 'The AI took too long to answer. Please try again.', undefined, { cause: err });
+      const body = JSON.stringify({
+        systemInstruction: { parts: [{ text: buildSystemPrompt({ cities, today }) }] },
+        contents: [{ role: 'user', parts: [{ text }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: 16384, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },
+      });
+
+      let last = null; let lastModel = null;
+      for (const m of models) {
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const res = await callOnce(m, body);
+          if (res.ok) {
+            const data = await res.json();
+            const out = data?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+            try { return JSON.parse(out); } catch {
+              last = { status: 200, detail: `unparsable output (${out.length} chars, finish=${data?.candidates?.[0]?.finishReason})`, kind: 'bad_output' };
+              break; // try the next model
+            }
+          }
+          const detail = await res.text().catch(() => '');
+          last = { status: res.status, detail: detail.slice(0, 300), kind: res.timeout ? 'timeout' : res.status === 429 ? 'busy' : 'failed' };
+          lastModel = m;
+          const transient = res.timeout || res.status >= 500;
+          if (transient && attempt === 0) { await sleep(retryDelayMs); continue; } // one quick retry on the same model
+          break;
+        }
+        // 400/401/403 mean the request or key is wrong - another model will not fix that.
+        if (last && [400, 401, 403].includes(last.status)) break;
       }
-      if (res.status === 429) throw new HttpError(503, 'ai_busy', 'The AI is busy right now. Please try again in a minute.');
-      if (!res.ok) {
-        // Do not echo Google's body to the browser (it can mention keys/quotas); the server log has the status.
-        const detail = await res.text().catch(() => '');
-        const e = new HttpError(502, 'ai_failed', 'The AI service returned an error. Please try again later.');
-        e.logDetail = `gemini ${res.status}: ${detail.slice(0, 300)}`;
-        throw e;
-      }
-      const data = await res.json();
-      const out = data?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
-      try { return JSON.parse(out); } catch {
-        const e = new HttpError(502, 'ai_bad_output', 'The AI answered in an unexpected format. Please try again.');
-        e.logDetail = `gemini unparsable output (${out.length} chars, finish=${data?.candidates?.[0]?.finishReason})`;
-        throw e;
-      }
+
+      const logDetail = `gemini ${lastModel ?? models[0]} ${last?.status}: ${last?.detail ?? ''}`;
+      const fail = (status, code, message) => { const e = new HttpError(status, code, message); e.logDetail = logDetail; return e; };
+      if (last?.kind === 'timeout') throw fail(504, 'ai_timeout', 'The AI took too long to answer. Please try again.');
+      if (last?.kind === 'busy' || last?.status === 503) throw fail(503, 'ai_busy', 'The AI is busy right now. Please try again in a minute.');
+      if (last?.kind === 'bad_output') throw fail(502, 'ai_bad_output', 'The AI answered in an unexpected format. Please try again.');
+      // Never echo Google's body to the browser (it can mention keys/quotas); the server log has it.
+      throw fail(502, 'ai_failed', 'The AI service returned an error. Please try again later.');
     },
   };
 }
