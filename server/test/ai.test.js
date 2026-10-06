@@ -75,6 +75,9 @@ test('city matching understands Russian, Uzbek-Latin, Uzbek-Cyrillic and English
   assert.equal(label('КАЛУГА БАЛАБАНОВА'), 'Kaluga, RU', 'main city + small town -> the main city');
   assert.equal(label('ТОМСК АСИНО'), 'Tomsk, RU');
   assert.equal(label('Асино'), null, 'a town that is not in the list never snaps onto an unrelated city');
+  assert.equal(label('Хоразм'), 'Urgench, UZ', 'region -> main city');
+  assert.equal(label('Xorazm viloyati'), 'Urgench, UZ');
+  assert.equal(label('Қашқадарё'), 'Karshi, UZ');
   assert.equal(label('Atlantis'), null);
   assert.equal(label('???'), null);
   // the AI's own pick wins when it is a real label, and an invented label is ignored
@@ -110,12 +113,12 @@ test('parse-loads: one draft per pasted load, with cities, cargo, equipment, not
   assert.equal(d[0].pickupDate, new Date().toISOString().slice(0, 10));
 
   assert.equal(d[1].originCity, 'Moscow, RU');
-  assert.ok(d[1].flags.includes('dest'), 'Хоразм is a region: the offline reader cannot place it (Gemini picks the regional city)');
-  assert.equal(d[1].destCityId, null);
+  assert.equal(d[1].destCity, 'Urgench, UZ', 'Хоразм is a region -> its main city');
+  assert.ok(!d[1].flags.includes('dest'));
   assert.equal(d[2].originCity, 'Kaluga, RU');
   assert.equal(d[2].destCity, 'Tashkent, UZ');
   assert.equal(d[3].destCity, 'Bukhara, UZ');
-  assert.match(d[3].notes, /Also DEL: ХОРАЗМ/, 'extra destinations are kept in the notes');
+  assert.match(d[3].notes, /Also DEL: Urgench, UZ/, 'extra destinations are kept in the notes');
 });
 
 test('parse-loads: model output is verified, never trusted', async () => {
@@ -245,4 +248,24 @@ test('notes survive edits that do not touch them; default contact e-mail is save
   assert.equal((await api.get('/api/me')).json.profile.contactEmail, 'dispatch@example.com');
   assert.equal((await api.patch('/api/me/profile', { contactEmail: 'not-an-email' })).status, 400);
   assert.equal((await api.patch('/api/me/profile', { contactEmail: '' })).status, 200, 'can be cleared');
+});
+
+test('profile: contact fields can be saved one at a time and cleared; /api/config reports the AI mode', async () => {
+  const fresh = await startTestEnv({}, { ai: createHeuristicParser() });
+  try {
+    await fresh.pool.query(`INSERT INTO members (email, company, contact_name, status, reviewed_at) VALUES ('new@test.com', 'New Co', '', 'approved', now())`);
+    const api = fresh.as('new@test.com');
+    // exactly what the Account form sends when only a phone number was typed
+    const onlyPhone = await api.patch('/api/me/profile', { company: 'New Co', contactName: '', phone: '+998 90 123 45 67', telegram: '', contactEmail: '', location: '', tirCarnet: '', fleet: '', routes: '' });
+    assert.equal(onlyPhone.status, 200, JSON.stringify(onlyPhone.json));
+    assert.equal(onlyPhone.json.profile.phone, '+998 90 123 45 67');
+    assert.equal((await api.patch('/api/me/profile', { telegram: 'ab' })).status, 400, 'a filled-in but invalid handle is still rejected');
+    assert.equal((await api.patch('/api/me/profile', { phone: '' })).status, 200, 'and a field can be cleared');
+    assert.equal((await api.patch('/api/me/profile', { company: '' })).status, 400, 'company stays required');
+    assert.equal((await fresh.app.inject({ method: 'GET', url: '/api/config' })).json().aiImport, 'basic');
+  } finally { await fresh.close(); }
+  const off = await startTestEnv({}, { ai: null });
+  try { assert.equal((await off.app.inject({ method: 'GET', url: '/api/config' })).json().aiImport, false); } finally { await off.close(); }
+  const real = await startTestEnv({}, { ai: createGeminiParser({ apiKey: 'k' }) });
+  try { assert.equal((await real.app.inject({ method: 'GET', url: '/api/config' })).json().aiImport, 'ai'); } finally { await real.close(); }
 });

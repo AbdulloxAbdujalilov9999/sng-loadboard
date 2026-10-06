@@ -38,10 +38,26 @@ function distance(a, b, cap) {
   return prev[b.length];
 }
 
+// Regions (viloyat/oblast) people write instead of a city -> the city that represents them on the board.
+const REGION_ALIASES = {
+  'Urgench, UZ': ['Хоразм', 'Xorazm', 'Khorazm', 'Khorezm', 'Хорезм', 'Хорезмская'],
+  'Karshi, UZ': ['Қашқадарё', 'Қашқадарья', 'Qashqadaryo', 'Кашкадарья', 'Кашкадарё', 'Kashkadarya'],
+  'Termez, UZ': ['Сурхондарё', 'Surxondaryo', 'Сурхандарья', 'Surkhandarya'],
+  'Nukus, UZ': ['Қорақалпоғистон', 'Qoraqalpogiston', 'Қорақалпогистон', 'Каракалпакстан', 'Karakalpakstan'],
+  'Jizzakh, UZ': ['Жиззах', 'Jizzax', 'Жиззакх'],
+  'Gulistan, UZ': ['Сирдарё', 'Sirdaryo', 'Сырдарья', 'Syrdarya'],
+  'Navoi, UZ': ['Навоий', 'Navoiy'],
+  'Fergana, UZ': ['Фарғона', 'Farg\'ona', 'Fargona', 'Фаргона'],
+};
+
 export function buildCityIndex(cities) {
   return {
     cities,
     byLabel: new Map(cities.map((c) => [c.label.toLowerCase(), c])),
+    regions: new Map(Object.entries(REGION_ALIASES).flatMap(([label, names]) => {
+      const city = cities.find((c) => c.label === label);
+      return city ? names.map((n) => [fold(n), city]) : [];
+    })),
     folded: cities.map((c) => ({ city: c, keys: [...new Set([fold(c.name), fold(c.name_ru)])] })),
   };
 }
@@ -58,6 +74,10 @@ export function resolveCity(index, { label, text } = {}) {
   // Try the whole text, then each word (so "ТОМСК АСИНО" can still land on Томск when the AI fails).
   const whole = fold(text);
   const candidates = whole ? [whole, ...whole.split(' ').filter((w) => w.length >= 3)] : [];
+  for (const cand of candidates) {
+    const region = index.regions.get(cand);
+    if (region) return { city: region, how: 'region' };
+  }
   for (const cand of candidates) {
     const exact = index.folded.filter((e) => e.keys.includes(cand));
     if (exact.length === 1) return { city: exact[0].city, how: 'exact' };

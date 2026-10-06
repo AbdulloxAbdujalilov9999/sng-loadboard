@@ -73,9 +73,9 @@ const App = (() => {
     document.title = `${t(TITLES[name])} — SNG ONE`;
     toggleSidebar(false);
     if (name === 'search-loads') Loads.onShow();
-    else if (name === 'post-loads') Loads.loadMine();
+    else if (name === 'post-loads') { Account.prefillContacts(); Loads.loadMine(); }
     else if (name === 'search-trucks') Trucks.onShow();
-    else if (name === 'post-trucks') Trucks.loadMine();
+    else if (name === 'post-trucks') { Account.prefillContacts(); Trucks.loadMine(); }
     else if (name === 'directory') Directory.onShow();
     else if (name === 'account-settings') Account.populate();
     else if (name === 'approvals') Admin.onShow();

@@ -43,6 +43,7 @@ const Account = (() => {
     };
     fill('post-contact-name', p.contactName); fill('post-phone', p.phone); fill('post-email', p.contactEmail || p.email); fill('post-tg', p.telegram);
     fill('truck-post-phone', p.phone); fill('truck-post-tg', p.telegram);
+    $('contact-incomplete').classList.toggle('hidden', Boolean(p.phone && p.telegram));
   }
 
   async function save(e) {

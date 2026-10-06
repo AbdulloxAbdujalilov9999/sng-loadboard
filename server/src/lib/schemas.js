@@ -22,11 +22,14 @@ export const accessRequestBody = z.object({
   contactName: optionalText(120),
 }).strict();
 
+// A profile may leave contact fields empty (they are only REQUIRED when posting), so "default contact info"
+// can be saved a piece at a time. An empty string clears the field.
+const orEmpty = (schema) => z.union([z.literal(''), schema]);
 export const profileBody = z.object({
   company: trimmed(120),
-  contactName: trimmed(120),
-  phone,
-  telegram,
+  contactName: optionalText(120),
+  phone: orEmpty(phone),
+  telegram: orEmpty(telegram),
   contactEmail: z.union([z.literal(''), email]),
   location: optionalText(120),
   tirCarnet: optionalText(60),

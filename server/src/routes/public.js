@@ -19,7 +19,7 @@ export default async function publicRoutes(app, { pool, config, ai }) {
       equipTypes: ['T', 'R', 'F', 'V', 'AC'],
       roadFactor: config.roadFactor,
       ownerContact: config.ownerEmails[0] ?? null,
-      aiImport: Boolean(ai), // whether "paste loads" can be offered
+      aiImport: ai ? (ai.name.startsWith('gemini') ? 'ai' : 'basic') : false, // false = off; 'basic' = rule-based reader, no AI key
       devAuth: config.devAuth, // true only for the local dev server: lets the UI offer a fake sign-in
     };
   });

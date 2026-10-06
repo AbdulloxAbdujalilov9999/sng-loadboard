@@ -327,6 +327,14 @@
 
             <!-- ================= POST & MANAGE LOADS ================= -->
             <section id="view-post-loads" class="hidden flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100 space-y-4 sm:space-y-6">
+                <div class="max-w-4xl mx-auto flex gap-2" role="tablist" id="post-tabs">
+                    <button type="button" role="tab" data-post-tab="ai" class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold border transition"><i data-lucide="sparkles" class="w-4 h-4"></i><span data-i18n="post_tab_ai">Paste with AI</span></button>
+                    <button type="button" role="tab" data-post-tab="manual" class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold border transition"><i data-lucide="pencil-line" class="w-4 h-4"></i><span data-i18n="post_tab_manual">Fill in manually</span></button>
+                </div>
+                <div id="contact-incomplete" class="hidden max-w-4xl mx-auto bg-amber-50 border border-amber-300 text-amber-900 rounded-lg p-3 text-xs flex flex-wrap items-center justify-between gap-2">
+                    <span data-i18n="contact_incomplete">Your default contact info is incomplete (phone / Telegram). Set it once and it fills in automatically on every new load.</span>
+                    <button type="button" id="contact-incomplete-btn" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded" data-i18n="contact_incomplete_btn">Set default contact info</button>
+                </div>
                 <div id="ai-import" class="max-w-4xl mx-auto bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg shadow-sm border border-indigo-200 p-4 sm:p-5 space-y-3">
                     <div class="flex items-start gap-3">
                         <div class="w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center flex-shrink-0"><i data-lucide="sparkles" class="w-4 h-4"></i></div>
@@ -335,6 +343,7 @@
                             <p class="text-xs text-slate-600" data-i18n="ai_hint">Paste one or many posts from Telegram or WhatsApp, in Russian or Uzbek. AI splits them into separate loads and fills in cities, cargo, truck type and notes. You check everything before it is posted.</p>
                         </div>
                     </div>
+                    <div id="ai-basic" class="hidden text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded p-2" data-i18n="ai_basic_mode">Basic mode: the AI is not connected yet, so only the standard layout (flag, flag, cargo, truck, terms, phone) is recognised. Always check the result.</div>
                     <div id="ai-unavailable" class="hidden text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded p-2" data-i18n="ai_unavailable">AI import is not set up on this server yet.</div>
                     <form id="ai-form" class="space-y-2" novalidate>
                         <textarea id="ai-text" rows="6" maxlength="12000" data-i18n-placeholder="ai_placeholder" placeholder="🇷🇺 ТОМСК&#10;🇺🇿 ТОШКЕНТ&#10;ДСП МДФ&#10;ТЕНТ&#10;ОПЛАТА НАХТ&#10;+998 90 123 45 67" class="w-full border border-indigo-200 rounded p-2.5 text-xs font-mono bg-white focus:border-indigo-500"></textarea>
@@ -346,7 +355,7 @@
                     <div id="ai-review" class="hidden space-y-3"></div>
                 </div>
 
-                <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
+                <div id="post-form-card" class="hidden max-w-4xl mx-auto bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
                     <div class="flex flex-wrap gap-2 justify-between items-center border-b pb-3">
                         <div>
                             <h3 class="text-base font-bold text-slate-800" data-i18n="post_load_heading">Post Freight Load</h3>

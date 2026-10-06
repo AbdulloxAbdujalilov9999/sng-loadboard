@@ -66,7 +66,7 @@ Migrations in `server/migrations` run automatically at boot under an advisory lo
 
 `POST /api/ai/parse-loads` sends the pasted text plus our city list to Gemini with a strict JSON schema; the server then **verifies everything** (city labels against the database with a fuzzy fallback for Cyrillic/Uzbek spellings, enums, dates, numbers) and returns one draft per load. Nothing is posted until the member reviews the drafts; posting goes through `POST /api/loads/bulk` (all-or-nothing, max 40, quotas apply to the whole batch). Fields the text did not contain (weight, price, date) are filled with visible defaults and highlighted for checking; everything else from the post (payment terms, loading readiness, advance, extra destinations) is kept in the load's **Notes**.
 
-Setup: create a key at <https://aistudio.google.com/apikey>, set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`) on the server, then run `npm run ai:check` — it makes one real call and prints what the AI understood. Without a key the feature shows "not set up"; the local dev server falls back to a simple rule-based reader so the UI can be tried offline.
+Setup: create a key at <https://aistudio.google.com/apikey>, set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`) on the server, then run `npm run ai:check` — it makes one real call and prints what the AI understood. Without a key the feature runs in **basic mode** (a simple rule-based reader for the standard flag/flag/cargo/truck/terms/phone layout, clearly labelled in the UI) so it is never missing; set `AI_FALLBACK=false` to switch it off instead.
 
 Privacy/safety: pasted text (including phone numbers) is sent to Google's Gemini API — say so in your terms. The API key never reaches the browser; the pasted text is never logged; the pasted text is treated as data, not instructions; each member has an hourly budget (`AI_RATE_PER_HOUR`) and parallel calls are capped (`AI_MAX_PARALLEL`).
 
@@ -108,7 +108,7 @@ SOAK_BASE=http://127.0.0.1:8080 SOAK_USERS=20000 npm run soak
 ## Tests
 
 ```bash
-npm test      # 66 tests against a real, embedded PostgreSQL: auth, approval flow, search, quotas, security, SSE, boot/cluster
+npm test      # 67 tests against a real, embedded PostgreSQL: auth, approval flow, search, quotas, security, SSE, boot/cluster
 ```
 
 ## Layout

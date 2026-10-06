@@ -187,10 +187,33 @@ const AiImport = (() => {
     $('ai-text').disabled = on;
   }
 
-  function enter() { showUnavailable(App.config && App.config.aiImport === false); }
+  // The two ways to post a load: paste text (AI) or the manual form. The choice is remembered.
+  const ACTIVE = ['bg-indigo-600', 'text-white', 'border-indigo-600', 'shadow'];
+  const IDLE = ['bg-white', 'text-slate-600', 'border-slate-300', 'hover:bg-slate-50'];
+  function setTab(name) {
+    const tab = name === 'manual' ? 'manual' : 'ai';
+    $('ai-import').classList.toggle('hidden', tab !== 'ai');
+    $('post-form-card').classList.toggle('hidden', tab !== 'manual');
+    document.querySelectorAll('#post-tabs [data-post-tab]').forEach((b) => {
+      const on = b.dataset.postTab === tab;
+      b.classList.remove(...(on ? IDLE : ACTIVE));
+      b.classList.add(...(on ? ACTIVE : IDLE));
+      b.setAttribute('aria-selected', String(on));
+    });
+    U.store.set('sng.postTab', tab);
+  }
+
+  function enter() {
+    const mode = App.config?.aiImport;
+    showUnavailable(mode === false);
+    $('ai-basic').classList.toggle('hidden', mode !== 'basic');
+    setTab(U.store.get('sng.postTab', 'ai'));
+  }
   function leave() { reset(); }
 
   function init() {
+    document.querySelectorAll('#post-tabs [data-post-tab]').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.postTab)));
+    $('contact-incomplete-btn').addEventListener('click', () => App.setView('account-settings'));
     $('ai-form').addEventListener('submit', read);
     $('ai-text').addEventListener('input', () => { $('ai-count').textContent = $('ai-text').value.length; });
     $('ai-review').addEventListener('click', (e) => {
@@ -207,7 +230,7 @@ const AiImport = (() => {
     });
   }
 
-  return { init, enter, leave };
+  return { init, enter, leave, setTab };
 })();
 
 window.AiImport = AiImport;

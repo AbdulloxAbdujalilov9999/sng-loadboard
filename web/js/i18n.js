@@ -1,6 +1,11 @@
 // Translations (English / Russian). t('key', {vars}) falls back to English, then to the key itself.
 const DICT = {
   en: {
+    "post_tab_ai": "Paste with AI",
+    "post_tab_manual": "Fill in manually",
+    "contact_incomplete": "Your default contact info is incomplete (phone / Telegram). Set it once and it fills in automatically on every new load.",
+    "contact_incomplete_btn": "Set default contact info",
+    "ai_basic_mode": "Basic mode: the AI is not connected yet, so only the standard layout (flag, flag, cargo, truck, terms, phone) is recognised. Always check the result.",
     "lbl_comp_info2": "Company Information",
     "acc_contact_title": "Default contact info",
     "acc_contact_hint": "Filled in automatically on every new load and truck you post. You can still change it on each post.",
@@ -282,6 +287,11 @@ const DICT = {
     "trucks_none": "No trucks match your search."
   },
   ru: {
+    "post_tab_ai": "Вставить с ИИ",
+    "post_tab_manual": "Заполнить вручную",
+    "contact_incomplete": "Контакты по умолчанию заполнены не полностью (телефон / Telegram). Укажите их один раз — и они будут подставляться в каждый новый груз.",
+    "contact_incomplete_btn": "Указать контакты",
+    "ai_basic_mode": "Базовый режим: ИИ ещё не подключён, поэтому распознаётся только стандартный формат (флаг, флаг, груз, машина, условия, телефон). Всегда проверяйте результат.",
     "lbl_comp_info2": "Информация о компании",
     "acc_contact_title": "Контакты по умолчанию",
     "acc_contact_hint": "Подставляются автоматически в каждый новый груз и транспорт. В каждом объявлении их можно изменить.",
