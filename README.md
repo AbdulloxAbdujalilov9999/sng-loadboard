@@ -144,8 +144,8 @@ It talks to this same API and database; nothing on the server needed to change. 
 ## Tests
 
 ```bash
-npm test      # 103 tests. server (76): real embedded PostgreSQL - auth, approval, search, quotas, security, SSE, boot/cluster, i18n
-              # bot (27): crypto + formatting + translations, and integration tests against the real API, database and
+npm test      # 104 tests. server (76): real embedded PostgreSQL - auth, approval, search, quotas, security, SSE, boot/cluster, i18n
+              # bot (28): crypto + formatting + translations, and integration tests against the real API, database and
               #           LISTEN/NOTIFY channel (only Telegram itself is faked)
 ```
 

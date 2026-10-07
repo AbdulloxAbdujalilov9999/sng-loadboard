@@ -58,3 +58,12 @@ test('appends a link to the load on the web board when given one', () => {
   const withoutLink = formatLoadMessage(ROW, 'en');
   assert.doesNotMatch(withoutLink, /<a href/);
 });
+
+test('a rate of 0 is shown as "negotiable" in every language, never as $0', () => {
+  const row = { origin_city: 'A, UZ', dest_city: 'B, RU', equip: 'T', fp: 'Full', weight_t: 20, commodity: 'x', pickup_date: '2026-10-10', rate_usd: '0.00', company_name: 'Co', contact_name: 'n' };
+  assert.match(formatLoadMessage(row, 'en'), /💰 Negotiable/);
+  assert.match(formatLoadMessage(row, 'ru'), /💰 Договорная/);
+  assert.match(formatLoadMessage(row, 'uz'), /💰 Kelishilgan/);
+  assert.ok(!formatLoadMessage(row, 'en').includes('$0'));
+  assert.match(formatLoadMessage({ ...row, rate_usd: '1500.00' }, 'en'), /💰 \$1,500/, 'real prices are unchanged');
+});

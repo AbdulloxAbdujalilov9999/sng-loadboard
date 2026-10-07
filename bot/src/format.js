@@ -6,7 +6,8 @@ import { t } from './i18n.js';
 export const escapeHtml = (s) => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-const money = (n) => (n === null || n === undefined ? '-' : `$${Number(n).toLocaleString('en-US')}`);
+// A rate of 0 means "not stated / negotiable" (the web board shows it the same way), never "$0".
+const money = (n, lang = 'en') => (n === null || n === undefined ? '-' : Number(n) === 0 ? t(lang, 'msg_negotiable') : `$${Number(n).toLocaleString('en-US')}`);
 
 /** `linkUrl`, when given, becomes a "view on the loadboard" line - see bot/src/broadcaster.js. */
 export function formatLoadMessage(row, lang = 'en', linkUrl = null) {
@@ -20,7 +21,7 @@ export function formatLoadMessage(row, lang = 'en', linkUrl = null) {
     `${equip} · ${fp} · ${Number(row.weight_t)} t${row.volume_m3 ? ` · ${row.volume_m3} m³` : ''}`,
     `📦 ${escapeHtml(row.commodity)}`,
     `📅 ${pickup}`,
-    row.distance_km ? `📏 ${row.distance_km} km · 💰 ${money(row.rate_usd)}` : `💰 ${money(row.rate_usd)}`,
+    row.distance_km ? `📏 ${row.distance_km} km · 💰 ${money(row.rate_usd, lang)}` : `💰 ${money(row.rate_usd, lang)}`,
   ];
   if (row.notes) lines.push(`📝 ${escapeHtml(row.notes)}`);
   lines.push('');
