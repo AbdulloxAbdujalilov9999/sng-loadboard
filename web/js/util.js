@@ -167,5 +167,37 @@
 
   const todayIso = () => new Date().toISOString().slice(0, 10);
 
-  window.U = { $, esc, debounce, liveThrottle, detailText, store, toast, confirmDialog, clearFormErrors, fieldError, applyFormErrors, setBusy, fx, money, ageText, shortDate, fmtCount, badgeCount, haversineKm, todayIso };
+  // ---- route on a map -------------------------------------------------------------------------------
+  // Desktop: a normal link that opens a NEW tab. Phones: open the Maps APP directly (Android: Google Maps via an
+  // intent link that falls back to the website; iPhone: Apple Maps, which every iPhone has) instead of loading a
+  // web page inside whatever window the person is in (a Telegram / in-app browser, an installed web app ...).
+  function routeUrls(from, to) {
+    const f = encodeURIComponent(from);
+    const d = encodeURIComponent(to);
+    const web = `https://www.google.com/maps/dir/?api=1&origin=${f}&destination=${d}&travelmode=driving`;
+    return {
+      web,
+      android: `intent://www.google.com/maps/dir/?api=1&origin=${f}&destination=${d}&travelmode=driving#Intent;scheme=https;package=com.google.android.apps.maps;S.browser_fallback_url=${encodeURIComponent(web)};end`,
+      apple: `https://maps.apple.com/?saddr=${f}&daddr=${d}&dirflg=d`,
+    };
+  }
+
+  function platform() {
+    const ua = navigator.userAgent || '';
+    if (/Android/i.test(ua)) return 'android';
+    if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'ios';
+    return 'desktop';
+  }
+
+  /** Click handler for a route link: call with the click event and the link element (data-from / data-to). */
+  function openRoute(e, link) {
+    const urls = routeUrls(link.dataset.from, link.dataset.to);
+    const os = platform();
+    if (os === 'desktop') return; // the anchor's own target="_blank" opens a new tab
+    e.preventDefault();
+    if (os === 'android') { window.location.href = urls.android; return; }
+    if (!window.open(urls.apple, '_blank', 'noopener')) window.location.href = urls.apple; // popup blocked: still reach Maps
+  }
+
+  window.U = { $, esc, debounce, liveThrottle, detailText, routeUrls, platform, openRoute, store, toast, confirmDialog, clearFormErrors, fieldError, applyFormErrors, setBusy, fx, money, ageText, shortDate, fmtCount, badgeCount, haversineKm, todayIso };
 })();

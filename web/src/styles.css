@@ -103,11 +103,52 @@
   #loads-tbody tr.data-row > td:nth-child(11) { grid-column: 1 / 13; grid-row: 5; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed #cbd5e1; font-size: 11px; color: #475569; } /* company */
 }
 
+/* ---------- phones: the other lists get the same compact, separated cards ---------- */
+@media (max-width: 767px) {
+  /* "my posts" tables sit in a white panel: tint the area behind the cards so each card stands out */
+  #my-loads-tbody, #my-trucks-tbody { background: #e9eef5; padding: 0.15rem 0 0.4rem; }
+  #trucks-tbody tr.data-row, #my-loads-tbody tr.data-row, #my-trucks-tbody tr.data-row { display: grid; grid-template-columns: repeat(12, 1fr);
+    column-gap: 0.35rem; row-gap: 0.15rem; align-items: center; padding: 0.75rem 0.85rem 0.65rem; border-left: 4px solid #0066cc; }
+  #trucks-tbody tr.data-row > td, #my-loads-tbody tr.data-row > td, #my-trucks-tbody tr.data-row > td { padding: 0; border: 0; width: auto; min-width: 0; text-align: left; background: transparent; }
+  #trucks-tbody tr.data-row > td::before, #my-loads-tbody tr.data-row > td::before, #my-trucks-tbody tr.data-row > td::before { display: none; }
+  #trucks-tbody tr.data-row { border-left-color: #059669; } /* trucks are green, loads are blue */
+  #my-trucks-tbody tr.data-row { border-left-color: #059669; }
+
+  /* --- truck search results: 1 available · 2 location · 3 destination · 4 type · 5 capacity · 6 min rate · 7 carrier · 8 contact --- */
+  #trucks-tbody tr.data-row > td:nth-child(2) { grid-column: 1 / 9;  grid-row: 1; font-size: 14px; line-height: 1.25; background: transparent; }
+  #trucks-tbody tr.data-row > td:nth-child(3) { grid-column: 1 / 9;  grid-row: 2; font-size: 13px; font-weight: 700; color: #0f172a; line-height: 1.25; }
+  #trucks-tbody tr.data-row > td:nth-child(3)::before { display: inline; float: none; content: '→ '; color: inherit; font-size: inherit; text-transform: none; letter-spacing: 0; margin: 0; }
+  #trucks-tbody tr.data-row > td:nth-child(6) { grid-column: 9 / 13; grid-row: 1 / 3; text-align: right; font-size: 16px; font-weight: 800; align-self: center; }
+  #trucks-tbody tr.data-row > td:nth-child(4) { grid-column: 1 / 3;  grid-row: 3; margin-top: 0.45rem; }
+  #trucks-tbody tr.data-row > td:nth-child(5) { grid-column: 3 / 13; grid-row: 3; margin-top: 0.45rem; font-size: 11px; }
+  #trucks-tbody tr.data-row > td:nth-child(1) { grid-column: 1 / 13; grid-row: 4; margin-top: 0.35rem; font-size: 11px; }
+  #trucks-tbody tr.data-row > td:nth-child(1)::before { display: inline; float: none; margin-right: 0.3rem; }
+  #trucks-tbody tr.data-row > td:nth-child(7) { grid-column: 1 / 13; grid-row: 5; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed #cbd5e1; font-size: 11px; color: #475569; }
+  #trucks-tbody tr.data-row > td:nth-child(8) { grid-column: 1 / 13; grid-row: 6; margin-top: 0.5rem; }
+
+  /* --- my posted loads: 1 route · 2 pickup/delivery · 3 type & weight · 4 distance · 5 rate · 6 commodity · 7 actions --- */
+  #my-loads-tbody tr.data-row > td:nth-child(1) { grid-column: 1 / 9;  grid-row: 1; font-size: 13px; background: transparent; line-height: 1.3; }
+  #my-loads-tbody tr.data-row > td:nth-child(5) { grid-column: 9 / 13; grid-row: 1; text-align: right; font-size: 14px; font-weight: 800; white-space: nowrap !important; }
+  #my-loads-tbody tr.data-row > td:nth-child(2) { grid-column: 1 / 13;  grid-row: 2; margin-top: 0.3rem; font-size: 11px; }
+  #my-loads-tbody tr.data-row > td:nth-child(3) { grid-column: 1 / 8;   grid-row: 3; margin-top: 0.3rem; font-size: 11px; }
+  #my-loads-tbody tr.data-row > td:nth-child(4) { grid-column: 8 / 13;  grid-row: 3; margin-top: 0.3rem; font-size: 11px; text-align: right; }
+  #my-loads-tbody tr.data-row > td:nth-child(6) { grid-column: 1 / 13;  grid-row: 4; margin-top: 0.3rem; font-size: 11px; max-width: none; color: #475569; }
+  #my-loads-tbody tr.data-row > td:nth-child(7) { grid-column: 1 / 13;  grid-row: 5; margin-top: 0.55rem; padding-top: 0.55rem; border-top: 1px dashed #cbd5e1; }
+  #my-loads-tbody tr.data-row > td:nth-child(2)::before, #my-trucks-tbody tr.data-row > td:nth-child(2)::before { display: inline; float: none; margin-right: 0.3rem; }
+
+  /* --- my posted trucks: 1 location → destination · 2 available · 3 type & capacity · 4 min rate · 5 remove --- */
+  #my-trucks-tbody tr.data-row > td:nth-child(1) { grid-column: 1 / 9;  grid-row: 1; font-size: 13px; background: transparent; line-height: 1.3; }
+  #my-trucks-tbody tr.data-row > td:nth-child(4) { grid-column: 9 / 13; grid-row: 1; text-align: right; font-size: 14px; font-weight: 800; white-space: nowrap !important; }
+  #my-trucks-tbody tr.data-row > td:nth-child(2) { grid-column: 1 / 13;  grid-row: 2; margin-top: 0.3rem; font-size: 11px; }
+  #my-trucks-tbody tr.data-row > td:nth-child(3) { grid-column: 1 / 8;   grid-row: 3; margin-top: 0.3rem; font-size: 11px; }
+  #my-trucks-tbody tr.data-row > td:nth-child(5) { grid-column: 8 / 13;  grid-row: 3; margin-top: 0.3rem; text-align: right; }
+}
+
 /* ---------- desktop tables: clearer row separation ---------- */
 @media (min-width: 768px) {
-  #loads-tbody > tr.data-row, #trucks-tbody > tr.data-row { border-top-width: 0; border-bottom: 1px solid #cbd5e1; }
-  #loads-tbody > tr.data-row:nth-child(even), #trucks-tbody > tr.data-row:nth-child(even) { background-color: #f4f7fb; }
-  #loads-tbody > tr.data-row:hover, #trucks-tbody > tr.data-row:hover { background-color: #e3eefc; }
+  #loads-tbody > tr.data-row, #trucks-tbody > tr.data-row, #my-loads-tbody > tr.data-row, #my-trucks-tbody > tr.data-row { border-top-width: 0; border-bottom: 1px solid #cbd5e1; }
+  #loads-tbody > tr.data-row:nth-child(even), #trucks-tbody > tr.data-row:nth-child(even), #my-loads-tbody > tr.data-row:nth-child(even), #my-trucks-tbody > tr.data-row:nth-child(even) { background-color: #f4f7fb; }
+  #loads-tbody > tr.data-row:hover, #trucks-tbody > tr.data-row:hover, #my-loads-tbody > tr.data-row:hover, #my-trucks-tbody > tr.data-row:hover { background-color: #e3eefc; }
 }
 
 /* ---------- theme toggle icons (moon shown in light mode, sun in dark mode) ---------- */
@@ -141,7 +182,12 @@
 @media (max-width: 767px) {
   .dark .responsive-table tr.data-row { background: #111a2e; border-color: #2a3750; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
   .dark #loads-scroll, .dark #trucks-scroll { background: #0a1020; }
-  .dark #loads-tbody tr.data-row { border-left-color: #3b82f6; }
+  .dark #loads-tbody tr.data-row, .dark #my-loads-tbody tr.data-row { border-left-color: #3b82f6; }
+  .dark #trucks-tbody tr.data-row, .dark #my-trucks-tbody tr.data-row { border-left-color: #10b981; }
+  .dark #my-loads-tbody, .dark #my-trucks-tbody { background: #0a1020; }
+  .dark #trucks-tbody tr.data-row > td:nth-child(3) { color: #e2e8f0; }
+  .dark #trucks-tbody tr.data-row > td:nth-child(7), .dark #my-loads-tbody tr.data-row > td:nth-child(7) { border-top-color: #2a3750; color: #94a3b8; }
+  .dark #my-loads-tbody tr.data-row > td:nth-child(6) { color: #94a3b8; }
   .dark #loads-tbody tr.data-row > td:nth-child(11) { border-top-color: #2a3750; color: #94a3b8; }
   .dark .responsive-table td { border-bottom-color: #1c2740; }
   .dark .responsive-table td[data-label]::before { color: #7c8aa0; }
@@ -165,7 +211,7 @@
 
 /* desktop row striping in dark mode */
 @media (min-width: 768px) {
-  .dark #loads-tbody > tr.data-row, .dark #trucks-tbody > tr.data-row { border-bottom-color: #2a3750; }
-  .dark #loads-tbody > tr.data-row:nth-child(even), .dark #trucks-tbody > tr.data-row:nth-child(even) { background-color: #141f36; }
-  .dark #loads-tbody > tr.data-row:hover, .dark #trucks-tbody > tr.data-row:hover { background-color: #1c2d4d; }
+  .dark #loads-tbody > tr.data-row, .dark #trucks-tbody > tr.data-row, .dark #my-loads-tbody > tr.data-row, .dark #my-trucks-tbody > tr.data-row { border-bottom-color: #2a3750; }
+  .dark #loads-tbody > tr.data-row:nth-child(even), .dark #trucks-tbody > tr.data-row:nth-child(even), .dark #my-loads-tbody > tr.data-row:nth-child(even), .dark #my-trucks-tbody > tr.data-row:nth-child(even) { background-color: #141f36; }
+  .dark #loads-tbody > tr.data-row:hover, .dark #trucks-tbody > tr.data-row:hover, .dark #my-loads-tbody > tr.data-row:hover, .dark #my-trucks-tbody > tr.data-row:hover { background-color: #1c2d4d; }
 }

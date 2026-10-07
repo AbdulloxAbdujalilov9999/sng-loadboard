@@ -167,6 +167,7 @@ const App = (() => {
       if (e.key !== 'Escape') return;
       if (!$('modal-edit-load').classList.contains('hidden')) Loads.closeEdit();
       else if (!$('modal-view-load').classList.contains('hidden')) Loads.closeViewLoad();
+      else if (!$('modal-view-truck').classList.contains('hidden')) Trucks.closeViewTruck();
       else toggleSidebar(false);
     });
     // Nav badges refresh on a slow poll (below) rather than per event: with thousands of users online, an

@@ -1,6 +1,7 @@
 // Translations (English / Russian). t('key', {vars}) falls back to English, then to the key itself.
 const DICT = {
   en: {
+    "lbl_truck_specs": "Truck & Availability",
     "btn_back_to_filters": "Filters",
     "method_phone": "Phone (SMS)",
     "method_password": "Email + password",
@@ -362,6 +363,7 @@ const DICT = {
     "trucks_none": "No trucks match your search."
   },
   ru: {
+    "lbl_truck_specs": "Транспорт и доступность",
     "btn_back_to_filters": "Фильтры",
     "method_phone": "Телефон (SMS)",
     "method_password": "Эл. почта + пароль",
@@ -723,6 +725,7 @@ const DICT = {
     "trucks_none": "Транспорт не найден."
   },
   uz: {
+    "lbl_truck_specs": "Mashina va boʻsh vaqti",
     "btn_back_to_filters": "Filtrlar",
     "acc_contact_hint": "Siz joylaydigan har bir yuk va mashinaga avtomatik qoʻyiladi. Har bir eʼlonda uni oʻzgartirish mumkin.",
     "acc_contact_title": "Standart aloqa maʼlumotlari",

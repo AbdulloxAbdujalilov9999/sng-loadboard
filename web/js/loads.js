@@ -253,7 +253,7 @@ const Loads = (() => {
             </div>
             ${l.notes ? `<div class="text-[11px] bg-amber-50 border border-amber-200 rounded p-2 text-slate-800"><span class="text-[10px] uppercase font-bold text-amber-700 tracking-wider block mb-0.5">${esc(t('lbl_notes'))}</span><span class="whitespace-pre-line break-words">${esc(l.notes)}</span></div>` : ''}
             <div class="pt-2 border-t border-slate-100">
-              <a href="${maps}" target="_blank" rel="noopener noreferrer" class="w-full bg-[#1a73e8] hover:bg-blue-600 text-white font-bold py-2 px-3 rounded flex items-center justify-center space-x-2 shadow-sm transition">
+              <a href="${maps}" target="_blank" rel="noopener noreferrer" data-route data-from="${esc(l.originCity)}" data-to="${esc(l.destCity)}" class="w-full bg-[#1a73e8] hover:bg-blue-600 text-white font-bold py-2 px-3 rounded flex items-center justify-center space-x-2 shadow-sm transition">
                 <i data-lucide="map-pin" class="w-4 h-4 text-amber-300"></i><span>${esc(t('lbl_maps_btn'))}</span><i data-lucide="external-link" class="w-3.5 h-3.5 text-blue-200"></i>
               </a>
             </div>
@@ -597,6 +597,8 @@ const Loads = (() => {
     $('view-load-close').addEventListener('click', closeViewLoad);
     $('modal-view-load').addEventListener('mousedown', (e) => { if (e.target === $('modal-view-load')) closeViewLoad(); });
     $('view-load-tbody').addEventListener('click', (e) => {
+      const route = e.target.closest('[data-route]');
+      if (route) { U.openRoute(e, route); return; }
       const action = e.target.closest('[data-action="copy"]');
       if (action) copyContact(Number(action.dataset.id));
     });
