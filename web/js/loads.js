@@ -27,8 +27,9 @@ const Loads = (() => {
   function scrollListToStart() {
     if (mobileMq.matches) { if (listScrolledPx() > 0) $('loads-scroll').scrollIntoView({ block: 'start' }); } else $('loads-scroll').scrollTop = 0;
   }
-  let deepLinked = null; // the load currently shown by openDeepLinkedLoad(), for its own Copy button
-  const list = { items: [], cursor: null, total: null, capped: false, loading: false, done: false, error: null, expanded: null, ctrl: null };
+  let deepLinked = null; // the load currently shown in the preview popup, for its own Copy button
+  let previewTrigger = null; // the row that opened the popup, so focus can return to it
+  const list = { items: [], cursor: null, total: null, capped: false, loading: false, done: false, error: null, ctrl: null };
 
   // ---------------------------------------------------------------- tabs
   const defaultRadius = () => Number(U.store.get('sng.defaultDh', 100)) || 100;
@@ -154,7 +155,7 @@ const Loads = (() => {
     const ctrl = new AbortController();
     list.ctrl = ctrl;
     if (!silent) {
-      Object.assign(list, { items: [], cursor: null, total: null, capped: false, done: false, error: null, loading: true, expanded: null });
+      Object.assign(list, { items: [], cursor: null, total: null, capped: false, done: false, error: null, loading: true });
       render();
       scrollListToStart();
     }
@@ -164,7 +165,6 @@ const Loads = (() => {
       const res = await API.get('/api/loads', buildQuery(active()), ctrl.signal);
       if (list.ctrl !== ctrl) return;
       Object.assign(list, { items: res.items, cursor: res.nextCursor, total: res.total ?? list.total, capped: Boolean(res.totalCapped), done: !res.nextCursor, error: null });
-      if (silent && list.expanded && !list.items.some((l) => l.id === list.expanded)) list.expanded = null;
     } catch (err) {
       if (err.name === 'AbortError') return;
       if (!silent) list.error = err;
@@ -215,10 +215,9 @@ const Loads = (() => {
   const rateText = (usd) => (usd > 0 ? U.money(usd) : t('negotiable'));
 
   function rowHtml(l) {
-    const open = list.expanded === l.id;
     const dh = (v) => (v === null ? '' : ` <span class="text-[10px] ${v > 0 ? 'text-blue-600 font-bold' : 'text-slate-400 font-normal'}">(${v}km)</span>`);
-    return `<tr class="data-row border-b border-slate-200 transition cursor-pointer select-none ${open ? 'row-expanded font-semibold text-blue-950' : 'hover:bg-slate-50'}" data-id="${l.id}" tabindex="0" aria-expanded="${open}">
-      <td class="cell-hide-mobile py-2 px-1.5 text-center text-blue-600" data-chev>${open ? '▾' : '▸'}</td>
+    return `<tr class="data-row border-b border-slate-200 transition cursor-pointer select-none hover:bg-slate-50" data-id="${l.id}" tabindex="0" aria-haspopup="dialog">
+      <td class="cell-hide-mobile py-2 px-1.5 text-center text-blue-600" aria-hidden="true">›</td>
       <td data-label="${esc(t('th_age'))}" data-created="${esc(l.createdAt)}" class="py-2 px-2 text-slate-400 font-normal truncate">${esc(U.ageText(l.createdAt))}</td>
       <td data-label="${esc(t('th_date'))}" class="py-2 px-2 text-slate-600 truncate">${esc(U.shortDate(l.pickupDate))}</td>
       <td class="cell-heading py-2 px-2.5 font-bold text-slate-900 truncate" title="${esc(l.originCity)}">${esc(l.originCity)}${dh(l.dho)}</td>
@@ -235,8 +234,8 @@ const Loads = (() => {
   function detailHtml(l) {
     const tel = String(l.contactPhone).replace(/[^\d+]/g, '');
     const maps = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(l.originCity)}&destination=${encodeURIComponent(l.destCity)}&travelmode=driving`;
-    return `<tr class="detail-row bg-[#f8fbff] border-b-2 border-blue-400/40 shadow-inner font-sans" data-detail-for="${l.id}">
-      <td colspan="11" class="p-2 sm:p-4">
+    return `<tr class="detail-row font-sans" data-detail-for="${l.id}">
+      <td colspan="11" class="p-0">
         <div class="grid grid-cols-1 md:grid-cols-12 gap-4 text-xs">
           <div class="md:col-span-6 bg-white p-3 rounded border border-blue-100 shadow-sm space-y-3 flex flex-col justify-between">
             <div>
@@ -284,7 +283,7 @@ const Loads = (() => {
     if (list.loading && !list.items.length) tbody.innerHTML = skeletonRows();
     else if (!list.items.length) tbody.innerHTML = `<tr class="status-row"><td colspan="11" class="p-8 text-center text-slate-400 font-sans">${esc(list.error ? list.error.message : t('loads_none'))}</td></tr>`;
     else {
-      tbody.innerHTML = list.items.map((l) => rowHtml(l) + (list.expanded === l.id ? detailHtml(l) : '')).join('');
+      tbody.innerHTML = list.items.map(rowHtml).join('');
     }
     $('filtered-count').textContent = list.loading && list.total === null ? '…' : U.fmtCount(list.total, list.capped);
     renderFooter();
@@ -326,28 +325,23 @@ const Loads = (() => {
     reload();
   }
 
-  // ---------------------------------------------------------------- row expansion & actions
-  function toggleRow(id) {
-    const tbody = $('loads-tbody');
-    const prev = list.expanded;
-    list.expanded = prev === id ? null : id;
-    tbody.querySelectorAll('tr.detail-row').forEach((r) => r.remove());
-    for (const [rowId, open] of [[prev, false], [list.expanded, true]]) {
-      if (!rowId) continue;
-      const tr = tbody.querySelector(`tr[data-id="${rowId}"]`);
-      if (!tr) continue;
-      tr.classList.toggle('row-expanded', open);
-      tr.classList.toggle('font-semibold', open);
-      tr.classList.toggle('text-blue-950', open);
-      tr.classList.toggle('hover:bg-slate-50', !open);
-      tr.setAttribute('aria-expanded', String(open));
-      tr.querySelector('[data-chev]').textContent = open ? '▾' : '▸';
-    }
-    if (list.expanded) {
-      const item = list.items.find((l) => l.id === list.expanded);
-      tbody.querySelector(`tr[data-id="${list.expanded}"]`)?.insertAdjacentHTML('afterend', detailHtml(item));
-      lucide.createIcons();
-    }
+  // ---------------------------------------------------------------- load preview (popup) & actions
+  // Clicking a load opens its full details in a popup instead of unfolding a row inside the list, so the list
+  // never jumps around and phones get a proper full-width view.
+  function showLoadPreview(l, trigger = null) {
+    deepLinked = l;
+    previewTrigger = trigger;
+    $('view-load-title').lastElementChild.textContent = `${l.originCity} → ${l.destCity}`;
+    $('view-load-sub').innerHTML = `${esc(l.company)} · ${esc(U.ageText(l.createdAt))}${l.mine ? ` <span class="text-[9px] bg-amber-100 text-amber-800 px-1 rounded font-bold">${esc(t('badge_yours'))}</span>` : ''}`;
+    $('view-load-tbody').innerHTML = detailHtml(l);
+    $('modal-view-load').classList.remove('hidden');
+    lucide.createIcons();
+    $('view-load-close').focus();
+  }
+
+  function openLoadPreview(id) {
+    const l = list.items.find((x) => x.id === id);
+    if (l) showLoadPreview(l, $('loads-tbody').querySelector(`tr[data-id="${id}"]`));
   }
 
   async function copyContact(id) {
@@ -366,7 +360,7 @@ const Loads = (() => {
 
   const refreshFromLive = U.liveThrottle(() => {
     const tab = active();
-    const atTop = listScrolledPx() < 60 && list.expanded === null;
+    const atTop = listScrolledPx() < 60;
     if (atTop && tab.sort === 'created' && tab.dir === 'desc') reload({ silent: true });
     else showBanner();
   });
@@ -488,13 +482,15 @@ const Loads = (() => {
       U.toast(err.status === 404 ? t('toast_load_not_found') : err.message, 'error');
       return;
     }
-    deepLinked = l;
-    $('view-load-tbody').innerHTML = detailHtml(l);
-    $('modal-view-load').classList.remove('hidden');
-    lucide.createIcons();
+    showLoadPreview(l);
   }
 
-  function closeViewLoad() { $('modal-view-load').classList.add('hidden'); deepLinked = null; }
+  function closeViewLoad() {
+    $('modal-view-load').classList.add('hidden');
+    deepLinked = null;
+    if (previewTrigger?.isConnected) previewTrigger.focus({ preventScroll: true }); // keyboard users land back on their row
+    previewTrigger = null;
+  }
 
   async function submitEdit(e) {
     e.preventDefault();
@@ -557,11 +553,11 @@ const Loads = (() => {
       if (action?.dataset.action === 'copy') { copyContact(Number(action.dataset.id)); return; }
       if (e.target.closest('a, button')) return;
       const tr = e.target.closest('tr.data-row');
-      if (tr) toggleRow(Number(tr.dataset.id));
+      if (tr) openLoadPreview(Number(tr.dataset.id));
     });
     tbody.addEventListener('keydown', (e) => {
       const tr = e.target.closest('tr.data-row');
-      if (tr && e.target === tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleRow(Number(tr.dataset.id)); }
+      if (tr && e.target === tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openLoadPreview(Number(tr.dataset.id)); }
     });
     $('loads-footer').addEventListener('click', (e) => {
       if (e.target.closest('[data-action="retry"]')) { list.error = null; list.items.length ? loadMore() : reload(); }
@@ -627,7 +623,7 @@ const Loads = (() => {
   function leave() {
     entered = false;
     list.ctrl?.abort();
-    Object.assign(list, { items: [], cursor: null, total: null, done: false, error: null, loading: false, expanded: null });
+    Object.assign(list, { items: [], cursor: null, total: null, done: false, error: null, loading: false });
     mine = [];
     tabs = [];
     activeId = null;

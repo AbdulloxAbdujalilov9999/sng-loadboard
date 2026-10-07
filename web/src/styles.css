@@ -10,7 +10,6 @@
 
 /* ---------- navigation / tabs ---------- */
 .tab-active { background-color: #1e293b; color: #38bdf8; border-left: 4px solid #38bdf8; }
-.row-expanded { background-color: #f0f7ff !important; border-bottom-color: transparent !important; }
 .sortable-th { cursor: pointer; user-select: none; transition: background-color 0.15s; }
 .sortable-th:hover { background-color: #1a3a5c; }
 .search-tab-active { background-color: #ffffff; color: #0066cc; border-bottom: 2px solid #0066cc; font-weight: 700; }
@@ -67,7 +66,6 @@
   .responsive-table, .responsive-table tbody, .responsive-table tr, .responsive-table td { display: block; width: 100%; }
   .responsive-table { table-layout: auto; }
   .responsive-table tr.data-row { border: 1px solid #e2e8f0; border-radius: 0.5rem; margin: 0.5rem; overflow: hidden; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05); }
-  .responsive-table tr.data-row.row-expanded { border-color: #93c5fd; }
   .responsive-table td { padding: 0.45rem 0.75rem; text-align: right; border-bottom: 1px solid #f1f5f9; white-space: normal !important; }
   .responsive-table td:last-child { border-bottom: none; }
   .responsive-table td.cell-hide-mobile { display: none; }
@@ -94,7 +92,6 @@
 .dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
 .dark ::selection { background: rgba(56, 189, 248, 0.35); }
 .dark .tab-active { background-color: #1e293b; }
-.dark .row-expanded { background-color: #0e1a2e !important; }
 .dark .search-tab-active { background-color: #111a2e; color: #60a5fa; border-bottom-color: #60a5fa; }
 .dark .search-tab-inactive { background-color: #1c2740; color: #94a3b8; }
 .dark .search-tab-inactive:hover { background-color: #243049; color: #cbd5e1; }
@@ -113,7 +110,6 @@
 .dark #main-sidebar { border-right-color: #1e293b; }
 @media (max-width: 767px) {
   .dark .responsive-table tr.data-row { border-color: #2a3750; box-shadow: none; }
-  .dark .responsive-table tr.data-row.row-expanded { border-color: #2563eb; }
   .dark .responsive-table td { border-bottom-color: #1c2740; }
   .dark .responsive-table td[data-label]::before { color: #7c8aa0; }
   .dark .responsive-table td.cell-heading { background: #172036; }
