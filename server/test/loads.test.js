@@ -282,6 +282,23 @@ test('validation errors carry stable codes + human messages (no raw zod text)', 
   assert.equal((await codeFor({ deliveryDate: day(0), pickupDate: day(3) }, 'deliveryDate')).code, 'delivery_before_pickup');
 });
 
+test('GET /api/loads/:id: fetches one load (for deep links), 404s once closed, approved-only', async () => {
+  const api = env.as('dias@test.com');
+  const created = (await api.post('/api/loads', validLoad(ids['Almaty, KZ'], ids['Tashkent, UZ']))).json;
+
+  const r = await api.get(`/api/loads/${created.id}`);
+  assert.equal(r.status, 200);
+  assert.equal(r.json.id, created.id);
+  assert.equal(r.json.originCity, 'Almaty, KZ');
+
+  assert.equal((await env.as('stranger@test.com').get(`/api/loads/${created.id}`)).status, 403);
+  assert.equal((await api.get('/api/loads/999999999')).status, 404);
+  assert.equal((await api.get('/api/loads/not-a-number')).status, 400);
+
+  await api.del(`/api/loads/${created.id}`);
+  assert.equal((await api.get(`/api/loads/${created.id}`)).status, 404); // closed loads are not a valid deep link anymore
+});
+
 test('GET /api/stats: approved members only, counts live loads and trucks', async () => {
   assert.equal((await env.as('stranger@test.com').get('/api/stats')).status, 403);
   const r = await env.as('dias@test.com').get('/api/stats');

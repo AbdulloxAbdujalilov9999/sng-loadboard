@@ -15,6 +15,8 @@
 <body class="bg-slate-100 text-slate-800 font-sans antialiased h-screen flex overflow-hidden">
 
     <div id="toast-root" role="status" aria-live="polite"></div>
+    <!-- Phones only: after scrolling down a result list, jump back to the filters -->
+    <button type="button" id="to-filters-btn" class="hidden fixed bottom-4 right-4 z-40 bg-[#0066cc] hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-full shadow-lg flex items-center gap-1.5 md:hidden"><i data-lucide="sliders-horizontal" class="w-4 h-4"></i><span data-i18n="btn_back_to_filters">Filters</span><i data-lucide="arrow-up" class="w-3.5 h-3.5"></i></button>
     <div id="live-region" class="sr-only-live" aria-live="polite"></div>
 
     <!-- ================= CONFIRM DIALOG (replaces window.confirm) ================= -->
@@ -371,7 +373,7 @@
                     </form>
                 </div>
 
-                <div class="flex-1 flex flex-col bg-white overflow-hidden relative z-10">
+                <div class="list-pane flex-1 flex flex-col bg-white overflow-hidden relative z-10">
                     <div class="bg-slate-50 px-4 py-1.5 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2 text-xs flex-shrink-0">
                         <div class="flex items-center space-x-3 text-[11px]">
                             <span class="font-bold text-slate-700"><span data-i18n="lbl_matches">Matches</span>: <span id="filtered-count" class="text-blue-600 font-extrabold">–</span></span>
@@ -888,6 +890,17 @@
         </div>
     </div>
 
+    <!-- ================= VIEW LOAD MODAL (deep link, e.g. from the Telegram bot) ================= -->
+    <div id="modal-view-load" class="hidden fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="view-load-title">
+        <div class="bg-white rounded-lg shadow-2xl border border-slate-200 max-w-3xl w-full p-4 sm:p-6 space-y-4 text-xs max-h-[92vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 id="view-load-title" class="text-sm font-bold text-slate-800 flex items-center space-x-2"><i data-lucide="truck" class="w-4 h-4 text-blue-600"></i><span data-i18n="view_load_title">Load details</span></h3>
+                <button type="button" id="view-load-close" class="text-slate-400 hover:text-slate-600" aria-label="Close"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <table class="w-full"><tbody id="view-load-tbody"></tbody></table>
+        </div>
+    </div>
+
     <!-- Scripts: classic scripts, order matters. Firebase Auth is the only third-party runtime dependency. -->
     <script src="/vendor/lucide.min.js?v=__BUILD__"></script>
     <script src="/vendor/flatpickr.min.js?v=__BUILD__"></script>
@@ -908,6 +921,7 @@
     <script src="/js/account.js?v=__BUILD__"></script>
     <script src="/js/admin.js?v=__BUILD__"></script>
     <script src="/js/prefs.js?v=__BUILD__"></script>
+    <script src="/js/scrolltop.js?v=__BUILD__"></script>
     <script src="/js/app.js?v=__BUILD__"></script>
 </body>
 </html>

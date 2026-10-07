@@ -32,5 +32,28 @@ services:
     ports:
       - "8080:8080"
 
+  # Optional: the Telegram bot (bot/). Leave TELEGRAM_BOT_TOKEN unset to skip starting it -
+  # `docker compose up` still brings up db + api fine; add `--profile bot` once it's configured.
+  bot:
+    build: .
+    command: ["node", "bot/src/index.js"]
+    restart: unless-stopped
+    profiles: ["bot"]
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    healthcheck:
+      disable: true
+    environment:
+      DATABASE_URL: postgres://sng:${POSTGRES_PASSWORD:-sng-local-only}@db:5432/sng
+      API_BASE_URL: http://api:8080
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL:-http://localhost:8080}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?set TELEGRAM_BOT_TOKEN to your @BotFather token}
+      FIREBASE_WEB_API_KEY: ${FIREBASE_WEB_API_KEY:-AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg}
+      BOT_ENCRYPTION_KEY: ${BOT_ENCRYPTION_KEY:?set BOT_ENCRYPTION_KEY - generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"}
+      BOT_BROADCAST_LANG: ${BOT_BROADCAST_LANG:-en}
+
 volumes:
   pgdata:

@@ -133,18 +133,29 @@ SOAK_BASE=http://127.0.0.1:8080 SOAK_USERS=20000 npm run soak
 
 **Sizing rule of thumb** (from the measured cost per active user ≈ 0.3 requests/s): 10,000 simultaneous users ≈ 3,000 req/s ≈ 4–8 API workers on dedicated cores plus a PostgreSQL with ≥ 8 vCPU / 32 GB, with `WEB_CONCURRENCY × DB_POOL_MAX` below `max_connections` (use PgBouncer in transaction mode beyond ~300 connections). Set the OS file-descriptor limit above the number of open live connections per instance (Docker/systemd: `LimitNOFILE=200000`). Postgres `NOTIFY` serialises commits briefly, which is fine for thousands of posts per minute; at tens of thousands of writes per second, move events to Redis/NATS (the `EventHub` is the only place to change).
 
+## Telegram bot
+
+`bot/` is a separate process that links a member's account (e-mail + password, same as the web
+sign-in), lets them `/postload` straight from a chat, and broadcasts every new load - from the web
+app or from Telegram - to every group/channel the bot has been added to, the instant it is posted.
+It talks to this same API and database; nothing on the server needed to change. See
+[`bot/README.md`](bot/README.md) for setup (`npm run bot`) and how it works.
+
 ## Tests
 
 ```bash
-npm test      # 75 tests against a real, embedded PostgreSQL: auth, approval flow, search, quotas, security, SSE, boot/cluster
+npm test      # 103 tests. server (76): real embedded PostgreSQL - auth, approval, search, quotas, security, SSE, boot/cluster, i18n
+              # bot (27): crypto + formatting + translations, and integration tests against the real API, database and
+              #           LISTEN/NOTIFY channel (only Telegram itself is faked)
 ```
 
 ## Layout
 
 ```
 server/src          Fastify app (routes, auth, events, config)
-server/migrations   SQL schema (members, cities, loads, trucks, fx_rates, indexes)
+server/migrations   SQL schema (members, cities, loads, trucks, fx_rates, telegram_links/chats, indexes)
 server/scripts      seed, benchmark, fake-auth dev server
 server/test         integration tests
 web/                browser app (web/js modules, Tailwind source) → built to web/dist
+bot/                Telegram bot (account linking, /postload, broadcasting) - see bot/README.md
 ```

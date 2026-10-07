@@ -6,6 +6,7 @@ import { roadDistanceKm } from '../lib/geo.js';
 import { createBinder, keyset, nextCursorFrom, radiusFilter } from '../lib/sql.js';
 import { publish } from '../events.js';
 import { withTx } from '../db.js';
+import { createMemberLimiter } from '../lib/memberlimit.js';
 
 const COUNT_CAP = 10_000;
 
@@ -46,7 +47,10 @@ function assertDates(pickup, delivery) {
 
 export default async function loadRoutes(app, { pool, config }) {
   const approved = { preHandler: app.guards.approved };
-  const write = { preHandler: app.guards.approved, config: { rateLimit: { max: config.writeRateLimitPerMin, timeWindow: '1 minute' } } };
+  // Writes: a per-member budget (after sign-in) plus the ordinary per-IP backstop. See lib/memberlimit.js for why
+  // it is per member and not per IP (the Telegram bot posts for many members from one address).
+  const memberWrites = createMemberLimiter({ max: config.writeRateLimitPerMin });
+  const write = { preHandler: [...app.guards.approved, memberWrites] };
   const countCached = (sql, params) => app.countCache.getOrLoad(`${sql}|${JSON.stringify(params)}`, () => pool.query(sql, params));
 
   // ---------- search ----------
@@ -100,6 +104,14 @@ export default async function loadRoutes(app, { pool, config }) {
       nextCursor: hasMore ? nextCursorFrom(rows.at(-1)) : null,
       ...(count ? { total: Math.min(count.rows[0].n, COUNT_CAP), totalCapped: count.rows[0].n > COUNT_CAP } : {}),
     };
+  });
+
+  // One load by id - used by deep links (e.g. "view this load" from the Telegram bot's broadcast).
+  app.get('/api/loads/:id', approved, async (req) => {
+    const { id } = idParam.parse(req.params);
+    const { rows: [row] } = await pool.query(`SELECT ${LIST_COLS} FROM loads l WHERE l.id = $1 AND l.status = 'active'`, [id]);
+    if (!row) throw notFound('Load not found - it may have been closed or removed');
+    return loadDto(row, req.member.id);
   });
 
   // Everything I have posted (including loads whose pickup date has passed, so I can still remove them).

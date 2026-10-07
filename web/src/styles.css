@@ -52,6 +52,15 @@
   #main-sidebar.sidebar-open { transform: translateX(0); box-shadow: 8px 0 24px rgba(0, 0, 0, 0.25); }
 }
 
+/* ---------- mobile: the WHOLE search page scrolls (tabs + filters + results), not just the results box ---------- */
+/* Otherwise the pinned filter form eats half of a phone screen. (display is untouched on purpose: .hidden still works.) */
+@media (max-width: 767px) {
+  #view-search-loads, #view-search-trucks { overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  #view-search-loads > *, #view-search-trucks > * { flex-shrink: 0; }
+  #view-search-loads > .list-pane { flex: none; overflow: visible; }
+  #loads-scroll, #trucks-scroll { flex: none; overflow: visible; }
+}
+
 /* ---------- responsive "table becomes cards" on mobile ---------- */
 @media (max-width: 767px) {
   .responsive-table thead { display: none; }

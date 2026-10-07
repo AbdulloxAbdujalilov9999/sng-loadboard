@@ -7,6 +7,13 @@ const Trucks = (() => {
   let filters = { loc: null, radius: 150, dest: '', equip: '' };
   let mine = [];
   let observer = null;
+  // On phones the whole search page scrolls (see styles.css); on desktop only the results box does.
+  const mobileMq = window.matchMedia('(max-width: 767px)');
+  const pageBottom = () => (mobileMq.matches ? $('view-search-trucks') : $('trucks-scroll')).getBoundingClientRect().bottom;
+  function scrollListToStart() {
+    if (!mobileMq.matches) { $('trucks-scroll').scrollTop = 0; return; }
+    if ($('view-search-trucks').getBoundingClientRect().top > $('trucks-scroll').getBoundingClientRect().top) $('trucks-scroll').scrollIntoView({ block: 'start' });
+  }
   let entered = false;
   let stale = false;
 
@@ -30,7 +37,7 @@ const Trucks = (() => {
     list.ctrl?.abort();
     const ctrl = new AbortController();
     list.ctrl = ctrl;
-    if (!silent) { Object.assign(list, { items: [], cursor: null, total: null, capped: false, done: false, error: null, loading: true }); render(); $('trucks-scroll').scrollTop = 0; }
+    if (!silent) { Object.assign(list, { items: [], cursor: null, total: null, capped: false, done: false, error: null, loading: true }); render(); scrollListToStart(); }
     stale = false;
     try {
       const res = await API.get('/api/trucks', buildQuery(), ctrl.signal);
@@ -69,9 +76,9 @@ const Trucks = (() => {
 
   function checkSentinel() {
     requestAnimationFrame(() => {
-      const root = $('trucks-scroll').getBoundingClientRect();
+      if (!$('view-search-trucks').offsetParent) return; // screen not shown: a hidden box measures 0, which would look like "end is visible" and fetch every page
       const s = $('trucks-sentinel').getBoundingClientRect();
-      if (s.top < root.bottom + 400 && !list.loading && !list.done) loadMore();
+      if (s.top < pageBottom() + 400 && !list.loading && !list.done) loadMore();
     });
   }
 
@@ -188,8 +195,21 @@ const Trucks = (() => {
     $('trucks-footer').addEventListener('click', (e) => { if (e.target.closest('[data-action="retry"]')) { list.error = null; list.items.length ? loadMore() : reload(); } });
     $('post-truck-form').addEventListener('submit', submitPost);
     $('my-trucks-tbody').addEventListener('click', (e) => { const b = e.target.closest('[data-action="remove"]'); if (b) removeMine(Number(b.dataset.id)); });
-    observer = new IntersectionObserver((entries) => { if (entries.some((en) => en.isIntersecting)) loadMore(); }, { root: $('trucks-scroll'), rootMargin: '400px' });
-    observer.observe($('trucks-sentinel'));
+    // Desktop: the results box is the scroller. Phone: the whole page is (root null = the visible screen).
+    const watchSentinel = () => {
+      observer?.disconnect();
+      observer = new IntersectionObserver((entries) => { if (entries.some((en) => en.isIntersecting)) loadMore(); }, { root: mobileMq.matches ? null : $('trucks-scroll'), rootMargin: '400px' });
+      observer.observe($('trucks-sentinel'));
+    };
+    watchSentinel();
+    mobileMq.addEventListener('change', watchSentinel);
+    let scrollTick = null; // plain scroll listener as a second trigger (see loads.js)
+    const loadIfNearEnd = () => {
+      if (scrollTick) return;
+      scrollTick = setTimeout(() => { scrollTick = null; if (!list.loading && !list.done && $('trucks-sentinel').getBoundingClientRect().top < pageBottom() + 400) loadMore(); }, 120);
+    };
+    $('trucks-scroll').addEventListener('scroll', loadIfNearEnd, { passive: true });
+    $('view-search-trucks').addEventListener('scroll', loadIfNearEnd, { passive: true });
     for (const id of ['truck-post-date', 'truck-post-date-end']) $(id).min = U.todayIso();
     Live.on(onLive);
   }

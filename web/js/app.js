@@ -87,6 +87,17 @@ const App = (() => {
     setView(U.store.get('sng.view', 'search-loads'));
     setTimeout(refreshStats, 0);
     statsTimer = setInterval(refreshStats, 45000 + Math.random() * 30000);
+    openDeepLinkFromUrl();
+  }
+
+  // A link to one specific load (e.g. posted by the Telegram bot) looks like "/?load=123". Consumed
+  // once on arrival so refreshing the page afterwards does not reopen it.
+  function openDeepLinkFromUrl() {
+    const params = new URLSearchParams(location.search);
+    if (!params.has('load')) return;
+    const id = Number(params.get('load'));
+    history.replaceState(null, '', location.pathname);
+    if (Number.isInteger(id) && id > 0) Loads.openDeepLinkedLoad(id);
   }
 
   function leave() {
@@ -107,6 +118,7 @@ const App = (() => {
     document.querySelectorAll('.field-invalid').forEach((el) => el.classList.remove('field-invalid'));
     document.querySelectorAll('.field-error').forEach((el) => el.remove());
     $('modal-edit-load').classList.add('hidden');
+    Loads.closeViewLoad();
     $('post-dist').value = '';
     $('fx-grid').innerHTML = '';
     $('badge-total-loads').textContent = '–';
@@ -154,6 +166,7 @@ const App = (() => {
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       if (!$('modal-edit-load').classList.contains('hidden')) Loads.closeEdit();
+      else if (!$('modal-view-load').classList.contains('hidden')) Loads.closeViewLoad();
       else toggleSidebar(false);
     });
     // Nav badges refresh on a slow poll (below) rather than per event: with thousands of users online, an

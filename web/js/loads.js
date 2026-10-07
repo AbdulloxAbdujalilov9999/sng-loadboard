@@ -17,6 +17,17 @@ const Loads = (() => {
   let entered = false;
   let stale = false;
   let pendingNew = 0;
+  // On phones the whole search page scrolls (see styles.css); on desktop only the results box does.
+  const mobileMq = window.matchMedia('(max-width: 767px)');
+  const pageBottom = () => (mobileMq.matches ? $('view-search-loads') : $('loads-scroll')).getBoundingClientRect().bottom;
+  /** How far the results have scrolled up (0 = the first row is at the top / still below the filters). */
+  const listScrolledPx = () => (mobileMq.matches
+    ? Math.max(0, $('view-search-loads').getBoundingClientRect().top - $('loads-scroll').getBoundingClientRect().top)
+    : $('loads-scroll').scrollTop);
+  function scrollListToStart() {
+    if (mobileMq.matches) { if (listScrolledPx() > 0) $('loads-scroll').scrollIntoView({ block: 'start' }); } else $('loads-scroll').scrollTop = 0;
+  }
+  let deepLinked = null; // the load currently shown by openDeepLinkedLoad(), for its own Copy button
   const list = { items: [], cursor: null, total: null, capped: false, loading: false, done: false, error: null, expanded: null, ctrl: null };
 
   // ---------------------------------------------------------------- tabs
@@ -145,7 +156,7 @@ const Loads = (() => {
     if (!silent) {
       Object.assign(list, { items: [], cursor: null, total: null, capped: false, done: false, error: null, loading: true, expanded: null });
       render();
-      $('loads-scroll').scrollTop = 0;
+      scrollListToStart();
     }
     hideBanner();
     stale = false;
@@ -189,9 +200,9 @@ const Loads = (() => {
   /** If the end-of-list marker is already on screen (short pages / tall screens), keep loading. */
   function checkSentinel() {
     requestAnimationFrame(() => {
-      const root = $('loads-scroll').getBoundingClientRect();
+      if (!$('view-search-loads').offsetParent) return; // screen not shown: a hidden box measures 0, which would look like "end is visible" and fetch every page
       const s = $('loads-sentinel').getBoundingClientRect();
-      if (s.top < root.bottom + 400 && !list.loading && !list.done) loadMore();
+      if (s.top < pageBottom() + 400 && !list.loading && !list.done) loadMore();
     });
   }
 
@@ -340,7 +351,7 @@ const Loads = (() => {
   }
 
   async function copyContact(id) {
-    const l = list.items.find((x) => x.id === id);
+    const l = list.items.find((x) => x.id === id) || (deepLinked?.id === id ? deepLinked : null);
     if (!l) return;
     const text = `${t('th_company')}: ${l.company}\n${t('lbl_disp_name')}: ${l.contactName}\n${t('lbl_phone')}: ${l.contactPhone}\n${t('lbl_email')}: ${l.contactEmail}\nTelegram: ${l.contactTelegram}`;
     try { await navigator.clipboard.writeText(text); U.toast(t('toast_copied'), 'success'); } catch { U.toast(text, 'info', 9000); }
@@ -355,7 +366,7 @@ const Loads = (() => {
 
   const refreshFromLive = U.liveThrottle(() => {
     const tab = active();
-    const atTop = $('loads-scroll').scrollTop < 60 && list.expanded === null;
+    const atTop = listScrolledPx() < 60 && list.expanded === null;
     if (atTop && tab.sort === 'created' && tab.dir === 'desc') reload({ silent: true });
     else showBanner();
   });
@@ -467,6 +478,24 @@ const Loads = (() => {
 
   function closeEdit() { $('modal-edit-load').classList.add('hidden'); }
 
+  // ---------------------------------------------------------------- deep-linked view (?load=<id>)
+  // Used when a link (e.g. from the Telegram bot's broadcast) should open one specific load,
+  // regardless of the viewer's current filters/pagination - so it reuses detailHtml() as a
+  // standalone card rather than needing that load to be present in the current search results.
+  async function openDeepLinkedLoad(id) {
+    let l;
+    try { l = await API.get(`/api/loads/${id}`); } catch (err) {
+      U.toast(err.status === 404 ? t('toast_load_not_found') : err.message, 'error');
+      return;
+    }
+    deepLinked = l;
+    $('view-load-tbody').innerHTML = detailHtml(l);
+    $('modal-view-load').classList.remove('hidden');
+    lucide.createIcons();
+  }
+
+  function closeViewLoad() { $('modal-view-load').classList.add('hidden'); deepLinked = null; }
+
   async function submitEdit(e) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -539,8 +568,23 @@ const Loads = (() => {
     });
     $('live-banner-btn').addEventListener('click', () => reload());
 
-    observer = new IntersectionObserver((entries) => { if (entries.some((en) => en.isIntersecting)) loadMore(); }, { root: $('loads-scroll'), rootMargin: '400px' });
-    observer.observe($('loads-sentinel'));
+    // Desktop: the results box is the scroller. Phone: the page is (root null = the visible screen, still clipped by it).
+    const watchSentinel = () => {
+      observer?.disconnect();
+      observer = new IntersectionObserver((entries) => { if (entries.some((en) => en.isIntersecting)) loadMore(); }, { root: mobileMq.matches ? null : $('loads-scroll'), rootMargin: '400px' });
+      observer.observe($('loads-sentinel'));
+    };
+    watchSentinel();
+    mobileMq.addEventListener('change', watchSentinel); // rotating a tablet / resizing a window
+    // Belt and braces: a plain scroll listener also loads the next page near the end (IntersectionObserver
+    // callbacks can be delayed or skipped by some browsers, e.g. in background tabs).
+    let scrollTick = null;
+    const loadIfNearEnd = () => {
+      if (scrollTick) return;
+      scrollTick = setTimeout(() => { scrollTick = null; if (!list.loading && !list.done && $('loads-sentinel').getBoundingClientRect().top < pageBottom() + 400) loadMore(); }, 120);
+    };
+    $('loads-scroll').addEventListener('scroll', loadIfNearEnd, { passive: true });
+    $('view-search-loads').addEventListener('scroll', loadIfNearEnd, { passive: true });
 
     $('post-load-form').addEventListener('submit', submitPost);
     $('my-loads-tbody').addEventListener('click', (e) => {
@@ -553,6 +597,13 @@ const Loads = (() => {
     $('edit-cancel').addEventListener('click', closeEdit);
     $('edit-close').addEventListener('click', closeEdit);
     $('modal-edit-load').addEventListener('mousedown', (e) => { if (e.target === $('modal-edit-load')) closeEdit(); });
+
+    $('view-load-close').addEventListener('click', closeViewLoad);
+    $('modal-view-load').addEventListener('mousedown', (e) => { if (e.target === $('modal-view-load')) closeViewLoad(); });
+    $('view-load-tbody').addEventListener('click', (e) => {
+      const action = e.target.closest('[data-action="copy"]');
+      if (action) copyContact(Number(action.dataset.id));
+    });
 
     for (const id of ['post-date', 'post-delivery-date', 'edit-date', 'edit-delivery-date']) $(id).min = U.todayIso();
 
@@ -588,7 +639,10 @@ const Loads = (() => {
   /** Called when the user navigates back to the Search tab. */
   function onShow() { if (stale) reload({ silent: true }); }
 
-  return { init, enter, leave, onShow, render, renderTabs, renderMine, loadMine, closeEdit, markStale() { stale = true; }, get stale() { return stale; } };
+  return {
+    init, enter, leave, onShow, render, renderTabs, renderMine, loadMine, closeEdit,
+    openDeepLinkedLoad, closeViewLoad, markStale() { stale = true; }, get stale() { return stale; },
+  };
 })();
 
 window.Loads = Loads;

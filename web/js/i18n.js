@@ -1,6 +1,7 @@
 // Translations (English / Russian). t('key', {vars}) falls back to English, then to the key itself.
 const DICT = {
   en: {
+    "btn_back_to_filters": "Filters",
     "method_phone": "Phone (SMS)",
     "method_password": "Email + password",
     "method_google": "Google",
@@ -194,6 +195,8 @@ const DICT = {
     "err_required": "Required",
     "err_server_down": "The server isn't responding. Check your connection and try again.",
     "err_session_expired": "Your session expired. Please sign in again.",
+    "view_load_title": "Load details",
+    "toast_load_not_found": "This load is no longer available (it may have been closed or removed).",
     "feat_adr": "ADR (Hazardous)",
     "feat_gps": "GPS Live Tracking",
     "feat_side": "Side & Top Loading",
@@ -359,6 +362,7 @@ const DICT = {
     "trucks_none": "No trucks match your search."
   },
   ru: {
+    "btn_back_to_filters": "Фильтры",
     "method_phone": "Телефон (SMS)",
     "method_password": "Эл. почта + пароль",
     "method_google": "Google",
@@ -552,6 +556,8 @@ const DICT = {
     "err_required": "Обязательное поле",
     "err_server_down": "Сервер не отвечает. Проверьте соединение и повторите.",
     "err_session_expired": "Сессия истекла. Войдите снова.",
+    "view_load_title": "Информация о грузе",
+    "toast_load_not_found": "Этот груз больше недоступен (возможно, закрыт или удалён).",
     "feat_adr": "ADR (опасные грузы)",
     "feat_gps": "GPS-мониторинг",
     "feat_side": "Боковая и верхняя загрузка",
@@ -717,6 +723,7 @@ const DICT = {
     "trucks_none": "Транспорт не найден."
   },
   uz: {
+    "btn_back_to_filters": "Filtrlar",
     "acc_contact_hint": "Siz joylaydigan har bir yuk va mashinaga avtomatik qoʻyiladi. Har bir eʼlonda uni oʻzgartirish mumkin.",
     "acc_contact_title": "Standart aloqa maʼlumotlari",
     "age_now": "hozir",
@@ -845,6 +852,8 @@ const DICT = {
     "err_required": "Majburiy maydon",
     "err_server_down": "Server javob bermayapti. Ulanishni tekshirib, qayta urinib koʻring.",
     "err_session_expired": "Seans tugadi. Qayta kiring.",
+    "view_load_title": "Yuk tafsilotlari",
+    "toast_load_not_found": "Bu yuk endi mavjud emas (yopilgan yoki oʻchirilgan boʻlishi mumkin).",
     "feat_adr": "ADR (Xavfli yuk)",
     "feat_gps": "GPS orqali kuzatuv",
     "feat_side": "Yon va yuqoridan yuklash",

@@ -5,6 +5,7 @@ import { detail } from '../lib/validation.js';
 import { createBinder, keyset, nextCursorFrom, radiusFilter } from '../lib/sql.js';
 import { publish } from '../events.js';
 import { withTx } from '../db.js';
+import { createMemberLimiter } from '../lib/memberlimit.js';
 
 const COUNT_CAP = 10_000;
 
@@ -23,7 +24,10 @@ const SORTS = {
 
 export default async function truckRoutes(app, { pool, config }) {
   const approved = { preHandler: app.guards.approved };
-  const write = { preHandler: app.guards.approved, config: { rateLimit: { max: config.writeRateLimitPerMin, timeWindow: '1 minute' } } };
+  // Writes: a per-member budget (after sign-in) plus the ordinary per-IP backstop. See lib/memberlimit.js for why
+  // it is per member and not per IP (the Telegram bot posts for many members from one address).
+  const memberWrites = createMemberLimiter({ max: config.writeRateLimitPerMin });
+  const write = { preHandler: [...app.guards.approved, memberWrites] };
   const countCached = (sql, params) => app.countCache.getOrLoad(`${sql}|${JSON.stringify(params)}`, () => pool.query(sql, params));
 
   app.get('/api/trucks', approved, async (req) => {

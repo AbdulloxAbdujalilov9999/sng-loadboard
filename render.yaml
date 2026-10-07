@@ -1,6 +1,6 @@
 # One-click deploy on Render (https://render.com): New + > Blueprint > pick this repository.
-# Creates a PostgreSQL database and the web service (built from the Dockerfile) and wires them together.
-# You will be asked for the two secrets marked "sync: false". Check Render's current plan names and prices.
+# Creates a PostgreSQL database, the web service, and the Telegram bot worker, and wires them together.
+# You will be asked for the secrets marked "sync: false". Check Render's current plan names and prices.
 databases:
   - name: sng-db
     plan: basic-256mb
@@ -28,3 +28,33 @@ services:
         sync: false          # e.g. abdujalilov7707@gmail.com
       - key: GEMINI_API_KEY
         sync: false          # from https://aistudio.google.com/apikey (use a NEW key, not one shared in chat)
+
+  # The Telegram bot: links members by e-mail+password, posts /postload loads through the API
+  # above, and broadcasts every new load to every group/channel it has been added to.
+  - type: worker
+    name: sng-one-telegram-bot
+    runtime: docker
+    dockerCommand: node bot/src/index.js
+    plan: starter
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sng-db
+          property: connectionString
+      - key: API_BASE_URL
+        sync: false           # the sng-one web service's Render-internal address, e.g. http://sng-one:10000
+                               # (Render shows this under that service -> Connect -> Internal; confirm the port it prints)
+      - key: PUBLIC_WEB_URL
+        sync: false           # the sng-one service's PUBLIC address (e.g. https://sng-one.onrender.com or your
+                               # domain) - used to build each load's "view on the loadboard" link; must be
+                               # reachable from a browser, unlike API_BASE_URL above
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false           # from @BotFather on Telegram
+      - key: FIREBASE_WEB_API_KEY
+        value: AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg   # public by design - see web/js/config.js
+      - key: BOT_ENCRYPTION_KEY
+        sync: false           # 32 random bytes, base64: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+      - key: BOT_BROADCAST_LANG
+        value: en              # en/ru/uz - language used for messages broadcast to groups

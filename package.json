@@ -13,7 +13,9 @@
     "migrate": "node --env-file-if-exists=.env server/src/migrate.js",
     "build:web": "node scripts/build-web.mjs",
     "dev:fake-auth": "node --env-file-if-exists=.env server/scripts/dev-server.js",
-    "test": "node --test --test-concurrency=1 \"server/test/**/*.test.js\"",
+    "bot": "node --env-file-if-exists=.env bot/src/index.js",
+    "bot:dev": "node --watch --env-file-if-exists=.env bot/src/index.js",
+    "test": "node --test --test-concurrency=1 \"server/test/**/*.test.js\" \"bot/test/**/*.test.js\"",
     "seed": "node --env-file-if-exists=.env server/scripts/seed.js",
     "bench": "node server/scripts/bench.js",
     "soak": "node server/scripts/soak.js",
@@ -27,6 +29,7 @@
     "fastify": "^5.12.5",
     "jose": "^6.2.12",
     "pg": "^8.23.1",
+    "telegraf": "^4.16.3",
     "zod": "^4.6.5"
   },
   "devDependencies": {
