@@ -33,6 +33,7 @@ export const LOADS_SCHEMA = {
           equipment: { type: 'ARRAY', items: { type: 'STRING', enum: EQUIP } },
           fullOrPartial: { type: 'STRING', enum: ['Full', 'Partial'] },
           weightT: { type: 'NUMBER', nullable: true },
+          volumeM3: { type: 'NUMBER', nullable: true },
           pickupDate: { type: 'STRING', nullable: true },
           rateUsd: { type: 'NUMBER', nullable: true },
           commodity: { type: 'STRING' },
@@ -108,7 +109,7 @@ ${PLACES_RULES}
 OTHER FIELDS:
 - equipment: any of T (tent/curtain-sider: ТЕНТ, ШТОРА, тентованная), R (reefer: РЕФ, РЕФРИЖЕРАТОР, рефка), F (flatbed/open: БОРТ, ОТКРЫТАЯ, ШАЛАНДА), V (box/dry van/isotherm: ФУРГОН, ИЗОТЕРМ), AC (car carrier: АВТОВОЗ). ФУРА (semi-truck) alone means a standard full tent truck: use ["T"]. If several types are accepted (ТЕНТ РЕФ), list all, most important first.
 - fullOrPartial: "Partial" only if the text says part-load/LTL/догруз/попутный груз; otherwise "Full".
-- weightT: tonnes if stated (e.g. "20 т", "20тн"), else null. pickupDate: YYYY-MM-DD if a loading date is stated (resolve "завтра"/"tomorrow" against today), "ready now" (ПОГРУЗКА ТАЙЁР/ГОТОВ) means today; otherwise null. rateUsd: price converted to a number ONLY if it is clearly in USD, otherwise null.
+- weightT: tonnes if stated (e.g. "20 т", "20тн"), else null. volumeM3: cubic metres if stated ("90 куб", "86 м3", "82 kub"), else null. pickupDate: YYYY-MM-DD if a loading date is stated (resolve "завтра"/"tomorrow" against today), "ready now" (ПОГРУЗКА ТАЙЁР/ГОТОВ) means today; otherwise null. rateUsd: price converted to a number ONLY if it is clearly in USD, otherwise null.
 - commodity: the cargo in the original wording ("ДСП МДФ"). If absent use "General cargo".
 - notes: every remaining term (payment, loading, advance, conditions) kept in the ORIGINAL wording, short, joined with " · " (e.g. "ОПЛАТА НАХТ · ПОГРУЗКА ТАЙЙОР · АВАНС БОР"). Do not translate slang and do not invent anything. Max 300 characters.
 - phone: digits with leading +, as written (e.g. +998918887695). telegram: @handle if present. contactName: only if a person's name is given.

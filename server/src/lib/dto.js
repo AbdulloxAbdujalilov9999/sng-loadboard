@@ -96,4 +96,6 @@ export const truckDto = (r, viewerId) => ({
 export const cityDto = (c, note) => ({ id: c.id, name: c.name, nameRu: c.name_ru, country: c.country.trim(), label: c.label, lat: c.lat, lng: c.lng, ...(note ? { note } : {}) });
 
 /** Escape % _ \ so user text can't act as LIKE wildcards. */
-export const likePattern = (s) => `%${String(s).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+/** Same folding as the SQL function sng_fold(): lower case, ё -> е. Search text is folded on both sides, so it never depends on DB locale. */
+export const foldText = (s) => String(s ?? '').toLowerCase().replace(/ё/g, 'е');
+export const likePattern = (s) => `%${foldText(s).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;

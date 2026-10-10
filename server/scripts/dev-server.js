@@ -29,7 +29,7 @@ const isPrimary = cluster.isPrimary;
 let pg = null;
 if (isPrimary) {
   const fresh = !fs.existsSync(path.join(dataDir, 'PG_VERSION'));
-  pg = new EmbeddedPostgres({ databaseDir: dataDir, user: 'postgres', password: 'dev', port: dbPort, persistent: true, onLog: () => {}, onError: () => {} });
+  pg = new EmbeddedPostgres({ initdbFlags: ['--encoding=UTF8'], databaseDir: dataDir, user: 'postgres', password: 'dev', port: dbPort, persistent: true, onLog: () => {}, onError: () => {} });
   if (fresh) await pg.initialise();
   await pg.start();
 }

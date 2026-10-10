@@ -29,6 +29,9 @@ const equipmentOf = (lines) => {
   return EQUIP_WORDS.map(([code, re]) => [code, joined.search(re)]).filter(([, at]) => at >= 0).sort((a, b) => a[1] - b[1]).map(([code]) => code);
 };
 
+/** "20 т" / "90 куб": the number written right before a unit word. */
+const numberBefore = (text, unit) => { const m = new RegExp(`(\\d{1,3}(?:[.,]\\d+)?)\\s*${unit.source}`, 'i').exec(text); return m ? Number(m[1].replace(',', '.')) : null; };
+
 function nextDate(day, month, today) {
   const t = new Date(`${today}T00:00:00Z`);
   let d = new Date(Date.UTC(t.getUTCFullYear(), month - 1, day));
@@ -56,7 +59,7 @@ export function createHeuristicParser() {
           destinations: placeLines.slice(1).map(place),
           equipment: equipment.length ? equipment : ['T'],
           fullOrPartial: 'Full',
-          weightT: null, pickupDate: null, rateUsd: null,
+          weightT: numberBefore(block, /(?:т(?![а-яёa-z])|тн|тонн|t\b|ton|tn)/i), volumeM3: numberBefore(block, /(?:куб|м3|м³|m3|cbm|kub)/i), pickupDate: null, rateUsd: null,
           commodity: commodityLine || 'General cargo',
           notes: terms.join(' · '),
           phone: phoneOf(rest),
@@ -78,7 +81,7 @@ export function createHeuristicParser() {
         if (placeLines.length === 1 && parts.length === 2) { const cs = [...placeLines[0].matchAll(FLAG_G)].map((m) => flagCountry(m[0])); parts = parts.map((p, i) => ({ ...p, country: cs[i] ?? cs[0] ?? null })); }
         const rest = lines.filter((l) => !FLAG.test(l));
         const all = lines.join('\n');
-        const cap = /(\d{1,3}(?:[.,]\d+)?)\s*(?:т\b|тн|тонн|t\b|ton|tn)/i.exec(all);
+        const cap = /(\d{1,3}(?:[.,]\d+)?)\s*(?:т(?![а-яёa-z])|тн|тонн|t\b|ton|tn)/i.exec(all);
         const vol = /(\d{2,3})\s*(?:куб|м3|м³|m3|m³|cbm)/i.exec(all);
         const date = /(\d{1,2})[./](\d{1,2})(?![\d])/.exec(rest.join(' '));
         const loc = parts[0];
@@ -91,7 +94,7 @@ export function createHeuristicParser() {
           availableFrom: date ? nextDate(Number(date[1]), Number(date[2]), today) : /СВОБОД|ГОТОВ|READY|FREE|BO.?SH|TAYYOR|ТАЙЁР|ТАЙЙОР/i.test(all) ? today : null,
           availableTo: null,
           minRateUsd: null,
-          hasTir: /\bTIR\b|МДП|ТИР\b/i.test(all),
+          hasTir: /\bTIR\b|МДП|ТИР(?![а-яё])/i.test(all),
           hasAdr: /\bADR\b|ДОПОГ|ОПАСН/i.test(all),
           hasGps: /\bGPS\b|ГЛОНАСС/i.test(all),
           sideLoading: /БОКОВ|ВЕРХН|SIDE/i.test(all),

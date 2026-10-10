@@ -34,9 +34,10 @@ const AiImport = (() => {
         <div><label class="block font-semibold text-slate-600 mb-0.5">${esc(t('lbl_weight_tons'))}</label><input type="number" name="weightT" step="0.1" min="0.1" max="100" value="${esc(d.weightT)}" class="${input}"></div>
         <div><label class="block font-semibold text-slate-600 mb-0.5">${esc(t('lbl_target_rate'))}</label><input type="number" name="rateUsd" min="0" step="1" value="${esc(d.rateUsd)}" class="${input}"></div>
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <div><label class="block font-semibold text-slate-600 mb-0.5">${esc(t('lbl_pickup_date'))}</label><input type="date" name="pickupDate" value="${esc(d.pickupDate)}" class="${input}"></div>
-        <div class="sm:col-span-2"><label class="block font-semibold text-slate-600 mb-0.5">${esc(t('lbl_commodity'))}</label><input type="text" name="commodity" maxlength="200" value="${esc(d.commodity)}" class="${input}"></div>
+        <div><label class="block font-semibold text-slate-600 mb-0.5">${esc(t('lbl_vol_cube'))}</label><input type="number" name="volumeM3" min="1" max="200" value="${esc(d.volumeM3)}" class="${input}"></div>
+        <div class="col-span-2"><label class="block font-semibold text-slate-600 mb-0.5">${esc(t('lbl_commodity'))}</label><input type="text" name="commodity" maxlength="200" value="${esc(d.commodity)}" class="${input}"></div>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
         <div class="sm:col-span-2"><label class="block font-semibold text-slate-600 mb-0.5">${esc(t('lbl_notes'))}</label><textarea name="notes" rows="2" maxlength="500" class="${input}">${esc(d.notes)}</textarea></div>
@@ -147,7 +148,7 @@ const AiImport = (() => {
       if (!body) { ok = false; continue; }
       body.contactPhone = body.contactPhone || profileContacts().phone;
       if (!body.contactPhone) { U.fieldError(form.elements.contactPhone, t('err_required')); ok = false; }
-      loads.push({ ...body, ...shared, deliveryDate: null, volumeM3: null });
+      loads.push({ ...body, ...shared, deliveryDate: null, volumeM3: body.volumeM3 ? Number(body.volumeM3) : null });
     }
     if (!ok) { (document.querySelector('#ai-review .field-invalid'))?.focus(); return; }
 

@@ -12,7 +12,7 @@ export default async function directoryRoutes(app, { pool }) {
     const where = [`m.status = 'approved'`, `m.role = 'member'`];
     if (q.q) {
       const p = b.P(likePattern(q.q));
-      where.push(`(m.company ILIKE ${p} OR m.location ILIKE ${p} OR m.tir_carnet ILIKE ${p} OR m.routes ILIKE ${p} OR m.contact_name ILIKE ${p})`);
+      where.push(`(sng_fold(m.company) LIKE ${p} OR sng_fold(m.location) LIKE ${p} OR sng_fold(m.tir_carnet) LIKE ${p} OR sng_fold(m.routes) LIKE ${p} OR sng_fold(m.contact_name) LIKE ${p})`);
     }
     const filterCount = b.params.length;
     const filterSql = where.join(' AND ');

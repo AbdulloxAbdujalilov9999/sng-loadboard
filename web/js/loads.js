@@ -18,7 +18,7 @@ const Loads = (() => {
   let stale = false;
   let pendingNew = 0;
   // On phones the whole search page scrolls (see styles.css); on desktop only the results box does.
-  const mobileMq = window.matchMedia('(max-width: 767px)');
+  const mobileMq = window.matchMedia('(max-width: 1199px)');
   const pageBottom = () => (mobileMq.matches ? $('view-search-loads') : $('loads-scroll')).getBoundingClientRect().bottom;
   /** How far the results have scrolled up (0 = the first row is at the top / still below the filters). */
   const listScrolledPx = () => (mobileMq.matches

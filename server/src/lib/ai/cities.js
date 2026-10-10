@@ -179,7 +179,7 @@ export function resolveCity(index, { label, text, country, lat, lng } = {}) {
  * Autocomplete: "xorazm" -> Urgench (note: Xorazm region), "ташк" -> Tashkent, "samarqand" -> Samarkand, "uz" -> biggest UZ towns.
  * Ranking: exact name > name starts with > a word starts with > alias starts with > contains; bigger towns first.
  */
-export function searchCities(index, query, { limit = 8, country = null } = {}) {
+function searchOnce(index, query, { limit = 8, country = null } = {}) {
   const q = fold(query);
   if (!q) {
     return index.entries.filter((e) => !country || e.city.country === country).sort((a, b) => b.pop - a.pop).slice(0, limit).map((e) => ({ city: e.city }));
@@ -214,4 +214,65 @@ export function searchCities(index, query, { limit = 8, country = null } = {}) {
     .sort((a, b) => b.score - a.score || b.entry.pop - a.entry.pop || a.entry.city.label.localeCompare(b.entry.city.label))
     .slice(0, limit)
     .map((s) => ({ city: s.entry.city, note: s.note || undefined }));
+}
+
+
+// --- what people type into the box -----------------------------------------------------------------------------
+
+const COUNTRY_WORDS = {
+  UZ: 'uzbekistan ozbekiston uzbekiston o\'zbekiston узбекистан ўзбекистон узб уз',
+  KZ: 'kazakhstan qozogiston qozog\'iston kazahstan казахстан қазақстан кз каз',
+  RU: 'russia rossiya rossiia россия рф рус',
+  KG: 'kyrgyzstan qirgiziston kirgiziya kyrgyzstan киргизия кыргызстан кыргызстан кг',
+  TJ: 'tajikistan tojikiston tadzhikistan таджикистан тоҷикистон тж',
+  TM: 'turkmenistan turkmaniston туркменистан тм',
+  AZ: 'azerbaijan azerbaycan azerbaydzhan азербайджан аз',
+  AM: 'armenia armeniya армения',
+  GE: 'georgia gruziya грузия',
+  BY: 'belarus belorussiya belarusiya беларусь белоруссия',
+  UA: 'ukraine ukraina украина',
+  TR: 'turkey turkiya turkiye turtsiya турция',
+  CN: 'china xitoy kitai китай',
+  IR: 'iran eron иран',
+  AF: 'afghanistan afgoniston афганистан',
+  MN: 'mongolia mongoliya монголия',
+};
+const COUNTRY_OF = new Map();
+for (const [cc, words] of Object.entries(COUNTRY_WORDS)) { COUNTRY_OF.set(cc.toLowerCase(), cc); for (const w of words.split(' ')) COUNTRY_OF.set(fold(w), cc); }
+
+/** Wrong keyboard layout: "Vjcrdf" is what you get typing "Москва" with the English layout on (and the other way round). */
+const EN_ROW = "qwertyuiop[]asdfghjkl;'zxcvbnm,.`";
+const RU_ROW = 'йцукенгшщзхъфывапролджэячсмитьбюё';
+const swapLayout = (text, from, to) => [...text].map((ch) => { const i = from.indexOf(ch.toLowerCase()); return i < 0 ? ch : to[i]; }).join('');
+const hasLatin = (t) => /[a-z]/i.test(t);
+const hasCyr = (t) => /[а-яё]/i.test(t);
+
+/** "ташкент уз" / "Tashkent UZ" / "Tashkent, UZ" / "Ташкент, Узбекистан" -> { name, country }. */
+export function splitQuery(raw) {
+  const parts = String(raw ?? '').split(',').map((x) => x.trim());
+  let name = parts[0] ?? ''; let country = null;
+  if (parts.length > 1 && parts[1]) country = COUNTRY_OF.get(fold(parts[1])) ?? null;
+  if (!country) {
+    const w = name.split(/\s+/);
+    const last = COUNTRY_OF.get(fold(w[w.length - 1]));
+    if (w.length > 1 && last) { country = last; name = w.slice(0, -1).join(' '); }
+  }
+  return { name, country };
+}
+
+/**
+ * Autocomplete. Understands the country typed after the name, Russian endings ("в Москве"), spelling variants and
+ * text typed with the wrong keyboard layout. `country` (ISO-2) narrows the search when given explicitly.
+ */
+export function searchCities(index, query, { limit = 8, country = null } = {}) {
+  const sp = splitQuery(query);
+  const cc = country ?? sp.country;
+  const name = sp.name;
+  let hits = searchOnce(index, name, { limit, country: cc });
+  if (!hits.length && name.length >= 2) {
+    const alt = hasLatin(name) && !hasCyr(name) ? swapLayout(name, EN_ROW, RU_ROW) : hasCyr(name) && !hasLatin(name) ? swapLayout(name, RU_ROW, EN_ROW) : '';
+    if (alt && alt !== name) hits = searchOnce(index, alt, { limit, country: cc });
+  }
+  if (!hits.length && name.length >= 5) hits = searchOnce(index, name.slice(0, -1), { limit, country: cc }); // "Москву", "Москве" -> "Москв"
+  return hits;
 }

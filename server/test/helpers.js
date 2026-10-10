@@ -31,7 +31,7 @@ async function testVerifier(token) {
 export async function startTestEnv(envOverrides = {}, { ai = null } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sng-pg-'));
   const port = await freePort();
-  const pg = new EmbeddedPostgres({
+  const pg = new EmbeddedPostgres({ initdbFlags: ['--encoding=UTF8'],
     databaseDir: dir, user: 'postgres', password: 'pw', port, persistent: false, onLog: () => {}, onError: () => {},
   });
   await pg.initialise();

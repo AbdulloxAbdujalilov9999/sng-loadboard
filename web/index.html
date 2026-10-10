@@ -330,14 +330,14 @@
                         <div class="col-span-2 md:col-span-3 relative">
                             <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-origin" data-i18n="filter_origin">Origin (City, Country)</label>
                             <div class="flex">
-                                <input type="text" id="filter-origin" data-city-picker autocomplete="off" placeholder="e.g. Andijan, UZ" class="w-full border border-slate-300 rounded-l px-2 py-1.5 focus:border-blue-500 focus:outline-none text-xs">
+                                <input type="text" id="filter-origin" data-city-picker autocomplete="off" placeholder="e.g. Andijan, UZ" data-i18n-placeholder="ph_origin_eg" class="w-full border border-slate-300 rounded-l px-2 py-1.5 focus:border-blue-500 focus:outline-none text-xs">
                                 <input type="number" id="filter-dho" min="0" max="2000" value="100" title="Origin search radius (km)" aria-label="Origin radius km" class="w-16 border-t border-b border-r border-slate-300 rounded-r px-1 py-1.5 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
                             </div>
                         </div>
                         <div class="col-span-2 md:col-span-3 relative">
                             <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-dest" data-i18n="filter_dest">Destination (City, Country)</label>
                             <div class="flex">
-                                <input type="text" id="filter-dest" data-city-picker autocomplete="off" placeholder="e.g. Moscow, RU" class="w-full border border-slate-300 rounded-l px-2 py-1.5 focus:border-blue-500 focus:outline-none text-xs">
+                                <input type="text" id="filter-dest" data-city-picker autocomplete="off" placeholder="e.g. Moscow, RU" data-i18n-placeholder="ph_dest_eg" class="w-full border border-slate-300 rounded-l px-2 py-1.5 focus:border-blue-500 focus:outline-none text-xs">
                                 <input type="number" id="filter-dhd" min="0" max="2000" value="100" title="Destination search radius (km)" aria-label="Destination radius km" class="w-16 border-t border-b border-r border-slate-300 rounded-r px-1 py-1.5 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
                             </div>
                         </div>
@@ -415,7 +415,7 @@
                                     <th class="py-2.5 px-2 w-14">F/P</th>
                                     <th data-sort="weight" class="py-2.5 px-2 w-[84px] sortable-th" title="Sort by weight"><div class="flex items-center space-x-1"><span data-i18n="th_weight">Weight/Vol</span><span id="sort-icon-weight" class="text-[9px] text-slate-400">⇅</span></div></th>
                                     <th data-sort="distance" class="py-2.5 px-2 w-[76px] text-right sortable-th" title="Sort by distance"><div class="flex items-center justify-end space-x-1"><span data-i18n="th_distance">Distance</span><span id="sort-icon-distance" class="text-[9px] text-slate-400">⇅</span></div></th>
-                                    <th data-sort="rate" class="py-2.5 px-2.5 w-[92px] text-right sortable-th" title="Sort by rate"><div class="flex items-center justify-end space-x-1"><span data-i18n="th_rate">Rate</span><span id="sort-icon-rate" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="rate" class="py-2.5 px-2.5 w-[118px] text-right sortable-th" title="Sort by rate"><div class="flex items-center justify-end space-x-1"><span data-i18n="th_rate">Rate</span><span id="sort-icon-rate" class="text-[9px] text-slate-400">⇅</span></div></th>
                                     <th data-sort="company" class="py-2.5 px-2.5 w-[19%] sortable-th" title="Sort by company"><div class="flex items-center space-x-1"><span data-i18n="th_company">Company / Contact</span><span id="sort-icon-company" class="text-[9px] text-slate-400">⇅</span></div></th>
                                 </tr>
                             </thead>
@@ -511,7 +511,7 @@
                             </div>
                             <div>
                                 <label class="block font-semibold text-slate-700 mb-1" for="post-dist" data-i18n="lbl_distance_km">Estimated Distance (km)</label>
-                                <input type="text" id="post-dist" readonly tabindex="-1" placeholder="auto" class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 font-bold text-blue-700">
+                                <input type="text" id="post-dist" readonly tabindex="-1" placeholder="auto" data-i18n-placeholder="ph_auto" class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 font-bold text-blue-700">
                             </div>
                             <div>
                                 <label class="block font-semibold text-slate-700 mb-1" for="post-rate" data-i18n="lbl_target_rate">Rate ($ USD)</label>
@@ -521,7 +521,7 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block font-semibold text-slate-700 mb-1" for="post-commodity" data-i18n="lbl_commodity">Commodity Description</label>
-                                <input type="text" id="post-commodity" name="commodity" maxlength="200" required placeholder="e.g. Fresh Fruits (+4C)" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                                <input type="text" id="post-commodity" name="commodity" maxlength="200" required placeholder="e.g. Fresh Fruits (+4C)" data-i18n-placeholder="ph_commodity_eg" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
                             </div>
                             <div>
                                 <label class="block font-semibold text-slate-700 mb-1" for="post-contact-name" data-i18n="lbl_disp_name">Contact Dispatcher Name</label>
@@ -772,11 +772,11 @@
                                 <div><label class="block font-semibold text-slate-700 mb-1" for="setting-company-name" data-i18n="lbl_comp_name">Company Registered Name</label><input type="text" id="setting-company-name" name="company" maxlength="120" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
                                 <div><label class="block font-semibold text-slate-700 mb-1" for="setting-email" data-i18n="lbl_login_email">Signed in as</label><input type="text" id="setting-email" readonly class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 text-slate-500"></div>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    <div><label class="block font-semibold text-slate-700 mb-1" for="setting-location" data-i18n="lbl_base_location">Base Location</label><input type="text" id="setting-location" name="location" maxlength="120" placeholder="Almaty, KZ" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                    <div><label class="block font-semibold text-slate-700 mb-1" for="setting-location" data-i18n="lbl_base_location">Base Location</label><input type="text" id="setting-location" name="location" maxlength="120" placeholder="Almaty, KZ" data-i18n-placeholder="ph_base_loc_eg" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
                                     <div><label class="block font-semibold text-slate-700 mb-1" for="setting-tir" data-i18n="lbl_tir">TIR Carnet #</label><input type="text" id="setting-tir" name="tirCarnet" maxlength="60" placeholder="TIR-KZ 98214" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
                                 </div>
-                                <div><label class="block font-semibold text-slate-700 mb-1" for="setting-fleet" data-i18n="lbl_fleet">Fleet</label><input type="text" id="setting-fleet" name="fleet" maxlength="200" placeholder="65 Units (Standard Tent, Flatbed)" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                                <div><label class="block font-semibold text-slate-700 mb-1" for="setting-routes" data-i18n="lbl_routes">Primary Lanes</label><input type="text" id="setting-routes" name="routes" maxlength="300" placeholder="Kazakhstan ↔ Central Asia ↔ Russia" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="setting-fleet" data-i18n="lbl_fleet">Fleet</label><input type="text" id="setting-fleet" name="fleet" maxlength="200" placeholder="65 Units (Standard Tent, Flatbed)" data-i18n-placeholder="ph_fleet_eg" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="setting-routes" data-i18n="lbl_routes">Primary Lanes</label><input type="text" id="setting-routes" name="routes" maxlength="300" placeholder="Kazakhstan ↔ Central Asia ↔ Russia" data-i18n-placeholder="ph_lanes_eg" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
                             </div>
                         </div>
                         <div class="space-y-5">

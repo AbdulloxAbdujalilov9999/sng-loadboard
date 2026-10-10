@@ -47,7 +47,7 @@
 @keyframes toast-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ---------- mobile sidebar drawer ---------- */
-@media (max-width: 767px) {
+@media (max-width: 1199px) {
   #main-sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: 80vw; max-width: 280px; z-index: 60;
     transform: translateX(-100%); transition: transform 0.25s ease-in-out; }
   #main-sidebar.sidebar-open { transform: translateX(0); box-shadow: 8px 0 24px rgba(0, 0, 0, 0.25); }
@@ -55,7 +55,7 @@
 
 /* ---------- mobile: the WHOLE search page scrolls (tabs + filters + results), not just the results box ---------- */
 /* Otherwise the pinned filter form eats half of a phone screen. (display is untouched on purpose: .hidden still works.) */
-@media (max-width: 767px) {
+@media (max-width: 1199px) {
   #view-search-loads, #view-search-trucks { overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
   #view-search-loads > *, #view-search-trucks > * { flex-shrink: 0; }
   #view-search-loads > .list-pane { flex: none; overflow: visible; }
@@ -63,7 +63,7 @@
 }
 
 /* ---------- responsive "table becomes cards" on mobile ---------- */
-@media (max-width: 767px) {
+@media (max-width: 1199px) {
   .responsive-table thead { display: none; }
   .responsive-table, .responsive-table tbody, .responsive-table tr, .responsive-table td { display: block; width: 100%; }
   .responsive-table { table-layout: auto; }
@@ -87,7 +87,7 @@
 }
 
 /* ---------- search results on a phone: one COMPACT card per load (route + price first) ---------- */
-@media (max-width: 767px) {
+@media (max-width: 1199px) {
   #loads-tbody tr.data-row { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: 0.35rem; row-gap: 0.15rem; align-items: center;
     padding: 0.75rem 0.85rem 0.6rem; border-left: 4px solid #0066cc; }
   #loads-tbody tr.data-row > td { padding: 0; border: 0; width: auto; min-width: 0; text-align: left; background: transparent; overflow: hidden; text-overflow: ellipsis; white-space: nowrap !important; }
@@ -106,7 +106,7 @@
 }
 
 /* ---------- phones: the other lists get the same compact, separated cards ---------- */
-@media (max-width: 767px) {
+@media (max-width: 1199px) {
   /* "my posts" tables sit in a white panel: tint the area behind the cards so each card stands out */
   #my-loads-tbody, #my-trucks-tbody { background: #e9eef5; padding: 0.15rem 0 0.4rem; }
   #trucks-tbody tr.data-row, #my-loads-tbody tr.data-row, #my-trucks-tbody tr.data-row { display: grid; grid-template-columns: repeat(12, 1fr);
@@ -150,7 +150,7 @@
 /* A dense monospace grid with hairline dividers makes rows blur together. Here each row is a separate rounded card on a
    soft grey page, in a normal reading font with more padding, and the price is the loudest thing in the row. */
 #loads-scroll, #trucks-scroll { background: #e9eef5; }
-@media (min-width: 768px) {
+@media (min-width: 1200px) {
   #loads-scroll > table, #trucks-scroll > table { border-collapse: separate; border-spacing: 0 8px; margin: 0 12px 12px; width: calc(100% - 24px);
     font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-variant-numeric: tabular-nums; }
   #loads-scroll > table thead th, #trucks-scroll > table thead th { font-family: inherit; letter-spacing: 0.04em; }
@@ -203,7 +203,7 @@
 .dark input:disabled, .dark select:disabled, .dark textarea:disabled { opacity: 0.6; }
 .dark input[type="checkbox"], .dark input[type="radio"] { background-color: initial; accent-color: #2563eb; }
 .dark #main-sidebar { border-right-color: #1e293b; }
-@media (max-width: 767px) {
+@media (max-width: 1199px) {
   .dark .responsive-table tr.data-row { background: #111a2e; border-color: #2a3750; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
   .dark #loads-scroll, .dark #trucks-scroll { background: #0a1020; }
   .dark #loads-tbody tr.data-row, .dark #my-loads-tbody tr.data-row { border-left-color: #3b82f6; }
@@ -235,7 +235,7 @@
 
 /* desktop cards in dark mode */
 .dark #loads-scroll, .dark #trucks-scroll { background: #0a1020; }
-@media (min-width: 768px) {
+@media (min-width: 1200px) {
   .dark #loads-tbody > tr.data-row > td, .dark #trucks-tbody > tr.data-row > td, .dark #my-loads-tbody > tr.data-row > td, .dark #my-trucks-tbody > tr.data-row > td { background: #111a2e; border-top-color: #2a3750; border-bottom-color: #2a3750; }
   .dark #loads-tbody > tr.data-row > td:first-child, .dark #my-loads-tbody > tr.data-row > td:first-child { border-left-color: #3b82f6; }
   .dark #trucks-tbody > tr.data-row > td:first-child, .dark #my-trucks-tbody > tr.data-row > td:first-child { border-left-color: #10b981; }

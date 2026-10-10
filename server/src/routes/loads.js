@@ -79,7 +79,7 @@ export default async function loadRoutes(app, { pool, config }) {
     if (q.maxDistance !== undefined) where.push(`l.distance_km <= ${b.P(q.maxDistance)}`);
     if (q.q) {
       const p = b.P(likePattern(q.q));
-      where.push(`l.search_text ILIKE ${p}`); // trigram-indexed (see migration 003)
+      where.push(`l.search_text LIKE ${p}`); // trigram-indexed (see migration 003)
     }
     const filterCount = b.params.length;
     const filterSql = where.join(' AND ');

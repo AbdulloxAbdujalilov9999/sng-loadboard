@@ -45,7 +45,7 @@ export default async function truckRoutes(app, { pool, config }) {
       dhoSql = `round(${f.distSql})::int`;
     }
     if (q.equip?.length) where.push(`t.equip = ANY(${b.P(q.equip)}::text[])`);
-    if (q.dest) where.push(`(t.dest_pref ILIKE ${b.P(likePattern(q.dest))} OR t.dest_pref ILIKE 'any%')`);
+    if (q.dest) where.push(`(sng_fold(t.dest_pref) LIKE ${b.P(likePattern(q.dest))} OR sng_fold(t.dest_pref) LIKE 'any%' OR sng_fold(t.dest_pref) LIKE 'везде%' OR sng_fold(t.dest_pref) LIKE 'любое%' OR sng_fold(t.dest_pref) LIKE 'hamma%')`);
     if (q.availableOn) {
       const p = b.P(q.availableOn);
       where.push(`t.available_from <= ${p}::date AND t.expires_on >= ${p}::date`);

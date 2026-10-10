@@ -2,7 +2,7 @@
 // back up to the filter form (the filters scroll away with the page instead of being pinned - see styles.css).
 (function () {
   const SECTIONS = ['view-search-loads', 'view-search-trucks'];
-  const mobile = window.matchMedia('(max-width: 767px)');
+  const mobile = window.matchMedia('(max-width: 1199px)');
   let button;
 
   const active = () => SECTIONS.map((id) => document.getElementById(id)).find((el) => el && el.offsetParent !== null);

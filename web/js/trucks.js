@@ -8,7 +8,7 @@ const Trucks = (() => {
   let mine = [];
   let observer = null;
   // On phones the whole search page scrolls (see styles.css); on desktop only the results box does.
-  const mobileMq = window.matchMedia('(max-width: 767px)');
+  const mobileMq = window.matchMedia('(max-width: 1199px)');
   const pageBottom = () => (mobileMq.matches ? $('view-search-trucks') : $('trucks-scroll')).getBoundingClientRect().bottom;
   function scrollListToStart() {
     if (!mobileMq.matches) { $('trucks-scroll').scrollTop = 0; return; }
