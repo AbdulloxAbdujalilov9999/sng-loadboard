@@ -13,7 +13,7 @@ const COUNT_CAP = 10_000;
 // Only the columns the board shows. SELECT * made the API spend most of its CPU decoding data nobody
 // reads (coordinates, search_text, three timestamps) - trimming it roughly doubled throughput.
 const LIST_COLS = `l.id, l.owner_id, (extract(epoch from l.created_at) * 1000)::bigint AS created_ms,
-  l.origin_city_id, l.origin_city, l.dest_city_id, l.dest_city, l.equip, l.fp, l.weight_t, l.volume_m3,
+  l.origin_city_id, l.origin_city, l.origin_lat, l.origin_lng, l.dest_city_id, l.dest_city, l.dest_lat, l.dest_lng, l.equip, l.fp, l.weight_t, l.volume_m3,
   l.pickup_date, l.delivery_date, l.distance_km, l.rate_usd, l.commodity, l.notes, l.company_name,
   l.contact_name, l.contact_phone, l.contact_email, l.contact_tg`; // "10,000+" - counting further buys nothing and costs time
 

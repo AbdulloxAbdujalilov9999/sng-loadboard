@@ -31,6 +31,8 @@
 .city-dd [role="option"] { padding: 0.4rem 0.75rem; cursor: pointer; border-bottom: 1px solid #f1f5f9; color: #334155; }
 .city-dd [role="option"]:last-child { border-bottom: 0; }
 .city-dd [role="option"][aria-selected="true"], .city-dd [role="option"]:hover { background: #eff6ff; color: #1d4ed8; }
+.city-dd .city-dd-note { color: #0369a1; font-size: 11px; font-weight: 600; margin-left: 0.35rem; }
+.dark .city-dd .city-dd-note { color: #7dd3fc; }
 .city-dd .city-dd-empty { padding: 0.5rem 0.75rem; color: #94a3b8; text-align: center; }
 
 /* ---------- skeleton loading rows ---------- */
@@ -144,11 +146,33 @@
   #my-trucks-tbody tr.data-row > td:nth-child(5) { grid-column: 8 / 13;  grid-row: 3; margin-top: 0.3rem; text-align: right; }
 }
 
-/* ---------- desktop tables: clearer row separation ---------- */
+/* ---------- desktop lists: every load / truck is its own CARD (calm, spaced, easy on the eyes) ---------- */
+/* A dense monospace grid with hairline dividers makes rows blur together. Here each row is a separate rounded card on a
+   soft grey page, in a normal reading font with more padding, and the price is the loudest thing in the row. */
+#loads-scroll, #trucks-scroll { background: #e9eef5; }
 @media (min-width: 768px) {
-  #loads-tbody > tr.data-row, #trucks-tbody > tr.data-row, #my-loads-tbody > tr.data-row, #my-trucks-tbody > tr.data-row { border-top-width: 0; border-bottom: 1px solid #cbd5e1; }
-  #loads-tbody > tr.data-row:nth-child(even), #trucks-tbody > tr.data-row:nth-child(even), #my-loads-tbody > tr.data-row:nth-child(even), #my-trucks-tbody > tr.data-row:nth-child(even) { background-color: #f4f7fb; }
-  #loads-tbody > tr.data-row:hover, #trucks-tbody > tr.data-row:hover, #my-loads-tbody > tr.data-row:hover, #my-trucks-tbody > tr.data-row:hover { background-color: #e3eefc; }
+  #loads-scroll > table, #trucks-scroll > table { border-collapse: separate; border-spacing: 0 8px; margin: 0 12px 12px; width: calc(100% - 24px);
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-variant-numeric: tabular-nums; }
+  #loads-scroll > table thead th, #trucks-scroll > table thead th { font-family: inherit; letter-spacing: 0.04em; }
+  #my-loads-tbody, #my-trucks-tbody { font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-variant-numeric: tabular-nums; }
+  #my-loads-tbody tr.data-row > td, #my-trucks-tbody tr.data-row > td { font-family: inherit; }
+
+  #loads-tbody > tr.data-row > td, #trucks-tbody > tr.data-row > td, #my-loads-tbody > tr.data-row > td, #my-trucks-tbody > tr.data-row > td {
+    background: #fff; border-top: 1px solid #d3dbe7; border-bottom: 1px solid #d3dbe7; padding-top: 0.85rem; padding-bottom: 0.85rem;
+    font-size: 13px; line-height: 1.35; transition: background-color 0.12s, border-color 0.12s; }
+  #loads-tbody > tr.data-row > td:first-child, #trucks-tbody > tr.data-row > td:first-child, #my-loads-tbody > tr.data-row > td:first-child, #my-trucks-tbody > tr.data-row > td:first-child {
+    border-left: 4px solid #0066cc; border-radius: 0.75rem 0 0 0.75rem; }
+  #trucks-tbody > tr.data-row > td:first-child, #my-trucks-tbody > tr.data-row > td:first-child { border-left-color: #059669; }
+  #loads-tbody > tr.data-row > td:last-child, #trucks-tbody > tr.data-row > td:last-child, #my-loads-tbody > tr.data-row > td:last-child, #my-trucks-tbody > tr.data-row > td:last-child {
+    border-right: 1px solid #d3dbe7; border-radius: 0 0.75rem 0.75rem 0; }
+  #loads-tbody > tr.data-row:hover > td, #trucks-tbody > tr.data-row:hover > td, #my-loads-tbody > tr.data-row:hover > td, #my-trucks-tbody > tr.data-row:hover > td {
+    background: #f1f7ff; border-top-color: #9fbdf0; border-bottom-color: #9fbdf0; }
+  #loads-tbody > tr.data-row:hover > td:last-child, #trucks-tbody > tr.data-row:hover > td:last-child { border-right-color: #9fbdf0; }
+  #loads-tbody > tr.data-row, #trucks-tbody > tr.data-row, #my-loads-tbody > tr.data-row, #my-trucks-tbody > tr.data-row { border: 0; }
+  /* the route and the price carry the row */
+  #loads-tbody > tr.data-row > td:nth-child(4), #loads-tbody > tr.data-row > td:nth-child(5) { font-size: 14px; }
+  #loads-tbody > tr.data-row > td:nth-child(10), #trucks-tbody > tr.data-row > td:nth-child(6) { font-size: 15px; font-weight: 800; }
+  #loads-tbody > tr.status-row > td, #trucks-tbody > tr.status-row > td { background: transparent; border: 0; }
 }
 
 /* ---------- theme toggle icons (moon shown in light mode, sun in dark mode) ---------- */
@@ -209,9 +233,13 @@
 .dark .numInputWrapper span.arrowUp:after { border-bottom-color: #94a3b8; }
 .dark .numInputWrapper span.arrowDown:after { border-top-color: #94a3b8; }
 
-/* desktop row striping in dark mode */
+/* desktop cards in dark mode */
+.dark #loads-scroll, .dark #trucks-scroll { background: #0a1020; }
 @media (min-width: 768px) {
-  .dark #loads-tbody > tr.data-row, .dark #trucks-tbody > tr.data-row, .dark #my-loads-tbody > tr.data-row, .dark #my-trucks-tbody > tr.data-row { border-bottom-color: #2a3750; }
-  .dark #loads-tbody > tr.data-row:nth-child(even), .dark #trucks-tbody > tr.data-row:nth-child(even), .dark #my-loads-tbody > tr.data-row:nth-child(even), .dark #my-trucks-tbody > tr.data-row:nth-child(even) { background-color: #141f36; }
-  .dark #loads-tbody > tr.data-row:hover, .dark #trucks-tbody > tr.data-row:hover, .dark #my-loads-tbody > tr.data-row:hover, .dark #my-trucks-tbody > tr.data-row:hover { background-color: #1c2d4d; }
+  .dark #loads-tbody > tr.data-row > td, .dark #trucks-tbody > tr.data-row > td, .dark #my-loads-tbody > tr.data-row > td, .dark #my-trucks-tbody > tr.data-row > td { background: #111a2e; border-top-color: #2a3750; border-bottom-color: #2a3750; }
+  .dark #loads-tbody > tr.data-row > td:first-child, .dark #my-loads-tbody > tr.data-row > td:first-child { border-left-color: #3b82f6; }
+  .dark #trucks-tbody > tr.data-row > td:first-child, .dark #my-trucks-tbody > tr.data-row > td:first-child { border-left-color: #10b981; }
+  .dark #loads-tbody > tr.data-row > td:last-child, .dark #trucks-tbody > tr.data-row > td:last-child, .dark #my-loads-tbody > tr.data-row > td:last-child, .dark #my-trucks-tbody > tr.data-row > td:last-child { border-right-color: #2a3750; }
+  .dark #loads-tbody > tr.data-row:hover > td, .dark #trucks-tbody > tr.data-row:hover > td, .dark #my-loads-tbody > tr.data-row:hover > td, .dark #my-trucks-tbody > tr.data-row:hover > td { background: #172542; border-top-color: #3b6bb8; border-bottom-color: #3b6bb8; }
+  .dark #loads-tbody > tr.data-row:hover > td:last-child, .dark #trucks-tbody > tr.data-row:hover > td:last-child { border-right-color: #3b6bb8; }
 }

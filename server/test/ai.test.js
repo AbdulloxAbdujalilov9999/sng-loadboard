@@ -1,9 +1,9 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startTestEnv, validLoad } from './helpers.js';
-import { buildCityIndex, fold, resolveCity } from '../src/lib/ai/cities.js';
+import { buildCityIndex, fold, resolveCity, searchCities } from '../src/lib/ai/cities.js';
 import { createHeuristicParser } from '../src/lib/ai/heuristic.js';
-import { buildSystemPrompt, createGeminiParser } from '../src/lib/ai/gemini.js';
+import { createGeminiParser, loadsPrompt, trucksPrompt } from '../src/lib/ai/gemini.js';
 
 // The exact kind of text members paste (flags, Cyrillic, Uzbek slang, several loads at once).
 const PASTE = `
@@ -55,35 +55,73 @@ let env; let index;
 before(async () => {
   env = await startTestEnv({}, { ai: createHeuristicParser() });
   await env.approvedMember('dispatcher@test.com', 'Dispatch Co');
-  const { rows } = await env.pool.query('SELECT id, label, name, name_ru, country, lat, lng FROM cities ORDER BY id');
+  const { rows } = await env.pool.query('SELECT id, label, name, name_ru, country, lat, lng, aliases, population FROM cities ORDER BY id');
   index = buildCityIndex(rows);
 });
 after(async () => { await env.close(); });
 
-test('city matching understands Russian, Uzbek-Latin, Uzbek-Cyrillic and English spellings', () => {
+test('city matching: spellings, scripts, regions, towns, endings and typos all land on the right city', () => {
   const label = (text, extra = {}) => resolveCity(index, { text, ...extra }).city?.label ?? null;
-  assert.equal(label('ТОШКЕНТ'), 'Tashkent, UZ');
-  assert.equal(label('Toshkent'), 'Tashkent, UZ');
-  assert.equal(label('Ташкент'), 'Tashkent, UZ');
-  assert.equal(label('🇺🇿Tashkent'), 'Tashkent, UZ');
-  assert.equal(label('МОСКВА'), 'Moscow, RU');
-  assert.equal(label('Moskva'), 'Moscow, RU');
-  assert.equal(label('Бухоро'), 'Bukhara, UZ');
-  assert.equal(label('Buxoro'), 'Bukhara, UZ');
-  assert.equal(label('Samarqand'), 'Samarkand, UZ');
-  assert.equal(label('Самарқанд'), 'Samarkand, UZ');
-  assert.equal(label('КАЛУГА БАЛАБАНОВА'), 'Kaluga, RU', 'main city + small town -> the main city');
-  assert.equal(label('ТОМСК АСИНО'), 'Tomsk, RU');
-  assert.equal(label('Асино'), null, 'a town that is not in the list never snaps onto an unrelated city');
-  assert.equal(label('Хоразм'), 'Urgench, UZ', 'region -> main city');
-  assert.equal(label('Xorazm viloyati'), 'Urgench, UZ');
-  assert.equal(label('Қашқадарё'), 'Karshi, UZ');
+  // big cities in every script
+  for (const [text, want] of [
+    ['ТОШКЕНТ', 'Tashkent, UZ'], ['Toshkent', 'Tashkent, UZ'], ['Ташкент', 'Tashkent, UZ'], ['🇺🇿Tashkent', 'Tashkent, UZ'],
+    ['МОСКВА', 'Moscow, RU'], ['Moskva', 'Moscow, RU'], ['Бухоро', 'Bukhara, UZ'], ['Buxoro', 'Bukhara, UZ'], ['Samarqand', 'Samarkand, UZ'],
+    ['Самарқанд', 'Samarkand, UZ'], ['Андижон', 'Andijan, UZ'], ['Farg‘ona', 'Fergana, UZ'], ['Qo‘qon', 'Kokand, UZ'], ['Termiz', 'Termez, UZ'],
+    ['Urganch', 'Urgench, UZ'], ['Xiva', 'Khiva, UZ'], ['Qarshi', 'Karshi, UZ'], ['Санкт-Петербург', 'Saint Petersburg, RU'], ['СПб', 'Saint Petersburg, RU'],
+    ['Алма-Ата', 'Almaty, KZ'], ['Нур-Султан', 'Astana, KZ'], ['Чимкент', 'Shymkent, KZ'],
+  ]) assert.equal(label(text), want, text);
+
+  // REGIONS people write instead of a city (the thing that used to find nothing)
+  for (const text of ['Xorazm', 'Хоразм', 'ХОРАЗМ', 'Xorazm viloyati', 'Khorezm', 'Хорезмская область']) assert.equal(label(text), 'Urgench, UZ', text);
+  assert.equal(label('Qashqadaryo'), 'Karshi, UZ');
+  assert.equal(label('Surxondaryo viloyati'), 'Termez, UZ');
+  assert.equal(label('Московская область'), 'Moscow, RU');
+  assert.equal(label('Самаркандская область'), 'Samarkand, UZ');
+
+  // SMALL TOWNS that used to be unknown, and "main city + town" lines -> the specific town
+  assert.equal(label('Асино'), 'Asino, RU');
+  assert.equal(label('ТОМСК АСИНО'), 'Asino, RU');
+  assert.equal(label('МОСКВА ЭЛЕКТРОГОРСК'), 'Elektrogorsk, RU');
+  assert.equal(label('КАЛУГА БАЛАБАНОВА'), 'Balabanovo, RU', 'Russian ending -а still finds Балабаново');
+  assert.equal(label('КАЛУГА ЛЮДИНОВО'), 'Lyudinovo, RU');
+  assert.equal(label('Томск'), 'Tomsk, RU', 'a lone big city is still itself');
+
+  // Russian/Uzbek endings and typos
+  for (const [text, want] of [['из Томска', 'Tomsk, RU'], ['в Ташкент', 'Tashkent, UZ'], ['Ташкента', 'Tashkent, UZ'], ['Toshkend', 'Tashkent, UZ'], ['Самарканду', 'Samarkand, UZ'], ['Тошкентга', 'Tashkent, UZ']]) assert.equal(label(text), want, text);
+
+  // never invents: unknown / nonsense is "not found", and a wrong country hint cannot hide a real match
   assert.equal(label('Atlantis'), null);
   assert.equal(label('???'), null);
-  // the AI's own pick wins when it is a real label, and an invented label is ignored
+  assert.equal(label('Tashkent', { country: 'RU' }), 'Tashkent, UZ');
+  assert.equal(label('Viloyati oblast region'), null, 'filler words alone match nothing');
+
+  // the model's own label pick is verified; the coordinate fallback finds the nearest listed town
   assert.equal(label('whatever', { label: 'Urgench, UZ' }), 'Urgench, UZ');
   assert.equal(label('Томск', { label: 'Narnia, XX' }), 'Tomsk, RU');
+  const near = resolveCity(index, { text: 'Zzzzzz', country: 'RU', lat: 56.45, lng: 84.97 });
+  assert.equal(near.city?.label, 'Tomsk, RU');
+  assert.equal(near.how, 'nearest');
+  assert.equal(resolveCity(index, { text: 'Zzzzzz', country: 'RU', lat: 10, lng: 10 }).city, null, 'nothing within reach -> not found');
   assert.ok(fold('Тошкент') === fold('Toshkent'));
+});
+
+test('city autocomplete: scripts, regions with a hint, aliases, typos, country filter, big towns first', () => {
+  const top = (q, opts) => searchCities(index, q, opts);
+  const labels = (q, opts) => top(q, opts).map((h) => h.city.label);
+  assert.equal(labels('xorazm')[0], 'Urgench, UZ');
+  assert.equal(top('xorazm')[0].note, 'Xorazm', 'the hint tells the person why Urgench appeared');
+  assert.equal(labels('ташк')[0], 'Tashkent, UZ');
+  assert.equal(labels('samarq')[0], 'Samarkand, UZ');
+  assert.equal(labels('toshk')[0], 'Tashkent, UZ');
+  assert.ok(labels('asin').includes('Asino, RU'));
+  assert.equal(labels('urganch')[0], 'Urgench, UZ');
+  assert.ok(labels('Toshkend').includes('Tashkent, UZ'), 'typo-tolerant');
+  assert.ok(labels('kom').every((l, i, a) => i === 0 || true) && labels('kom').length > 0);
+  assert.ok(labels('sam', { country: 'UZ' }).every((l) => l.endsWith(', UZ')), 'country filter');
+  assert.equal(top('', { limit: 3 }).length, 3, 'empty query -> the biggest towns');
+  assert.equal(labels('Narnia').length, 0);
+  // population breaks ties: the big Kazan beats a village that merely starts the same way
+  assert.equal(labels('kaz')[0], 'Kazan, RU');
 });
 
 test('parse-loads: members only, validates the paste', async () => {
@@ -99,7 +137,7 @@ test('parse-loads: one draft per pasted load, with cities, cargo, equipment, not
   const d = r.json.loads;
   assert.equal(d.length, 4, 'four pasted blocks -> four drafts');
 
-  assert.equal(d[0].originCity, 'Tomsk, RU');
+  assert.equal(d[0].originCity, 'Asino, RU', 'the specific town, not just the region it is in');
   assert.equal(d[0].destCity, 'Tashkent, UZ');
   assert.equal(d[0].commodity, 'ДСП МДФ');
   assert.equal(d[0].equip, 'T');
@@ -112,11 +150,12 @@ test('parse-loads: one draft per pasted load, with cities, cargo, equipment, not
   assert.equal(d[0].weightT, 20);
   assert.equal(d[0].pickupDate, new Date().toISOString().slice(0, 10));
 
-  assert.equal(d[1].originCity, 'Moscow, RU');
+  assert.equal(d[1].originCity, 'Elektrogorsk, RU');
   assert.equal(d[1].destCity, 'Urgench, UZ', 'Хоразм is a region -> its main city');
   assert.ok(!d[1].flags.includes('dest'));
-  assert.equal(d[2].originCity, 'Kaluga, RU');
+  assert.equal(d[2].originCity, 'Balabanovo, RU');
   assert.equal(d[2].destCity, 'Tashkent, UZ');
+  assert.equal(d[3].originCity, 'Lyudinovo, RU');
   assert.equal(d[3].destCity, 'Bukhara, UZ');
   assert.match(d[3].notes, /Also DEL: Urgench, UZ/, 'extra destinations are kept in the notes');
 });
@@ -126,9 +165,9 @@ test('parse-loads: model output is verified, never trusted', async () => {
     name: 'fake',
     async parseLoads() {
       return { loads: [
-        { origin: { place: 'Almaty', cityLabel: 'Almaty, KZ' }, destinations: [{ place: 'Tashkent', cityLabel: 'Tashkent, UZ' }], equipment: ['T', 'ROCKET', 'r'],
+        { origin: { text: 'Almaty', city: 'Almaty', country: 'KZ' }, destinations: [{ text: 'Tashkent', cityLabel: 'Tashkent, UZ' }], equipment: ['T', 'ROCKET', 'r'],
           fullOrPartial: 'Maybe', weightT: 9999, pickupDate: '2026-02-31', rateUsd: -5, commodity: 'x'.repeat(500), notes: 'n'.repeat(900), phone: '+998 90 123 45 67', telegram: null, contactName: null, evil: '<script>' },
-        { origin: { place: 'Narnia', cityLabel: 'Narnia, XX' }, destinations: [], equipment: [], commodity: '', notes: '' },
+        { origin: { text: 'Narnia', city: 'Narnia', country: 'XX', lat: 0, lng: 0 }, destinations: [], equipment: [], commodity: '', notes: '' },
       ] };
     },
   };
@@ -192,8 +231,14 @@ test('Gemini client: request shape, structured output, and error mapping', async
   assert.ok(seen.body.generationConfig.responseSchema);
   assert.equal(seen.body.generationConfig.temperature, 0);
   assert.equal(seen.body.contents[0].parts[0].text, 'hello', 'pasted text is sent as user data, not as instructions');
-  assert.match(seen.body.systemInstruction.parts[0].text, /Tomsk, RU \(Томск\)/, 'city list is given to the model');
-  assert.match(buildSystemPrompt({ cities: index.cities, today: '2026-10-06' }), /UNTRUSTED DATA/);
+  const sys = seen.body.systemInstruction.parts[0].text;
+  assert.ok(!/Tomsk, RU/.test(sys) && sys.length < 12_000, 'no giant city list in the prompt: the server matches places itself');
+  assert.match(sys, /Xorazm/, 'regions are explained to the model');
+  assert.match(sys, /UNTRUSTED DATA/);
+  assert.match(loadsPrompt({ today: '2026-10-06' }), /Today is 2026-10-06/);
+  assert.match(trucksPrompt({ today: '2026-10-06' }), /AVAILABLE TRUCK/);
+  await g.parseTrucks({ text: 'truck', today: '2026-10-06' });
+  assert.ok(seen.body.generationConfig.responseSchema.properties.trucks, 'trucks use their own schema');
 
   const failing = (status, body = '') => createGeminiParser({ apiKey: 'K', fetchImpl: async () => ({ ok: false, status, text: async () => body }) });
   await assert.rejects(failing(429).parseLoads({ text: 'x', cities: [], today: '' }), (e) => e.code === 'ai_busy' && e.status === 503);

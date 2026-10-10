@@ -76,9 +76,12 @@ export const truckBody = z.object({
   hasAdr: z.boolean().default(false),
   hasGps: z.boolean().default(false),
   sideLoading: z.boolean().default(false),
+  notes: z.string().trim().max(500).optional(), // optional (no default), like loads
   contactPhone: phone,
   contactTelegram: telegram,
 }).strict();
+
+export const trucksBulkBody = z.object({ trucks: z.array(truckBody).min(1).max(40) }).strict();
 
 const csv = (allowed) => z.string().transform((s) => s.split(',').map((x) => x.trim()).filter(Boolean))
   .pipe(z.array(z.enum(allowed)).max(allowed.length));

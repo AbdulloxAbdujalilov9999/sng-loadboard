@@ -43,8 +43,12 @@ export const loadDto = (r, viewerId) => ({
   createdAt: createdIso(r),
   originCityId: r.origin_city_id,
   originCity: r.origin_city,
+  originLat: r.origin_lat ?? null,   // exact coordinates, so the map link never depends on how a name is spelled
+  originLng: r.origin_lng ?? null,
   destCityId: r.dest_city_id,
   destCity: r.dest_city,
+  destLat: r.dest_lat ?? null,
+  destLng: r.dest_lng ?? null,
   equip: r.equip,
   fp: r.fp,
   weightT: num(r.weight_t),
@@ -81,6 +85,7 @@ export const truckDto = (r, viewerId) => ({
   hasAdr: r.has_adr,
   hasGps: r.has_gps,
   sideLoading: r.side_loading,
+  notes: r.notes ?? '',
   company: r.company_name,
   contactPhone: r.contact_phone,
   contactTelegram: r.contact_tg,
@@ -88,7 +93,7 @@ export const truckDto = (r, viewerId) => ({
   mine: r.owner_id === viewerId,
 });
 
-export const cityDto = (c) => ({ id: c.id, name: c.name, nameRu: c.name_ru, country: c.country.trim(), label: c.label, lat: c.lat, lng: c.lng });
+export const cityDto = (c, note) => ({ id: c.id, name: c.name, nameRu: c.name_ru, country: c.country.trim(), label: c.label, lat: c.lat, lng: c.lng, ...(note ? { note } : {}) });
 
 /** Escape % _ \ so user text can't act as LIKE wildcards. */
 export const likePattern = (s) => `%${String(s).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;

@@ -4,7 +4,7 @@
 const AiImport = (() => {
   const { $, esc } = U;
   const AMBER = ['border-amber-400', 'bg-amber-50'];
-  const FIELD_FOR_FLAG = { origin: 'originCityId', dest: 'destCityId', same_city: 'destCityId', weight: 'weightT', date: 'pickupDate', rate: 'rateUsd' };
+  const FIELD_FOR_FLAG = { origin: 'originCityId', origin_check: 'originCityId', dest: 'destCityId', dest_check: 'destCityId', same_city: 'destCityId', weight: 'weightT', date: 'pickupDate', rate: 'rateUsd' };
   const SHARED = { contactName: 'ai-c-name', contactEmail: 'ai-c-email', contactTelegram: 'ai-c-tg' };
   let drafts = [];
 

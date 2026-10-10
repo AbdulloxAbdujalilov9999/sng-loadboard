@@ -84,11 +84,11 @@ export async function buildApp({ config, pool, verifyToken, hub: providedHub, lo
   // Whole result pages, shared by everyone who asks for the same query within a moment (single-flight).
   // Rows are identical for every approved member; only the per-user `mine` flag is added afterwards.
   app.decorate('searchCache', new TtlCache({ ttlMs: config.searchCacheMs, max: 1000 }));
-  // The 160 cities never change at runtime: one query, then pure memory. (Saves a DB round trip per search.)
+  // The city list (~1,900 towns) never changes at runtime: one query, then pure memory. (Saves a DB round trip per search.)
   let cityState = null; let cityStateAt = 0;
   const loadCities = async () => {
     if (!cityState || Date.now() - cityStateAt > 600_000) {
-      const { rows } = await pool.query('SELECT id, label, name, name_ru, country, lat, lng FROM cities ORDER BY id');
+      const { rows } = await pool.query('SELECT id, label, name, name_ru, country, lat, lng, aliases, population FROM cities ORDER BY id');
       cityState = { list: rows, byId: new Map(rows.map((r) => [r.id, r])), index: buildCityIndex(rows) };
       cityStateAt = Date.now();
     }

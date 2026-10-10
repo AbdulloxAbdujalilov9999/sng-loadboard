@@ -1,27 +1,17 @@
 import { citiesQuery } from '../lib/schemas.js';
 import { cityDto } from '../lib/dto.js';
+import { searchCities } from '../lib/ai/cities.js';
 
-const escapeLike = (s) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
-
-export default async function cityRoutes(app, { pool }) {
-  // Autocomplete: accepts "tash", "Ташкент", or a full label like "Tashkent, UZ".
-  // Ranking: name starts with the text, then a word starts with it, then anywhere.
+export default async function cityRoutes(app) {
+  // Autocomplete: understands "tash", "Ташкент", "Toshkent", "Xorazm" (a region -> its main city), a full label such as
+  // "Tashkent, UZ", and small spelling mistakes. Served from memory (the whole list is ~2,000 rows).
   app.get('/api/cities', { preHandler: app.guards.approved }, async (req, reply) => {
     const q = citiesQuery.parse(req.query);
     const [namePart = '', ccPart = ''] = q.q.split(',').map((s) => s.trim());
     const country = /^[A-Za-z]{2}$/.test(ccPart) ? ccPart.toUpperCase() : null;
-    const needle = escapeLike(namePart.toLowerCase());
-
-    const { rows } = await pool.query(
-      `SELECT id, name, name_ru, country, label, lat, lng,
-              CASE WHEN search_key LIKE $1 THEN 0 WHEN search_key LIKE $2 THEN 1 ELSE 2 END AS rank
-         FROM cities
-        WHERE ($4 = '' OR search_key LIKE $3) AND ($5::text IS NULL OR country = $5)
-        ORDER BY rank, name
-        LIMIT $6`,
-      [`${needle}%`, `% ${needle}%`, `%${needle}%`, namePart, country, q.limit],
-    );
+    const index = await app.cityIndex();
+    const hits = searchCities(index, namePart, { limit: q.limit, country });
     reply.header('Cache-Control', 'private, max-age=300');
-    return { items: rows.map(cityDto) };
+    return { items: hits.map((h) => cityDto(h.city, h.note)) };
   });
 }

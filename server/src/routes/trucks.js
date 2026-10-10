@@ -1,4 +1,4 @@
-import { idParam, truckBody, truckQuery } from '../lib/schemas.js';
+import { idParam, truckBody, truckQuery, trucksBulkBody } from '../lib/schemas.js';
 import { likePattern, truckDto } from '../lib/dto.js';
 import { badRequest, forbidden, notFound, tooMany } from '../lib/errors.js';
 import { detail } from '../lib/validation.js';
@@ -11,7 +11,7 @@ const COUNT_CAP = 10_000;
 
 const LIST_COLS = `t.id, t.owner_id, (extract(epoch from t.created_at) * 1000)::bigint AS created_ms,
   t.loc_city_id, t.loc_city, t.dest_pref, t.equip, t.capacity_t, t.volume_m3, t.available_from, t.available_to,
-  t.min_rate_usd, t.has_tir, t.has_adr, t.has_gps, t.side_loading, t.company_name, t.contact_phone, t.contact_tg`;
+  t.min_rate_usd, t.has_tir, t.has_adr, t.has_gps, t.side_loading, t.notes, t.company_name, t.contact_phone, t.contact_tg`;
 
 const SORTS = {
   created: { col: 't.id', cast: 'bigint' },
@@ -80,37 +80,58 @@ export default async function truckRoutes(app, { pool, config }) {
     return { items: rows.map((r) => truckDto(r, req.member.id)) };
   });
 
-  app.post('/api/trucks', write, async (req, reply) => {
-    const body = truckBody.parse(req.body);
+  // Shared by single create and bulk create (the AI "paste trucks" import): validates dates, enforces the quotas for
+  // `bodies.length` trucks under the member's advisory lock, inserts them and announces each one.
+  async function createTrucks(member, bodies, pathPrefix = '') {
+    const at = (i, f) => (pathPrefix ? `${pathPrefix}.${i}.${f}` : f);
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-    if (body.availableFrom < yesterday) throw badRequest('Available-from date is in the past', [detail('availableFrom', 'available_past')]);
-    if (body.availableTo && body.availableTo < body.availableFrom) throw badRequest('End date is before start', [detail('availableTo', 'end_before_start')]);
+    bodies.forEach((body, i) => {
+      if (body.availableFrom < yesterday) throw badRequest('Available-from date is in the past', [detail(at(i, 'availableFrom'), 'available_past')]);
+      if (body.availableTo && body.availableTo < body.availableFrom) throw badRequest('End date is before start', [detail(at(i, 'availableTo'), 'end_before_start')]);
+    });
+    return withTx(pool, async (db) => {
+      const ids = [...new Set(bodies.map((b) => b.locCityId))];
+      const { rows: cityRows } = await db.query('SELECT id, label, lat, lng FROM cities WHERE id = ANY($1::int[])', [ids]);
+      const cities = new Map(cityRows.map((c) => [c.id, c]));
+      bodies.forEach((body, i) => { if (!cities.get(body.locCityId)) throw badRequest('Unknown location city', [detail(at(i, 'locCityId'), 'pick_city')]); });
 
-    const created = await withTx(pool, async (db) => {
-      const { rows: [city] } = await db.query('SELECT id, label, lat, lng FROM cities WHERE id = $1', [body.locCityId]);
-      if (!city) throw badRequest('Unknown location city', [detail('locCityId', 'pick_city')]);
-
-      await db.query('SELECT pg_advisory_xact_lock($1)', [req.member.id]);
+      await db.query('SELECT pg_advisory_xact_lock($1)', [member.id]);
       // Two index-served counts (a single FILTERed count would scan the member's whole history).
       const [{ rows: [{ active }] }, { rows: [{ lasthour }] }] = await Promise.all([
-        db.query(`SELECT count(*)::int AS active FROM trucks WHERE owner_id = $1 AND status = 'active'`, [req.member.id]),
-        db.query(`SELECT count(*)::int AS lasthour FROM trucks WHERE owner_id = $1 AND created_at > now() - interval '1 hour'`, [req.member.id]),
+        db.query(`SELECT count(*)::int AS active FROM trucks WHERE owner_id = $1 AND status = 'active'`, [member.id]),
+        db.query(`SELECT count(*)::int AS lasthour FROM trucks WHERE owner_id = $1 AND created_at > now() - interval '1 hour'`, [member.id]),
       ]);
-      if (active >= config.maxActiveTrucksPerMember) throw tooMany(`You have reached the limit of ${config.maxActiveTrucksPerMember} active trucks.`);
-      if (lasthour >= config.maxPostsPerHour) throw tooMany('Posting too fast - please try again later.');
+      if (active + bodies.length > config.maxActiveTrucksPerMember) throw tooMany(`You have reached the limit of ${config.maxActiveTrucksPerMember} active trucks.`);
+      if (lasthour + bodies.length > config.maxPostsPerHour) throw tooMany('Posting too fast - please try again later.');
 
-      const { rows: [row] } = await db.query(
-        `INSERT INTO trucks (owner_id, loc_city_id, loc_city, loc_lat, loc_lng, dest_pref, equip, capacity_t, volume_m3,
-                             available_from, available_to, min_rate_usd, has_tir, has_adr, has_gps, side_loading,
-                             company_name, contact_phone, contact_tg)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
-        [req.member.id, city.id, city.label, city.lat, city.lng, body.destPref, body.equip, body.capacityT, body.volumeM3,
-          body.availableFrom, body.availableTo, body.minRateUsd, body.hasTir, body.hasAdr, body.hasGps, body.sideLoading,
-          req.member.company, body.contactPhone, body.contactTelegram]);
-      await publish(db, { entity: 'trucks', op: 'insert', id: row.id, ownerId: req.member.id });
-      return row;
+      const rows = [];
+      for (const body of bodies) {
+        const city = cities.get(body.locCityId);
+        const { rows: [row] } = await db.query(
+          `INSERT INTO trucks (owner_id, loc_city_id, loc_city, loc_lat, loc_lng, dest_pref, equip, capacity_t, volume_m3,
+                               available_from, available_to, min_rate_usd, has_tir, has_adr, has_gps, side_loading,
+                               company_name, contact_phone, contact_tg, notes)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
+          [member.id, city.id, city.label, city.lat, city.lng, body.destPref, body.equip, body.capacityT, body.volumeM3,
+            body.availableFrom, body.availableTo, body.minRateUsd, body.hasTir, body.hasAdr, body.hasGps, body.sideLoading,
+            member.company, body.contactPhone, body.contactTelegram, body.notes ?? '']);
+        await publish(db, { entity: 'trucks', op: 'insert', id: row.id, ownerId: member.id });
+        rows.push(row);
+      }
+      return rows;
     });
+  }
+
+  app.post('/api/trucks', write, async (req, reply) => {
+    const [created] = await createTrucks(req.member, [truckBody.parse(req.body)]);
     return reply.code(201).send(truckDto(created, req.member.id));
+  });
+
+  // Up to 40 trucks at once (used by "paste trucks"). All-or-nothing, errors point at `trucks.<index>.<field>`.
+  app.post('/api/trucks/bulk', write, async (req, reply) => {
+    const { trucks } = trucksBulkBody.parse(req.body);
+    const created = await createTrucks(req.member, trucks, 'trucks');
+    return reply.code(201).send({ items: created.map((r) => truckDto(r, req.member.id)) });
   });
 
   app.delete('/api/trucks/:id', write, async (req, reply) => {

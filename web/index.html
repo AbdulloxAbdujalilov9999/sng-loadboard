@@ -409,14 +409,14 @@
                                     <th class="py-2.5 px-1.5 w-6 text-center"></th>
                                     <th data-sort="created" class="py-2.5 px-2 w-14 sortable-th" title="Sort by age"><div class="flex items-center space-x-1"><span data-i18n="th_age">Age</span><span id="sort-icon-created" class="text-[9px] text-slate-400">⇅</span></div></th>
                                     <th data-sort="pickup" class="py-2.5 px-2 w-16 sortable-th" title="Sort by pickup date"><div class="flex items-center space-x-1"><span data-i18n="th_date">Date</span><span id="sort-icon-pickup" class="text-[9px] text-slate-400">⇅</span></div></th>
-                                    <th data-sort="origin" class="py-2.5 px-2.5 w-[20%] sortable-th" title="Sort by origin"><div class="flex items-center space-x-1"><span data-i18n="th_origin">Origin / DHO</span><span id="sort-icon-origin" class="text-[9px] text-slate-400">⇅</span></div></th>
-                                    <th data-sort="dest" class="py-2.5 px-2.5 w-[20%] sortable-th" title="Sort by destination"><div class="flex items-center space-x-1"><span data-i18n="th_dest">Destination / DHD</span><span id="sort-icon-dest" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="origin" class="py-2.5 px-2.5 w-[16%] sortable-th" title="Sort by origin"><div class="flex items-center space-x-1"><span data-i18n="th_origin">Origin / DHO</span><span id="sort-icon-origin" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="dest" class="py-2.5 px-2.5 w-[16%] sortable-th" title="Sort by destination"><div class="flex items-center space-x-1"><span data-i18n="th_dest">Destination / DHD</span><span id="sort-icon-dest" class="text-[9px] text-slate-400">⇅</span></div></th>
                                     <th data-sort="equip" class="py-2.5 px-2 w-12 text-center sortable-th" title="Sort by type"><div class="flex items-center justify-center space-x-1"><span data-i18n="th_type">Type</span><span id="sort-icon-equip" class="text-[9px] text-slate-400">⇅</span></div></th>
                                     <th class="py-2.5 px-2 w-14">F/P</th>
-                                    <th data-sort="weight" class="py-2.5 px-2 w-24 sortable-th" title="Sort by weight"><div class="flex items-center space-x-1"><span data-i18n="th_weight">Weight/Vol</span><span id="sort-icon-weight" class="text-[9px] text-slate-400">⇅</span></div></th>
-                                    <th data-sort="distance" class="py-2.5 px-2 w-20 text-right sortable-th" title="Sort by distance"><div class="flex items-center justify-end space-x-1"><span data-i18n="th_distance">Distance</span><span id="sort-icon-distance" class="text-[9px] text-slate-400">⇅</span></div></th>
-                                    <th data-sort="rate" class="py-2.5 px-2.5 w-24 text-right sortable-th" title="Sort by rate"><div class="flex items-center justify-end space-x-1"><span data-i18n="th_rate">Rate</span><span id="sort-icon-rate" class="text-[9px] text-slate-400">⇅</span></div></th>
-                                    <th data-sort="company" class="py-2.5 px-2.5 sortable-th" title="Sort by company"><div class="flex items-center space-x-1"><span data-i18n="th_company">Company / Contact</span><span id="sort-icon-company" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="weight" class="py-2.5 px-2 w-[84px] sortable-th" title="Sort by weight"><div class="flex items-center space-x-1"><span data-i18n="th_weight">Weight/Vol</span><span id="sort-icon-weight" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="distance" class="py-2.5 px-2 w-[76px] text-right sortable-th" title="Sort by distance"><div class="flex items-center justify-end space-x-1"><span data-i18n="th_distance">Distance</span><span id="sort-icon-distance" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="rate" class="py-2.5 px-2.5 w-[92px] text-right sortable-th" title="Sort by rate"><div class="flex items-center justify-end space-x-1"><span data-i18n="th_rate">Rate</span><span id="sort-icon-rate" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="company" class="py-2.5 px-2.5 w-[19%] sortable-th" title="Sort by company"><div class="flex items-center space-x-1"><span data-i18n="th_company">Company / Contact</span><span id="sort-icon-company" class="text-[9px] text-slate-400">⇅</span></div></th>
                                 </tr>
                             </thead>
                             <tbody id="loads-tbody" class="divide-y divide-slate-200"></tbody>
@@ -615,7 +615,31 @@
 
             <!-- ================= POST TRUCKS ================= -->
             <section id="view-post-trucks" class="hidden flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100">
-                <div class="max-w-3xl mx-auto bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-6 space-y-5 text-xs">
+                <div class="max-w-3xl mx-auto flex gap-2" role="tablist" id="post-trucks-tabs">
+                    <button type="button" role="tab" data-post-tab="ai" class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold border transition"><i data-lucide="sparkles" class="w-4 h-4"></i><span data-i18n="post_tab_ai">Paste with AI</span></button>
+                    <button type="button" role="tab" data-post-tab="manual" class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold border transition"><i data-lucide="pencil-line" class="w-4 h-4"></i><span data-i18n="post_tab_manual">Fill in manually</span></button>
+                </div>
+                <div id="ai-t-import" class="max-w-3xl mx-auto bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg shadow-sm border border-indigo-200 p-4 sm:p-5 space-y-3">
+                    <div class="flex items-start gap-3">
+                        <div class="w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center flex-shrink-0"><i data-lucide="sparkles" class="w-4 h-4"></i></div>
+                        <div class="min-w-0">
+                            <h3 class="text-base font-bold text-slate-800" data-i18n="ai_trucks_title">Paste trucks, let AI fill them in</h3>
+                            <p class="text-xs text-slate-600" data-i18n="ai_trucks_hint">Paste one or many "truck available" posts from Telegram or WhatsApp, in Russian or Uzbek. AI splits them into separate trucks and fills in location, trailer type, capacity, dates and notes. You check everything before it is posted.</p>
+                        </div>
+                    </div>
+                    <div id="ai-t-basic" class="hidden text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded p-2" data-i18n="ai_basic_mode">Basic mode: the AI is not connected yet, so only the standard layout is recognised. Always check the result.</div>
+                    <div id="ai-t-unavailable" class="hidden text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded p-2" data-i18n="ai_unavailable">AI import is not set up on this server yet.</div>
+                    <form id="ai-t-form" class="space-y-2" novalidate>
+                        <textarea id="ai-t-text" rows="6" maxlength="12000" data-i18n-placeholder="ai_trucks_placeholder" placeholder="🇺🇿 САМАРКАНД → МОСКВА&#10;ТЕНТ 20т&#10;СВОБОДНА&#10;+998 90 123 45 67" class="w-full border border-indigo-200 rounded p-2.5 text-xs font-mono bg-white focus:border-indigo-500"></textarea>
+                        <div class="flex flex-wrap items-center gap-2 justify-between">
+                            <span class="text-[10px] text-slate-500"><span id="ai-t-count">0</span> / 12000</span>
+                            <button type="submit" id="ai-t-read-btn" class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold py-2 px-4 rounded text-xs shadow flex items-center space-x-2"><i data-lucide="wand-2" class="w-4 h-4"></i><span data-i18n="ai_btn_read">Read with AI</span></button>
+                        </div>
+                    </form>
+                    <div id="ai-t-review" class="hidden space-y-3"></div>
+                </div>
+
+                <div id="post-truck-card" class="hidden max-w-3xl mx-auto bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-6 space-y-5 text-xs">
                     <div>
                         <h3 class="text-lg font-bold text-slate-800" data-i18n="post_truck_heading">Post Available Truck</h3>
                         <p class="text-xs text-slate-500" data-i18n="post_truck_sub">Broadcast your empty trailer capacity to shippers and brokers across SNG corridors.</p>
@@ -671,6 +695,10 @@
                                 <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="truck-feat-side" name="sideLoading" checked class="rounded text-blue-600"><span data-i18n="feat_side">Side & Top Loading</span></label>
                             </div>
                         </fieldset>
+                        <div>
+                            <div class="flex justify-between items-center mb-1"><label class="font-semibold text-slate-700" for="truck-post-notes" data-i18n="lbl_notes">Notes</label><span class="text-[9px] text-slate-400 italic" data-i18n="lbl_optional">Optional</span></div>
+                            <textarea id="truck-post-notes" name="notes" rows="2" maxlength="500" data-i18n-placeholder="ph_notes_truck" placeholder="Preferred routes, terms, other contacts..." class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500"></textarea>
+                        </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block font-semibold text-slate-700 mb-1" for="truck-post-phone" data-i18n="lbl_disp_phone">Dispatcher Phone</label>
@@ -934,6 +962,7 @@
     <script src="/js/loads.js?v=__BUILD__"></script>
     <script src="/js/aiimport.js?v=__BUILD__"></script>
     <script src="/js/trucks.js?v=__BUILD__"></script>
+    <script src="/js/aitrucks.js?v=__BUILD__"></script>
     <script src="/js/directory.js?v=__BUILD__"></script>
     <script src="/js/account.js?v=__BUILD__"></script>
     <script src="/js/admin.js?v=__BUILD__"></script>

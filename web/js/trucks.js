@@ -125,6 +125,7 @@ const Trucks = (() => {
           ${row(t('th_pref_dest'), esc(x.destPref))}
           <div class="col-span-2 pt-1 border-t border-slate-100"><span class="text-slate-500">${esc(t('lbl_trailer_features'))}</span><div class="flex flex-wrap gap-1 mt-1">${chips}</div></div>
         </div>
+        ${x.notes ? `<div class="text-[11px] bg-amber-50 border border-amber-200 rounded p-2 text-slate-800"><span class="text-[10px] uppercase font-bold text-amber-700 tracking-wider block mb-0.5">${esc(t('lbl_notes'))}</span><span class="whitespace-pre-line break-words">${esc(x.notes)}</span></div>` : ''}
       </div>
       <div class="md:col-span-6 bg-white p-3 rounded border border-blue-100 shadow-sm space-y-2">
         <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
@@ -304,7 +305,7 @@ const Trucks = (() => {
   }
   function onShow() { if (stale) reload({ silent: true }); }
 
-  return { init, enter, leave, onShow, render, renderMine, loadMine, closeViewTruck };
+  return { init, enter, leave, onShow, render, renderMine, loadMine, closeViewTruck, markStale() { stale = true; } };
 })();
 
 window.Trucks = Trucks;

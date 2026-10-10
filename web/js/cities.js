@@ -75,7 +75,7 @@ const Cities = (() => {
 
     function render() {
       if (!items.length) { dd.innerHTML = `<div class="city-dd-empty">${U.esc(t('city_none'))}</div>`; } else {
-        dd.innerHTML = items.map((c, i) => `<div role="option" id="${id}-${i}" data-i="${i}" aria-selected="false">${U.esc(c.label)}${c.nameRu && c.nameRu !== c.name ? ` <span class="text-slate-400">· ${U.esc(c.nameRu)}</span>` : ''}</div>`).join('');
+        dd.innerHTML = items.map((c, i) => `<div role="option" id="${id}-${i}" data-i="${i}" aria-selected="false">${U.esc(c.label)}${c.note ? ` <span class="city-dd-note">≈ ${U.esc(c.note)}</span>` : (c.nameRu && c.nameRu !== c.name ? ` <span class="text-slate-400">· ${U.esc(c.nameRu)}</span>` : '')}</div>`).join('');
       }
       dd.classList.remove('hidden');
       input.setAttribute('aria-expanded', 'true');

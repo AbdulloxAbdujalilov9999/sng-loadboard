@@ -233,7 +233,10 @@ const Loads = (() => {
 
   function detailHtml(l) {
     const tel = String(l.contactPhone).replace(/[^\d+]/g, '');
-    const maps = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(l.originCity)}&destination=${encodeURIComponent(l.destCity)}&travelmode=driving`;
+    // Exact coordinates when we have them: a town name can be ambiguous or spelled differently by the map, a point cannot.
+    const from = l.originLat != null ? `${l.originLat},${l.originLng}` : l.originCity;
+    const to = l.destLat != null ? `${l.destLat},${l.destLng}` : l.destCity;
+    const maps = U.routeUrls(from, to).web;
     return `<tr class="detail-row font-sans" data-detail-for="${l.id}">
       <td colspan="11" class="p-0">
         <div class="grid grid-cols-1 md:grid-cols-12 gap-4 text-xs">
@@ -253,7 +256,7 @@ const Loads = (() => {
             </div>
             ${l.notes ? `<div class="text-[11px] bg-amber-50 border border-amber-200 rounded p-2 text-slate-800"><span class="text-[10px] uppercase font-bold text-amber-700 tracking-wider block mb-0.5">${esc(t('lbl_notes'))}</span><span class="whitespace-pre-line break-words">${esc(l.notes)}</span></div>` : ''}
             <div class="pt-2 border-t border-slate-100">
-              <a href="${maps}" target="_blank" rel="noopener noreferrer" data-route data-from="${esc(l.originCity)}" data-to="${esc(l.destCity)}" class="w-full bg-[#1a73e8] hover:bg-blue-600 text-white font-bold py-2 px-3 rounded flex items-center justify-center space-x-2 shadow-sm transition">
+              <a href="${maps}" target="_blank" rel="noopener noreferrer" data-route data-from="${esc(from)}" data-to="${esc(to)}" class="w-full bg-[#1a73e8] hover:bg-blue-600 text-white font-bold py-2 px-3 rounded flex items-center justify-center space-x-2 shadow-sm transition">
                 <i data-lucide="map-pin" class="w-4 h-4 text-amber-300"></i><span>${esc(t('lbl_maps_btn'))}</span><i data-lucide="external-link" class="w-3.5 h-3.5 text-blue-200"></i>
               </a>
             </div>

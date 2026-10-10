@@ -1,6 +1,15 @@
 // Translations (English / Russian). t('key', {vars}) falls back to English, then to the key itself.
 const DICT = {
   en: {
+    "ai_trucks_title": "Paste trucks, let AI fill them in",
+    "ai_trucks_hint": "Paste one or many \"truck available\" posts from Telegram or WhatsApp, in Russian or Uzbek. AI splits them into separate trucks and fills in location, trailer type, capacity, dates and notes. You check everything before it is posted.",
+    "ai_trucks_placeholder": "🇺🇿 САМАРКАНД → МОСКВА\nТЕНТ 20т\nСВОБОДНА\n+998 90 123 45 67",
+    "ai_trucks_found": "{n} truck(s) found - check them, then post",
+    "ai_trucks_none": "No trucks were found in that text.",
+    "ai_trucks_post_n": "Post {n} truck(s)",
+    "ai_trucks_posted_n": "{n} truck(s) published",
+    "ph_notes_truck": "Preferred routes, terms, other contacts...",
+    "ai_check_city": "Not an exact match - please check the city",
     "lbl_truck_specs": "Truck & Availability",
     "btn_back_to_filters": "Filters",
     "method_phone": "Phone (SMS)",
@@ -363,6 +372,15 @@ const DICT = {
     "trucks_none": "No trucks match your search."
   },
   ru: {
+    "ai_trucks_title": "Вставьте транспорт — ИИ заполнит сам",
+    "ai_trucks_hint": "Вставьте одно или несколько объявлений «машина свободна» из Telegram или WhatsApp на русском или узбекском. ИИ разделит их на отдельные машины и заполнит местонахождение, тип кузова, грузоподъёмность, даты и заметки. Перед публикацией вы всё проверяете.",
+    "ai_trucks_placeholder": "🇺🇿 САМАРКАНД → МОСКВА\nТЕНТ 20т\nСВОБОДНА\n+998 90 123 45 67",
+    "ai_trucks_found": "Найдено машин: {n} — проверьте и опубликуйте",
+    "ai_trucks_none": "В тексте не найдено ни одной машины.",
+    "ai_trucks_post_n": "Опубликовать машин: {n}",
+    "ai_trucks_posted_n": "Опубликовано машин: {n}",
+    "ph_notes_truck": "Предпочтительные маршруты, условия, другие контакты...",
+    "ai_check_city": "Совпадение неточное — проверьте город",
     "lbl_truck_specs": "Транспорт и доступность",
     "btn_back_to_filters": "Фильтры",
     "method_phone": "Телефон (SMS)",
@@ -725,6 +743,15 @@ const DICT = {
     "trucks_none": "Транспорт не найден."
   },
   uz: {
+    "ai_trucks_title": "Mashinalarni joylang, AI oʻzi toʻldiradi",
+    "ai_trucks_hint": "Telegram yoki WhatsApp’dan bir yoki bir nechta “mashina boʻsh” eʼlonini rus yoki oʻzbek tilida joylang. AI ularni alohida mashinalarga ajratadi va joylashuv, tirkama turi, yuk sigʻimi, sanalar va izohlarni toʻldiradi. Eʼlon qilishdan oldin hammasini oʻzingiz tekshirasiz.",
+    "ai_trucks_placeholder": "🇺🇿 САМАРКАНД → МОСКВА\nТЕНТ 20т\nСВОБОДНА\n+998 90 123 45 67",
+    "ai_trucks_found": "Topilgan mashinalar: {n} — tekshiring, soʻng eʼlon qiling",
+    "ai_trucks_none": "Matnda birorta mashina topilmadi.",
+    "ai_trucks_post_n": "Eʼlon qilish: {n}",
+    "ai_trucks_posted_n": "Eʼlon qilingan mashinalar: {n}",
+    "ph_notes_truck": "Afzal yoʻnalishlar, shartlar, boshqa aloqa maʼlumotlari...",
+    "ai_check_city": "Aniq mos kelmadi — shaharni tekshiring",
     "lbl_truck_specs": "Mashina va boʻsh vaqti",
     "btn_back_to_filters": "Filtrlar",
     "acc_contact_hint": "Siz joylaydigan har bir yuk va mashinaga avtomatik qoʻyiladi. Har bir eʼlonda uni oʻzgartirish mumkin.",
