@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/logo-lockup-dark.png">
+    <img src="brand/logo-lockup-light.png" alt="SNG ONE — Yuk birjasi" width="480">
+  </picture>
+</p>
+
 # SNG ONE — freight marketplace for the CIS / Eurasia
 
 Load board, truck board and carrier directory with open sign-up (the owner is notified and can block anyone).
