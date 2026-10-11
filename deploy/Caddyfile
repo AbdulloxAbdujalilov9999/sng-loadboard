@@ -7,6 +7,11 @@
 	}
 }
 
+# www.<domain> -> <domain>   (needs an A record for www; harmless otherwise)
+www.{$SITE_ADDRESS} {
+	redir https://{$SITE_ADDRESS}{uri} permanent
+}
+
 # Other projects on the same server: add a file such as sites/truckerz.caddy containing
 #   truckerz.example.com { reverse_proxy host.docker.internal:3000 }
 import /etc/caddy/sites/*.caddy
