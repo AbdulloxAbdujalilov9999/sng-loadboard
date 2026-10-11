@@ -30,6 +30,8 @@ browser ──HTTPS──▶ Fastify (N workers) ──▶ PostgreSQL
 - **Carrier directory** of members; **display currencies** (USD, RUB, KZT, UZS, KGS, TJS, BYN, AZN, GEL, AMD) with owner-editable rates; **English / Russian** UI; mobile layout.
 - **Live updates**: new posts, approvals and rate changes reach open browsers within a second (Server-Sent Events, backed by Postgres `LISTEN/NOTIFY`).
 
+Community: Telegram [@sngOne_yuklar](https://t.me/sngOne_yuklar) and [@sngOne_yuklarr](https://t.me/sngOne_yuklarr) (linked from the sign-in screen and the sidebar).
+
 ## Run it locally (no accounts needed)
 
 ```bash
