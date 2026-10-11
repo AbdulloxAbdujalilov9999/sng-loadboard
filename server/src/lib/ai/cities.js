@@ -104,7 +104,8 @@ function fuzzy(index, cand, country) {
   for (const e of index.entries) {
     if (country && e.city.country !== country) continue;
     let d = cap + 1;
-    for (const k of e.keys) d = Math.min(d, distance(cand, k, cap));
+    // a match on the town's own name beats a match on an alias (old / alternate names such as "Samarkandskiy" for Temirtau)
+    e.keys.forEach((k, idx) => { d = Math.min(d, distance(cand, k, cap) + (idx === 0 ? 0 : 0.5)); });
     if (d > cap) continue;
     if (d < bestD) { best = e; bestD = d; tie = false; }
     else if (d === bestD && e.city.id !== best.city.id) {
@@ -137,8 +138,10 @@ export function resolveCity(index, { label, text, country, lat, lng } = {}) {
   const hits = [];
   for (const cand of cands) {
     const exact = index.byFold.get(cand);
-    if (exact) hits.push({ cand, entry: pick(exact, cc), how: 'exact' });
-    else if (index.regions.has(cand)) hits.push({ cand, entry: index.regions.get(cand).entry, how: 'region' });
+    // A region written in full ("Khorezm") means its capital, unless some town really is called that (then the town wins).
+    const isTownName = exact?.some((e) => e.keys[0] === cand);
+    if (index.regions.has(cand) && !isTownName) hits.push({ cand, entry: index.regions.get(cand).entry, how: 'region' });
+    else if (exact) hits.push({ cand, entry: pick(exact, cc), how: 'exact' });
   }
   if (hits.length) {
     const whole = hits.find((h) => h.cand === cands[0]);
@@ -200,7 +203,8 @@ function searchOnce(index, query, { limit = 8, country = null } = {}) {
   }
   for (const [k, r] of index.regions) {
     if (country && r.entry.city.country !== country) continue;
-    if (k === q || k.startsWith(q)) bump(r.entry, k === q ? 85 : 55, r.region);
+    // a region typed in full leads to its capital, ahead of towns that merely carry the name as an old/alternate spelling
+    if (k === q || k.startsWith(q)) bump(r.entry, k === q ? 92 : 55, r.region);
   }
   // typo-tolerant fallback so "Toshkend" or "Samarkant" still offer something
   if (scored.size < 3 && q.length >= 4) {

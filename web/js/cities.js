@@ -4,17 +4,31 @@ const Cities = (() => {
   const cache = new Map();
   let seq = 0;
 
-  async function search(q, signal) {
+  const isCountry = (c) => c?.kind === 'country';
+  /** A country as shown to the person, in their language: "Oʻzbekiston · butun mamlakat". */
+  const countryText = (c) => `${({ ru: c.nameRu, uz: c.nameUz }[I18N.lang] || c.name || c.label)} · ${t('country_whole')}`;
+
+  async function search(q, signal, withCountries = false) {
     const key = q.trim().toLowerCase();
     if (!key) return [];
-    if (cache.has(key)) return cache.get(key);
-    const { items } = await API.get('/api/cities', { q: key, limit: 8 }, signal);
-    cache.set(key, items);
+    const ck = `${withCountries ? 'c|' : ''}${key}`;
+    if (cache.has(ck)) return cache.get(ck);
+    const { items } = await API.get('/api/cities', { q: key, limit: 8, ...(withCountries ? { countries: 1 } : {}) }, signal);
+    cache.set(ck, items);
     if (cache.size > 300) cache.delete(cache.keys().next().value);
     return items;
   }
 
   function set(input, city) {
+    if (isCountry(city)) { // a whole country (search filters only): no city id, no coordinates
+      input.value = city.text || countryText(city);
+      input.dataset.country = city.country;
+      input.dataset.cityLabel = input.value;
+      delete input.dataset.cityId; delete input.dataset.lat; delete input.dataset.lng;
+      input.classList.remove('field-invalid');
+      return;
+    }
+    delete input.dataset.country;
     input.value = city.label;
     input.dataset.cityId = String(city.id);
     input.dataset.cityLabel = city.label;
@@ -24,11 +38,12 @@ const Cities = (() => {
 
   function clear(input) {
     input.value = '';
-    delete input.dataset.cityId; delete input.dataset.cityLabel; delete input.dataset.lat; delete input.dataset.lng;
+    delete input.dataset.cityId; delete input.dataset.cityLabel; delete input.dataset.lat; delete input.dataset.lng; delete input.dataset.country;
   }
 
   /** The currently selected city, or null if the text isn't a picked city. */
   function get(input) {
+    if (input.dataset.country && input.value === input.dataset.cityLabel) return { kind: 'country', country: input.dataset.country, label: input.value, text: input.value };
     if (!input.dataset.cityId || input.value !== input.dataset.cityLabel) return null;
     return { id: Number(input.dataset.cityId), label: input.dataset.cityLabel, lat: input.dataset.lat ? Number(input.dataset.lat) : undefined, lng: input.dataset.lng ? Number(input.dataset.lng) : undefined };
   }
@@ -40,7 +55,7 @@ const Cities = (() => {
     const text = input.value.trim();
     if (!text) return null;
     try {
-      const [best] = await search(text);
+      const [best] = await search(text, undefined, input.hasAttribute('data-allow-country'));
       if (best) { set(input, best); return get(input); }
     } catch { /* network error: caller treats as unresolved */ }
     return null;
@@ -75,7 +90,9 @@ const Cities = (() => {
 
     function render() {
       if (!items.length) { dd.innerHTML = `<div class="city-dd-empty">${U.esc(t('city_none'))}</div>`; } else {
-        dd.innerHTML = items.map((c, i) => `<div role="option" id="${id}-${i}" data-i="${i}" aria-selected="false">${U.esc(c.label)}${c.note ? ` <span class="city-dd-note">≈ ${U.esc(c.note)}</span>` : (c.nameRu && c.nameRu !== c.name ? ` <span class="text-slate-400">· ${U.esc(c.nameRu)}</span>` : '')}</div>`).join('');
+        dd.innerHTML = items.map((c, i) => isCountry(c)
+          ? `<div role="option" id="${id}-${i}" data-i="${i}" aria-selected="false"><span class="city-dd-country">${U.esc(t('lbl_country'))}</span> <strong>${U.esc(countryText(c))}</strong></div>`
+          : `<div role="option" id="${id}-${i}" data-i="${i}" aria-selected="false">${U.esc(c.label)}${c.note ? ` <span class="city-dd-note">≈ ${U.esc(c.note)}</span>` : (c.nameRu && c.nameRu !== c.name ? ` <span class="text-slate-400">· ${U.esc(c.nameRu)}</span>` : '')}</div>`).join('');
       }
       dd.classList.remove('hidden');
       input.setAttribute('aria-expanded', 'true');
@@ -86,11 +103,11 @@ const Cities = (() => {
       if (!q) { close(); return; }
       ctrl?.abort();
       ctrl = new AbortController();
-      try { items = await search(q, ctrl.signal); render(); } catch (err) { if (err.name !== 'AbortError') close(); }
+      try { items = await search(q, ctrl.signal, input.hasAttribute('data-allow-country')); render(); } catch (err) { if (err.name !== 'AbortError') close(); }
     }, 150);
 
     input.addEventListener('input', () => {
-      if (input.dataset.cityId && input.value !== input.dataset.cityLabel) { delete input.dataset.cityId; delete input.dataset.lat; delete input.dataset.lng; }
+      if ((input.dataset.cityId || input.dataset.country) && input.value !== input.dataset.cityLabel) { delete input.dataset.cityId; delete input.dataset.country; delete input.dataset.lat; delete input.dataset.lng; }
       lookup();
     });
     input.addEventListener('keydown', (e) => {
@@ -138,7 +155,7 @@ const Cities = (() => {
     return ok ? body : null;
   }
 
-  return { search, set, clear, get, resolve, attach, readForm };
+  return { search, set, clear, get, resolve, attach, readForm, isCountry };
 })();
 
 window.Cities = Cities;

@@ -11,6 +11,7 @@ export const memberDto = (m) => ({
   email: realEmail(m.email),
   login: loginLabel(m.email),
   company: m.company,
+  worksWithCompany: Boolean(m.works_with_company),
   contactName: m.contact_name,
   phone: m.phone,
   telegram: m.telegram,

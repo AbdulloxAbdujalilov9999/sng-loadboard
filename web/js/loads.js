@@ -44,7 +44,7 @@ const Loads = (() => {
     activeId = valid && tabs.some((tb) => tb.id === saved.activeId) ? saved.activeId : tabs[0].id;
   }
 
-  const shortName = (c) => c.label.split(',')[0];
+  const shortName = (c) => (c.kind === 'country' ? String(c.text || c.label).split(' · ')[0] : c.label.split(',')[0]);
   function tabTitle(tab) {
     if (tab.origin && tab.dest) return `${shortName(tab.origin)} → ${shortName(tab.dest)}`;
     if (tab.origin) return `${shortName(tab.origin)} →`;
@@ -77,6 +77,16 @@ const Loads = (() => {
     $('filter-date-range').value = tab.dateRange;
     $('filter-origin').classList.remove('field-invalid');
     $('filter-dest').classList.remove('field-invalid');
+    updateRadiusState();
+  }
+
+  /** A whole country has no radius: grey the box out while one is picked. */
+  function updateRadiusState() {
+    for (const [inputId, radiusId] of [['filter-origin', 'filter-dho'], ['filter-dest', 'filter-dhd']]) {
+      const country = Boolean($(inputId).dataset.country);
+      $(radiusId).disabled = country;
+      $(radiusId).classList.toggle('opacity-40', country);
+    }
   }
 
   const radius = (v) => Math.min(2000, Math.max(0, Math.round(Number(v)) || 0));
@@ -95,13 +105,14 @@ const Loads = (() => {
     }
     if (!ok) { U.toast(t('err_pick_city'), 'error'); return false; }
     Object.assign(tab, {
-      origin: origin && { id: origin.id, label: origin.label, lat: origin.lat, lng: origin.lng },
-      dest: dest && { id: dest.id, label: dest.label, lat: dest.lat, lng: dest.lng },
+      origin: origin && (Cities.isCountry(origin) ? { kind: 'country', country: origin.country, label: origin.label, text: origin.text } : { id: origin.id, label: origin.label, lat: origin.lat, lng: origin.lng }),
+      dest: dest && (Cities.isCountry(dest) ? { kind: 'country', country: dest.country, label: dest.label, text: dest.text } : { id: dest.id, label: dest.label, lat: dest.lat, lng: dest.lng }),
       dho: radius($('filter-dho').value), dhd: radius($('filter-dhd').value),
       equip: $('filter-equip').value, fp: $('filter-fp').value, dateRange: $('filter-date-range').value,
     });
     saveTabs();
     renderTabs();
+    updateRadiusState();
     return true;
   }
 
@@ -142,8 +153,11 @@ const Loads = (() => {
   function buildQuery(tab) {
     const [dateFrom, dateTo] = tab.dateRange ? tab.dateRange.split(' to ') : [];
     return {
-      origin: tab.origin?.id, originRadius: tab.origin ? tab.dho : undefined,
-      dest: tab.dest?.id, destRadius: tab.dest ? tab.dhd : undefined,
+      // a picked city searches around it (radius); a picked country matches every city of that country
+      origin: tab.origin?.kind === 'country' ? undefined : tab.origin?.id, originRadius: tab.origin && tab.origin.kind !== 'country' ? tab.dho : undefined,
+      originCountry: tab.origin?.kind === 'country' ? tab.origin.country : undefined,
+      dest: tab.dest?.kind === 'country' ? undefined : tab.dest?.id, destRadius: tab.dest && tab.dest.kind !== 'country' ? tab.dhd : undefined,
+      destCountry: tab.dest?.kind === 'country' ? tab.dest.country : undefined,
       equip: tab.equip || undefined, fp: tab.fp || undefined,
       dateFrom, dateTo: dateTo || dateFrom,
       sort: tab.sort, dir: tab.dir, limit: PAGE,

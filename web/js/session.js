@@ -462,8 +462,31 @@ const Session = (() => {
     return ok;
   }
 
+  // ---------------------------------------------------------------- show / hide password
+  /** Every password field gets an eye button (the e-mail ones already have one in the markup). */
+  function addPasswordEyes() {
+    document.querySelectorAll('input[type="password"]').forEach((input) => {
+      if (!input.id || input.dataset.eye || input.parentElement.querySelector('[data-toggle-password]')) return;
+      const wrap = document.createElement('div');
+      wrap.className = 'relative';
+      input.parentNode.insertBefore(wrap, input);
+      wrap.appendChild(input);
+      input.classList.add('pr-10');
+      input.dataset.eye = '1';
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.togglePassword = input.id;
+      b.className = 'absolute inset-y-0 right-0 px-3 text-slate-400 hover:text-slate-600';
+      b.setAttribute('aria-label', t('show_password'));
+      b.innerHTML = '<i data-lucide="eye" class="w-4 h-4"></i>';
+      wrap.appendChild(b);
+    });
+    lucide.createIcons();
+  }
+
   // ---------------------------------------------------------------- wiring
   function init() {
+    addPasswordEyes();
     setMethod('phone'); // phone is always the first and automatically chosen way in
     document.querySelectorAll('#auth-methods [data-method]').forEach((b) => b.addEventListener('click', () => setMethod(b.dataset.method)));
 

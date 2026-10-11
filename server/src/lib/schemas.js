@@ -60,6 +60,7 @@ export const phoneCheckBody = z.object({ phone: z.string().trim().regex(/^\+\d{8
 // (The route checks that a phone or Telegram username is always left.)
 export const profileBody = z.object({
   company: z.string().trim().max(120),      // '' = "no company": the name is shown instead
+  worksWithCompany: z.boolean(),            // false = an individual: the company shown is simply their own name
   contactName: z.string().trim().max(120),
   phone: z.union([z.literal(''), phone]),
   telegram: z.union([z.literal(''), telegram]),
@@ -131,10 +132,13 @@ const limit = (def, max) => z.coerce.number().int().min(1).max(max).default(def)
 const dir = z.enum(['asc', 'desc']);
 
 export const LOAD_SORTS = ['created', 'pickup', 'origin', 'dest', 'equip', 'weight', 'distance', 'rate', 'company'];
+const cc = z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, 'invalid');
 export const loadQuery = z.object({
   origin: cityId.optional(),
   originRadius: z.coerce.number().int().min(0).max(2000).default(100),
   dest: cityId.optional(),
+  originCountry: cc.optional(), // a whole country as origin / destination ("UZ -> KZ")
+  destCountry: cc.optional(),
   destRadius: z.coerce.number().int().min(0).max(2000).default(100),
   equip: csv(EQUIP).optional(),
   fp: z.enum(FP).optional(),
@@ -154,6 +158,7 @@ export const loadQuery = z.object({
 export const TRUCK_SORTS = ['created', 'available', 'loc', 'equip', 'capacity', 'rate'];
 export const truckQuery = z.object({
   loc: cityId.optional(),
+  locCountry: cc.optional(),
   locRadius: z.coerce.number().int().min(0).max(2000).default(150),
   dest: z.string().trim().max(60).optional(),
   equip: csv(EQUIP).optional(),
@@ -174,6 +179,7 @@ export const directoryQuery = z.object({
 export const citiesQuery = z.object({
   q: z.string().trim().max(60).default(''),
   limit: limit(8, 25),
+  countries: z.enum(['0', '1']).default('0'), // 1 = also offer whole countries (search filters, not posting forms)
 }).strict();
 
 export const adminMembersQuery = z.object({

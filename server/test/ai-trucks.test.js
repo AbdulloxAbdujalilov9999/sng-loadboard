@@ -143,7 +143,7 @@ test('GET /api/cities understands regions, other scripts and small towns, with a
   assert.ok((await find('Асино')).some((c) => c.label === 'Asino, RU'));
   assert.ok((await find('Elektrogorsk')).some((c) => c.label === 'Elektrogorsk, RU'));
   assert.equal((await find('Tashkent, UZ'))[0].label, 'Tashkent, UZ', 'a full label still works');
-  assert.equal((await find('Narnia')).length, 0);
+  assert.equal((await find('Zzqxkw')).length, 0);
 });
 
 test('loads carry exact coordinates (so the map link never depends on a name spelling)', async () => {

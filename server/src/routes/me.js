@@ -44,12 +44,12 @@ export default async function meRoutes(app, { pool, config }) {
     }
     const row = await withTx(pool, async (db) => {
       const { rows: [created] } = await db.query(
-        `INSERT INTO members (email, firebase_uid, company, contact_name, phone, telegram, contact_email, status, pin_hash, pin_changed_at, login_phone)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'approved', $8, CASE WHEN $8::text IS NULL THEN NULL ELSE now() END, $9)
+        `INSERT INTO members (email, firebase_uid, company, contact_name, phone, telegram, contact_email, status, pin_hash, pin_changed_at, login_phone, works_with_company)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'approved', $8, CASE WHEN $8::text IS NULL THEN NULL ELSE now() END, $9, $10)
          ON CONFLICT (email) DO NOTHING
          RETURNING *`,
         [req.user.email, req.user.uid, body.company || body.contactName, body.contactName, phone, body.telegram,
-          req.user.loginEmail ? '' : body.contactEmail, pinHash, bySms ? req.user.phone : null],
+          req.user.loginEmail ? '' : body.contactEmail, pinHash, bySms ? req.user.phone : null, Boolean(body.company)],
       );
       if (created) {
         await publish(db, { entity: 'members', op: 'insert', id: created.id });
@@ -135,10 +135,24 @@ export default async function meRoutes(app, { pool, config }) {
     if (req.member.role === 'owner' && Object.keys(body).length === 0) throw forbidden('Nothing to update');
     const map = {
       company: 'company', contactName: 'contact_name', phone: 'phone', telegram: 'telegram', contactEmail: 'contact_email',
-      location: 'location', tirCarnet: 'tir_carnet', fleet: 'fleet', routes: 'routes',
+      location: 'location', tirCarnet: 'tir_carnet', fleet: 'fleet', routes: 'routes', worksWithCompany: 'works_with_company',
     };
-    // No company? The person's name stands in. A phone or Telegram username must always remain.
-    if (body.company === '') body.company = body.contactName || req.member.contact_name || req.member.company;
+    // Everyone is an individual (the "company" shown is their own name) until they say they work with a company. Naming a
+    // company switches it on; clearing it, or switching it off, goes back to the name. The owner keeps the platform's name.
+    const touchesCompany = body.company !== undefined || body.worksWithCompany !== undefined;
+    const renamedIndividual = body.contactName !== undefined && !req.member.works_with_company; // their "company" is their name: it follows
+    if (req.member.role !== 'owner' && (touchesCompany || renamedIndividual)) {
+      const nameAfter = body.contactName || req.member.contact_name;
+      const works = body.worksWithCompany ?? (body.company === undefined ? Boolean(req.member.works_with_company) : body.company !== '');
+      if (works) {
+        const company = body.company ?? (req.member.works_with_company ? req.member.company : '');
+        if (!company) throw validationError([detail('company', 'required')]);
+        body.company = company;
+      } else {
+        body.company = nameAfter;
+      }
+      body.worksWithCompany = works;
+    }
     const phoneAfter = body.phone === undefined ? req.member.phone : body.phone;
     const tgAfter = body.telegram === undefined ? req.member.telegram : body.telegram;
     if (!phoneAfter && !tgAfter) throw validationError([detail('phone', 'contact_required'), detail('telegram', 'contact_required')]);

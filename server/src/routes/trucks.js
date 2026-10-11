@@ -44,6 +44,7 @@ export default async function truckRoutes(app, { pool, config }) {
       where.push(...f.clauses);
       dhoSql = `round(${f.distSql})::int`;
     }
+    if (q.locCountry) where.push(`t.loc_country = ${b.P(q.locCountry)}`);
     if (q.equip?.length) where.push(`t.equip = ANY(${b.P(q.equip)}::text[])`);
     if (q.dest) where.push(`(sng_fold(t.dest_pref) LIKE ${b.P(likePattern(q.dest))} OR sng_fold(t.dest_pref) LIKE 'any%' OR sng_fold(t.dest_pref) LIKE 'везде%' OR sng_fold(t.dest_pref) LIKE 'любое%' OR sng_fold(t.dest_pref) LIKE 'hamma%')`);
     if (q.availableOn) {

@@ -11,7 +11,7 @@ UZ|Bukhara|Buxoro; Bukharskaya; Бухарская; Бухоро вилояти
 UZ|Navoi|Navoiy; Navoiyskaya; Навоийская; Навоий вилояти
 UZ|Karshi|Qashqadaryo; Kashkadarya; Kashkadarinskaya; Кашкадарьинская; Қашқадарё
 UZ|Termez|Surxondaryo; Surkhandarya; Surkhandarinskaya; Сурхандарьинская; Сурхондарё
-UZ|Urgench|Xorazm; Khorezm; Khorazm; Khorezmskaya; Хорезмская; Хоразм
+UZ|Urgench|Xorazm; Khorezm; Khorazm; Khorezmskaya; Хорезмская; Хорезм; Хоразм
 UZ|Nukus|Qoraqalpogiston; Qoraqalpog'iston; Karakalpakstan; Karakalpakiya; Республика Каракалпакстан; Каракалпакстан; Қорақалпоғистон
 UZ|Andijan|Andijon; Andizhanskaya; Андижанская; Андижон вилояти
 UZ|Fergana|Farg'ona; Fargona; Ferghana; Ферганская; Фарғона вилояти

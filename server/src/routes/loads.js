@@ -69,6 +69,8 @@ export default async function loadRoutes(app, { pool, config }) {
       where.push(...f.clauses);
       if (outKey === 'dho') dhoSql = `round(${f.distSql})::int`; else dhdSql = `round(${f.distSql})::int`;
     }
+    if (q.originCountry) where.push(`l.origin_country = ${b.P(q.originCountry)}`);
+    if (q.destCountry) where.push(`l.dest_country = ${b.P(q.destCountry)}`);
     if (q.equip?.length) where.push(`l.equip = ANY(${b.P(q.equip)}::text[])`);
     if (q.fp) where.push(`l.fp = ${b.P(q.fp)}`);
     if (q.dateFrom) where.push(`l.pickup_date >= ${b.P(q.dateFrom)}::date`);

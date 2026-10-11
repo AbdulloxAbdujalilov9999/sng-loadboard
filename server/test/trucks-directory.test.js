@@ -163,7 +163,7 @@ test('cities: autocomplete by English or Russian name, label, and prefix ranking
   assert.equal((await q('tashkent'))[0], 'Tashkent, UZ');
   assert.equal((await q('Ташкент'))[0], 'Tashkent, UZ', 'Russian name works');
   assert.equal((await q('Tashkent, UZ'))[0], 'Tashkent, UZ', 'full label works');
-  assert.deepEqual(await q('Tashkent, KZ'), [], 'country part narrows the search');
+  assert.ok((await q('Tashkent, KZ')).every((l) => l.endsWith(', KZ')), 'country part narrows the search (there are villages called Tashkent in Kazakhstan too)');
   const m = await q('mo');
   assert.ok(m[0].toLowerCase().startsWith('mo'), 'prefix matches rank first');
   assert.ok((await q('')).length > 0 && (await q('')).length <= 8, 'empty query lists the first few');

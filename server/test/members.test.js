@@ -189,3 +189,28 @@ test('FX rates can be updated by the owner only', async () => {
   const badBody = await env.as('owner@test.com').put('/api/admin/fx', { rates: { usd: -3 } });
   assert.equal(badBody.status, 400);
 });
+
+test('everyone is an individual until they say they work with a company', async () => {
+  const api = env.as('indiv@gmail.com');
+  const created = (await api.post('/api/me/access-request', { contactName: 'Anvar T', telegram: '@anvar_t' })).json.profile;
+  assert.equal(created.worksWithCompany, false);
+  assert.equal(created.company, 'Anvar T', 'an individual is shown by name');
+
+  const { validLoad } = await import('./helpers.js');
+  const post = await api.post('/api/loads', validLoad(await env.cityId('Tashkent, UZ'), await env.cityId('Moscow, RU')));
+  assert.equal(post.json.company, 'Anvar T');
+
+  assert.equal((await api.patch('/api/me/profile', { worksWithCompany: true })).status, 400, 'a company name is required');
+  const on = await api.patch('/api/me/profile', { worksWithCompany: true, company: 'Silk Road Trans', fleet: '12 trucks' });
+  assert.equal(on.json.profile.company, 'Silk Road Trans');
+  assert.equal(on.json.profile.worksWithCompany, true);
+  assert.equal((await api.get('/api/loads/mine')).json.items[0].company, 'Silk Road Trans', 'live posts follow');
+  assert.equal((await api.patch('/api/me/profile', { contactName: 'Anvar Tolipov' })).json.profile.company, 'Silk Road Trans', 'a company keeps its name when the person is renamed');
+
+  const off = await api.patch('/api/me/profile', { worksWithCompany: false });
+  assert.equal(off.json.profile.company, 'Anvar Tolipov', 'back to an individual: the name is shown again');
+  assert.equal((await api.patch('/api/me/profile', { contactName: 'Anvar T.' })).json.profile.company, 'Anvar T.', 'an individual\'s shown name follows their name');
+  assert.equal((await api.get('/api/loads/mine')).json.items[0].company, 'Anvar T.');
+  // naming a company on its own switches it on (older clients)
+  assert.equal((await api.patch('/api/me/profile', { company: 'Anvar Cargo' })).json.profile.worksWithCompany, true);
+});

@@ -18,7 +18,7 @@ const Trucks = (() => {
   let stale = false;
 
   function buildQuery() {
-    return { loc: filters.loc?.id, locRadius: filters.loc ? filters.radius : undefined, dest: filters.dest || undefined, equip: filters.equip || undefined, limit: PAGE };
+    return { loc: Cities.isCountry(filters.loc) ? undefined : filters.loc?.id, locRadius: filters.loc && !Cities.isCountry(filters.loc) ? filters.radius : undefined, locCountry: Cities.isCountry(filters.loc) ? filters.loc.country : undefined, dest: filters.dest || undefined, equip: filters.equip || undefined, limit: PAGE };
   }
 
   async function readFilters() {

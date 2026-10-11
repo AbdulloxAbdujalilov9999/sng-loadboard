@@ -4,12 +4,21 @@ const Account = (() => {
 
   const initials = (name) => (name || '?').trim().slice(0, 2).toUpperCase();
 
+  // Everyone is an individual until they say they work with a company: only then are the company fields asked for.
+  let companyOn = false;
+  function setCompanyMode(on) {
+    companyOn = on;
+    $('company-off').classList.toggle('hidden', on);
+    $('company-on').classList.toggle('hidden', !on);
+  }
+
   function populate() {
     const me = Session.me;
     if (!me?.profile) return;
     const p = me.profile;
     const set = (id, v) => { $(id).value = v || ''; };
-    set('setting-company-name', p.company);
+    setCompanyMode(Boolean(p.worksWithCompany));
+    set('setting-company-name', p.worksWithCompany ? p.company : '');
     set('setting-dispatcher-name', p.contactName);
     set('setting-phone', p.phone);
     set('setting-tg', p.telegram);
@@ -55,6 +64,9 @@ const Account = (() => {
     U.clearFormErrors(form);
     const body = {};
     for (const el of form.querySelectorAll('[name]')) body[el.name] = el.value.trim();
+    body.worksWithCompany = companyOn;
+    if (!companyOn) { delete body.company; delete body.fleet; delete body.routes; } // an individual: the name is shown, company details stay as they were
+    else if (!body.company) { U.fieldError($('setting-company-name'), t('err_required')); return; }
     if (!body.phone && !body.telegram) { U.fieldError($('setting-phone'), t('v_contact_required')); U.fieldError($('setting-tg'), t('v_contact_required')); return; }
     const dh = Number($('setting-default-dh').value);
     if (Number.isFinite(dh) && dh >= 0 && dh <= 2000) U.store.set('sng.defaultDh', Math.round(dh));
@@ -195,6 +207,8 @@ const Account = (() => {
     $('sec-forgot-btn').addEventListener('click', (e) => emailReset(e.currentTarget));
     $('sec-set-password-btn').addEventListener('click', (e) => emailReset(e.currentTarget));
     $('profile-form').addEventListener('submit', save);
+    $('company-on-btn').addEventListener('click', () => { setCompanyMode(true); $('setting-company-name').focus(); });
+    $('company-off-btn').addEventListener('click', () => setCompanyMode(false));
     document.querySelectorAll('[data-action="logout"]').forEach((b) => b.addEventListener('click', () => Session.signOut()));
   }
 

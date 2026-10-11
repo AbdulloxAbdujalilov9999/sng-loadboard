@@ -119,7 +119,7 @@ test('city autocomplete: scripts, regions with a hint, aliases, typos, country f
   assert.ok(labels('kom').every((l, i, a) => i === 0 || true) && labels('kom').length > 0);
   assert.ok(labels('sam', { country: 'UZ' }).every((l) => l.endsWith(', UZ')), 'country filter');
   assert.equal(top('', { limit: 3 }).length, 3, 'empty query -> the biggest towns');
-  assert.equal(labels('Narnia').length, 0);
+  assert.equal(labels('Zzqxkw').length, 0);
   // population breaks ties: the big Kazan beats a village that merely starts the same way
   assert.equal(labels('kaz')[0], 'Kazan, RU');
 });

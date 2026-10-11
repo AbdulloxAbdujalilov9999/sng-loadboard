@@ -33,6 +33,8 @@
 .city-dd [role="option"][aria-selected="true"], .city-dd [role="option"]:hover { background: #eff6ff; color: #1d4ed8; }
 .city-dd .city-dd-note { color: #0369a1; font-size: 11px; font-weight: 600; margin-left: 0.35rem; }
 .dark .city-dd .city-dd-note { color: #7dd3fc; }
+.city-dd .city-dd-country { display: inline-block; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; background: #e0f2fe; color: #075985; border-radius: 4px; padding: 1px 5px; margin-right: 6px; vertical-align: middle; }
+.dark .city-dd .city-dd-country { background: #0c4a6e; color: #bae6fd; }
 .city-dd .city-dd-empty { padding: 0.5rem 0.75rem; color: #94a3b8; text-align: center; }
 
 /* ---------- skeleton loading rows ---------- */
