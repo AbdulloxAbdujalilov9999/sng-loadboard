@@ -7,7 +7,7 @@ import { phoneIdentity } from '../lib/identity.js';
 import { withTx } from '../db.js';
 import { publish } from '../events.js';
 import { memberDto } from '../lib/dto.js';
-import { burnPinCheck, hashPin, isWeakPin, signSession, verifyPin } from '../lib/pin.js';
+import { burnPinCheck, hashPin, signSession, verifyPin } from '../lib/pin.js';
 
 const MAX_FAILS = 5;
 const LOCK_MINUTES = 15;
@@ -29,7 +29,6 @@ export default async function pinRoutes(app, { pool, config }) {
   app.post('/api/auth/phone/register', { config: { rateLimit: { max: config.registerPerHour, timeWindow: '1 hour' } } }, async (req, reply) => {
     if (!enabled) throw off();
     const body = phoneRegisterBody.parse(req.body);
-    if (isWeakPin(body.pin)) throw validationError([detail('pin', 'pin_weak')]);
     const identity = phoneIdentity(body.phone);
     const hash = await hashPin({ secret: config.authSecret, identity, pin: body.pin });
     let row;

@@ -109,7 +109,7 @@ const Account = (() => {
     const cur = $('pin-current').value.trim(); const next = $('pin-new').value.trim();
     let ok = true;
     if (needCurrent && !/^\d{4,6}$/.test(cur)) { U.fieldError($('pin-current'), t('v_pin_format')); ok = false; }
-    if (!/^\d{4,6}$/.test(next)) { U.fieldError($('pin-new'), t('v_pin_format')); ok = false; } else if (Session.isWeakPin(next)) { U.fieldError($('pin-new'), t('v_pin_weak')); ok = false; } else if ($('pin-new2').value.trim() !== next) { U.fieldError($('pin-new2'), t('pin_mismatch')); ok = false; }
+    if (!/^\d{4,6}$/.test(next)) { U.fieldError($('pin-new'), t('v_pin_format')); ok = false; } else if ($('pin-new2').value.trim() !== next) { U.fieldError($('pin-new2'), t('pin_mismatch')); ok = false; }
     if (!ok) { form.querySelector('.field-invalid')?.focus(); return; }
     U.setBusy(form, true);
     try {
@@ -131,7 +131,7 @@ const Account = (() => {
     const pin = $('pl-pin').value.trim();
     let ok = true;
     if (!phone) { U.fieldError($('pl-phone'), t('autherr_bad_phone')); ok = false; }
-    if (!/^\d{4,6}$/.test(pin)) { U.fieldError($('pl-pin'), t('v_pin_format')); ok = false; } else if (Session.isWeakPin(pin)) { U.fieldError($('pl-pin'), t('v_pin_weak')); ok = false; } else if ($('pl-pin2').value.trim() !== pin) { U.fieldError($('pl-pin2'), t('pin_mismatch')); ok = false; }
+    if (!/^\d{4,6}$/.test(pin)) { U.fieldError($('pl-pin'), t('v_pin_format')); ok = false; } else if ($('pl-pin2').value.trim() !== pin) { U.fieldError($('pl-pin2'), t('pin_mismatch')); ok = false; }
     if (!ok) { form.querySelector('.field-invalid')?.focus(); return; }
     U.setBusy(form, true);
     try {

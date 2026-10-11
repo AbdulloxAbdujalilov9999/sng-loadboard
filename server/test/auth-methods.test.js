@@ -22,9 +22,9 @@ test('phone sign-in: a new number signs up with a name + PIN, is a member at onc
   const noPin = await me.post('/api/me/access-request', { contactName: 'Phone Dispatcher', telegram: '@phone_cargo' });
   assert.equal(noPin.status, 400, 'a phone sign-up must choose a PIN');
   assert.equal(noPin.json.error.details[0].path, 'pin');
-  const weak = await me.post('/api/me/access-request', { contactName: 'Phone Dispatcher', pin: '1234' });
-  assert.equal(weak.status, 400);
-  assert.equal(weak.json.error.details[0].code, 'pin_weak');
+  const notDigits = await me.post('/api/me/access-request', { contactName: 'Phone Dispatcher', pin: '12ab' });
+  assert.equal(notDigits.status, 400);
+  assert.equal(notDigits.json.error.details[0].code, 'pin_format');
 
   // the phone number they just proved is their contact: no need to type it again; company is optional
   const req = await me.post('/api/me/access-request', { contactName: 'Phone Dispatcher', company: 'Phone Cargo', pin: '4729', contactEmail: 'Dispatch@PhoneCargo.uz' });

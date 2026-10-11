@@ -2,7 +2,7 @@ import { loginPhoneBody, pinBody, profileBody, signupBody } from '../lib/schemas
 import { memberDto } from '../lib/dto.js';
 import { conflict, forbidden, validationError } from '../lib/errors.js';
 import { detail } from '../lib/validation.js';
-import { hashPin, isWeakPin, signSession, verifyPin } from '../lib/pin.js';
+import { hashPin, signSession, verifyPin } from '../lib/pin.js';
 import { loginLabel } from '../lib/identity.js';
 import { publish } from '../events.js';
 import { withTx } from '../db.js';
@@ -40,7 +40,6 @@ export default async function meRoutes(app, { pool, config }) {
     let pinHash = null;
     if (bySms && config.authSecret) {
       if (!body.pin) throw validationError([detail('pin', 'required')]);
-      if (isWeakPin(body.pin)) throw validationError([detail('pin', 'pin_weak')]);
       pinHash = await hashPin({ secret: config.authSecret, identity: req.user.email, pin: body.pin });
     }
     const row = await withTx(pool, async (db) => {
@@ -73,7 +72,6 @@ export default async function meRoutes(app, { pool, config }) {
     const body = pinBody.parse(req.body);
     const provider = req.user.provider;
     if (!req.member.login_phone || req.member.role === 'owner') throw forbidden('This account has no sign-in phone', 'pin_not_for_provider');
-    if (isWeakPin(body.pin)) throw validationError([detail('pin', 'pin_weak')]);
     if (provider === 'pin') {
       if (!body.currentPin) throw validationError([detail('currentPin', 'required')]);
       const ok = await verifyPin({ secret: config.authSecret, identity: req.member.email, pin: body.currentPin, stored: req.member.pin_hash });
@@ -102,7 +100,6 @@ export default async function meRoutes(app, { pool, config }) {
     if (!config.authSecret) throw forbidden('PIN sign-in is not enabled on this server', 'pin_disabled');
     const body = loginPhoneBody.parse(req.body);
     if (req.member.role === 'owner' || (req.user.provider !== 'google.com' && req.user.provider !== 'password')) throw forbidden('Not available for this account', 'pin_not_for_provider');
-    if (isWeakPin(body.pin)) throw validationError([detail('pin', 'pin_weak')]);
     const hash = await hashPin({ secret: config.authSecret, identity: req.member.email, pin: body.pin });
     const row = await withTx(pool, async (db) => {
       const { rows: [taken] } = await db.query('SELECT 1 FROM members WHERE login_phone = $1 AND id <> $2', [body.phone, req.member.id]);

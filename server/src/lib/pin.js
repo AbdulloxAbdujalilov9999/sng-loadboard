@@ -18,7 +18,9 @@ export const PIN_RE = /^\d{4,6}$/;
 const WEAK = new Set(['0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777', '8888', '9999', '1234', '4321', '0123', '3210', '1212', '2580', '1122', '1010', '2000', '2024', '2025', '2026']);
 // Obvious PINs: the usual 4-digit ones, one repeated digit (00000), and straight runs (12345, 654321).
 const isRun = (pin) => { const d = [...pin].map(Number); return d.every((x, i) => i === 0 || x - d[i - 1] === 1) || d.every((x, i) => i === 0 || d[i - 1] - x === 1); };
-export const isWeakPin = (pin) => WEAK.has(pin) || /^(\d)\1+$/.test(pin) || isRun(pin);
+// Members may choose ANY 4-6 digit password (a product decision). This check is only used so that passwords the server
+// generates itself (owner "reset password") are never an obvious one.
+export const isObviousPin = (pin) => WEAK.has(pin) || /^(\d)\1+$/.test(pin) || isRun(pin);
 
 const prehash = (secret, identity, pin) => crypto.createHmac('sha256', secret).update(`${identity}\n${pin}`).digest();
 

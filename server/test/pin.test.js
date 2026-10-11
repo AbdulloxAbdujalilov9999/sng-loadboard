@@ -33,9 +33,13 @@ test('phone sign-up needs no SMS: a number + a 4-6 digit password creates the ac
   assert.equal(posted.status, 201);
   assert.match((await env.pool.query('SELECT pin_hash FROM members WHERE login_phone = $1', [PHONE])).rows[0].pin_hash, /^scrypt1\$/);
 
-  // the same number cannot be registered twice; passwords are 4-6 digits and not obvious
+  // the same number cannot be registered twice; passwords are 4-6 digits, and ANY such password is allowed (1111, 1234 ...)
   assert.equal((await register(PHONE, '5821')).json.error.details[0].code, 'phone_taken');
-  for (const pin of ['123', '1234567', 'abcd', '12 4', '123456', '1111', '00000']) assert.equal((await register('+998901119999', pin)).status, 400, pin);
+  for (const pin of ['123', '1234567', 'abcd', '12 4']) assert.equal((await register('+998901119999', pin)).status, 400, pin);
+  assert.equal((await register('+998901119996', '1111')).status, 201, 'easy passwords are allowed');
+  assert.equal((await login('+998901119996', '1111')).status, 200);
+  assert.equal((await register('+998901119995', '1234')).status, 201);
+  assert.equal((await register('+998901119994', '1212')).status, 201);
   assert.equal((await register('+998901119999', '482915')).status, 201, '6 digits are fine');
   assert.equal((await register('+998901119998', '48291')).status, 201, '5 digits are fine');
   assert.equal((await register('+998901119997', '4829', { contactName: '' })).status, 400, 'a name is required');
@@ -78,7 +82,6 @@ test('changing the password ends other sessions; the device that changed it stay
 
   assert.equal((await env.withToken(a).put('/api/me/pin', { pin: '603248' })).status, 400, 'needs the current password');
   assert.equal((await env.withToken(a).put('/api/me/pin', { pin: '603248', currentPin: '000000' })).status, 400, 'wrong current password');
-  assert.equal((await env.withToken(a).put('/api/me/pin', { pin: '1111', currentPin: '582137' })).json.error.details[0].code, 'pin_weak');
   await new Promise((r) => setTimeout(r, 1100)); // tokens carry whole-second issue times
   const changed = await env.withToken(a).put('/api/me/pin', { pin: '603248', currentPin: '582137' });
   assert.equal(changed.status, 200);
@@ -92,7 +95,6 @@ test('one account, two ways in: a Google member adds a phone + password and can 
   await env.approvedMember('both@test.com', 'Both Ways Co');
   const google = env.as('both@test.com');
   const phone = '+998907771111';
-  assert.equal((await google.post('/api/me/login-phone', { phone, pin: '1111' })).json.error.details[0].code, 'pin_weak');
   assert.equal((await google.post('/api/me/login-phone', { phone: 'abc', pin: '482915' })).status, 400);
   const added = await google.post('/api/me/login-phone', { phone, pin: '482915' });
   assert.equal(added.status, 200, JSON.stringify(added.json));

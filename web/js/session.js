@@ -455,16 +455,9 @@ const Session = (() => {
   }
 
   // ---------------------------------------------------------------- password rules (the same ones the server enforces)
-  const WEAK_PINS = new Set(['0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777', '8888', '9999', '1234', '4321', '0123', '3210', '1212', '2580', '1122', '1010', '2000', '2024', '2025', '2026']);
-  function isWeakPin(p) {
-    const d = [...p].map(Number);
-    const run = d.every((x, i) => i === 0 || x - d[i - 1] === 1) || d.every((x, i) => i === 0 || d[i - 1] - x === 1);
-    return WEAK_PINS.has(p) || /^(\d)\1+$/.test(p) || run;
-  }
   function checkPinPair(a, b, aEl, bEl) {
     let ok = true;
     if (!/^\d{4,6}$/.test(a)) { U.fieldError(aEl, t('v_pin_format')); ok = false; }
-    else if (isWeakPin(a)) { U.fieldError(aEl, t('v_pin_weak')); ok = false; }
     else if (a !== b) { U.fieldError(bEl, t('pin_mismatch')); ok = false; }
     return ok;
   }
@@ -560,7 +553,7 @@ const Session = (() => {
   return {
     init, start, refresh, signOut, mapAuthError, relabel,
     getToken,
-    normalisePhone, isWeakPin,
+    normalisePhone,
     pinSession: () => PinSession.get(),
     storePinToken: (token, expiresAt) => PinSession.set({ ...(PinSession.get() || {}), token, expiresAt }),
     authInfo: () => {

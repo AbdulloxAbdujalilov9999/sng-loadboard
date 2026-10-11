@@ -2,7 +2,7 @@ import { adminMembersQuery, fxBody, idParam } from '../lib/schemas.js';
 import { memberDto } from '../lib/dto.js';
 import { notFound } from '../lib/errors.js';
 import crypto from 'node:crypto';
-import { hashPin, isWeakPin } from '../lib/pin.js';
+import { hashPin, isObviousPin } from '../lib/pin.js';
 import { publish } from '../events.js';
 import { withTx } from '../db.js';
 
@@ -58,7 +58,7 @@ export default async function adminRoutes(app, { pool, config }) {
     const { rows: [m] } = await pool.query("SELECT id, email, login_phone FROM members WHERE id = $1 AND role = 'member'", [id]);
     if (!m || !m.login_phone) throw notFound('This member has no phone sign-in');
     let pin;
-    do { pin = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0'); } while (isWeakPin(pin));
+    do { pin = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0'); } while (isObviousPin(pin));
     const hash = await hashPin({ secret: config.authSecret, identity: m.email, pin });
     await withTx(pool, async (db) => {
       await db.query('UPDATE members SET pin_hash = $2, pin_changed_at = now(), pin_fails = 0, pin_locked_until = NULL, updated_at = now() WHERE id = $1', [id, hash]);
