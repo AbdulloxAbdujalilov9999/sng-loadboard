@@ -89,6 +89,8 @@ services:
       FIREBASE_WEB_API_KEY: ${FIREBASE_WEB_API_KEY:-AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg}
       BOT_ENCRYPTION_KEY: ${BOT_ENCRYPTION_KEY:-}
       BOT_BROADCAST_LANG: ${BOT_BROADCAST_LANG:-uz}
+      BOT_JOIN_CHANNEL: ${BOT_JOIN_CHANNEL:-sngOne_yuklar}
+      BOT_JOIN_GROUP: ${BOT_JOIN_GROUP:-sngOne_yuklarr}
 
 volumes:
   pgdata:
