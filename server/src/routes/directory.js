@@ -6,7 +6,7 @@ const SORTS = { company: { col: 'm.company', cast: 'text' } };
 
 // Carrier directory = approved members (the owner account is excluded). Public fields only.
 export default async function directoryRoutes(app, { pool }) {
-  app.get('/api/directory', { preHandler: app.guards.approved }, async (req) => {
+  app.get('/api/directory', { preHandler: app.guards.active }, async (req) => {
     const q = directoryQuery.parse(req.query);
     const b = createBinder();
     const where = [`m.status = 'approved'`, `m.role = 'member'`];

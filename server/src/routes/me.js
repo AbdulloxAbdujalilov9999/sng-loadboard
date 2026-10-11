@@ -2,6 +2,7 @@ import { loginPhoneBody, pinBody, profileBody, signupBody } from '../lib/schemas
 import { memberDto } from '../lib/dto.js';
 import { conflict, forbidden, validationError } from '../lib/errors.js';
 import { detail } from '../lib/validation.js';
+import { publicInfo, stateOf, trialEndFor } from '../lib/subscription.js';
 import { hashPin, signSession, verifyPin } from '../lib/pin.js';
 import { loginLabel } from '../lib/identity.js';
 import { publish } from '../events.js';
@@ -11,6 +12,7 @@ export default async function meRoutes(app, { pool, config }) {
   // Who am I / what can I do? Works for any signed-in Google user, even before they have a request.
   app.get('/api/me', { preHandler: app.guards.authed }, async (req) => {
     const m = req.member;
+    const settings = await app.subscriptionSettings();
     return {
       email: req.user.loginEmail,                 // real e-mail ('' for phone sign-in)
       login: loginLabel(req.user.email),          // what to show as "you sign in with": e-mail or +phone
@@ -20,6 +22,8 @@ export default async function meRoutes(app, { pool, config }) {
       status: m ? m.status : 'none',
       isOwner: m?.role === 'owner',
       profile: m ? memberDto(m) : null,
+      // free trial / paid time (off until the owner switches subscriptions on); price + how to pay come with it
+      subscription: m ? { enabled: settings.enabled, ...stateOf(m, settings), ...publicInfo(settings) } : null,
       ownerContact: config.ownerEmails[0] ?? null,
     };
   });
@@ -44,12 +48,12 @@ export default async function meRoutes(app, { pool, config }) {
     }
     const row = await withTx(pool, async (db) => {
       const { rows: [created] } = await db.query(
-        `INSERT INTO members (email, firebase_uid, company, contact_name, phone, telegram, contact_email, status, pin_hash, pin_changed_at, login_phone, works_with_company)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'approved', $8, CASE WHEN $8::text IS NULL THEN NULL ELSE now() END, $9, $10)
+        `INSERT INTO members (email, firebase_uid, company, contact_name, phone, telegram, contact_email, status, pin_hash, pin_changed_at, login_phone, works_with_company, trial_ends_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'approved', $8, CASE WHEN $8::text IS NULL THEN NULL ELSE now() END, $9, $10, $11)
          ON CONFLICT (email) DO NOTHING
          RETURNING *`,
         [req.user.email, req.user.uid, body.company || body.contactName, body.contactName, phone, body.telegram,
-          req.user.loginEmail ? '' : body.contactEmail, pinHash, bySms ? req.user.phone : null, Boolean(body.company)],
+          req.user.loginEmail ? '' : body.contactEmail, pinHash, bySms ? req.user.phone : null, Boolean(body.company), trialEndFor(await app.subscriptionSettings())],
       );
       if (created) {
         await publish(db, { entity: 'members', op: 'insert', id: created.id });

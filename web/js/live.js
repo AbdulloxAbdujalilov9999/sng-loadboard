@@ -62,7 +62,7 @@ const Live = (() => {
   }
 
   function handleEvent(evt) {
-    if (evt.entity === 'me') Session.refresh();
+    if (evt.entity === 'me' || evt.entity === 'settings') Session.refresh();
     emit(evt);
   }
 

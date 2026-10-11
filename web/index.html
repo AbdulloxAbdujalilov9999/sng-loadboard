@@ -325,6 +325,7 @@
                         <select id="currency-select" class="w-full min-w-0 md:w-auto bg-white font-bold text-slate-700 rounded px-1.5 py-0.5 text-xs border border-slate-200 focus:outline-none cursor-pointer"></select>
                     </div>
                     <button type="button" data-theme-toggle class="flex-shrink-0 text-slate-500 hover:text-slate-800 border border-slate-200 p-1.5 rounded bg-slate-100 hover:bg-slate-200 transition" aria-label="Theme"><i data-lucide="moon" class="w-3.5 h-3.5 icon-to-dark"></i><i data-lucide="sun" class="w-3.5 h-3.5 icon-to-light"></i></button>
+                    <button type="button" id="sub-chip" data-view="account-settings" class="hidden flex-shrink-0 text-[11px] font-bold px-2.5 py-1 rounded border"></button>
                     <div id="live-indicator" class="flex-shrink-0 flex items-center xl:space-x-1.5 bg-slate-50 text-slate-500 px-2.5 py-1 rounded border border-slate-200 text-xs" title="">
                         <span id="live-dot" class="w-2 h-2 rounded-full bg-slate-300"></span>
                         <span id="live-text" class="hidden xl:inline" data-i18n="live_connecting">Connecting…</span>
@@ -767,6 +768,13 @@
 
             <!-- ================= ACCOUNT & SETTINGS ================= -->
             <section id="view-account-settings" class="hidden flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100">
+                <div id="sub-card" class="hidden max-w-4xl mx-auto mb-5 rounded-lg shadow-sm border p-4 sm:p-5 space-y-2 text-xs">
+                    <h4 class="font-bold text-sm flex items-center space-x-2"><i data-lucide="badge-check" class="w-4 h-4"></i><span data-i18n="sub_card_title">Subscription</span></h4>
+                    <p id="sub-state" class="font-semibold text-sm"></p>
+                    <p id="sub-price" class="hidden"></p>
+                    <div id="sub-pay-wrap" class="hidden"><p class="font-bold mb-0.5" data-i18n="sub_how">How to pay</p><p id="sub-pay" class="whitespace-pre-line"></p></div>
+                    <p id="sub-contact" class="hidden"></p>
+                </div>
                 <form id="profile-form" class="max-w-4xl mx-auto space-y-5" novalidate>
                     <div class="bg-white p-4 sm:p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
                         <div class="flex items-center space-x-4">
@@ -918,6 +926,20 @@
                         <button data-status="rejected" class="px-3 py-1.5 rounded-t bg-slate-200 text-slate-600"><span data-i18n="st_blocked">Blocked</span> (<span id="cnt-rejected">0</span>)</button>
                     </div>
                     <div id="approvals-list" class="space-y-3 text-xs"></div>
+
+                    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 text-xs space-y-3">
+                        <h4 class="font-bold text-slate-800 text-sm flex items-center space-x-2"><i data-lucide="badge-check" class="w-4 h-4 text-emerald-600"></i><span data-i18n="sub_admin_title">Subscriptions</span></h4>
+                        <p class="text-slate-500" data-i18n="sub_admin_sub">New members get a free trial. After it ends the board is closed to them until you add paid time here after they pay you. It is OFF until you switch it on.</p>
+                        <form id="sub-form" class="space-y-3" novalidate>
+                            <label class="flex items-center gap-2 font-bold text-slate-800"><input type="checkbox" id="sub-enabled" class="w-4 h-4"> <span data-i18n="lbl_sub_enabled">Require a subscription (free trial first)</span></label>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="sub-trial-days" data-i18n="lbl_trial_days">Free trial (days)</label><input type="number" id="sub-trial-days" min="1" max="365" value="14" class="w-full border border-slate-300 rounded p-2"></div>
+                                <div class="sm:col-span-2"><label class="block font-semibold text-slate-700 mb-1" for="sub-price-text" data-i18n="lbl_price_text">Price (shown to members)</label><input type="text" id="sub-price-text" maxlength="200" placeholder="100 000 UZS / month" class="w-full border border-slate-300 rounded p-2"></div>
+                            </div>
+                            <div><label class="block font-semibold text-slate-700 mb-1" for="sub-pay-text" data-i18n="lbl_pay_text">How to pay (card number, Payme / Click link, where to send the receipt)</label><textarea id="sub-pay-text" rows="3" maxlength="1500" class="w-full border border-slate-300 rounded p-2"></textarea></div>
+                            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold px-4 py-2 rounded" data-i18n="btn_save_sub">Save subscription settings</button>
+                        </form>
+                    </div>
 
                     <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 text-xs space-y-3">
                         <h4 class="font-bold text-slate-800 text-sm flex items-center space-x-2"><i data-lucide="coins" class="w-4 h-4 text-amber-600"></i><span data-i18n="fx_title">Display currency rates</span></h4>

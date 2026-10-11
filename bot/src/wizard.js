@@ -241,7 +241,9 @@ export function makePostLoadScene({ apiClient, config }) {
       const link = config.webUrlIsPublic === false ? '' : `<a href="${escapeHtml(`${config.webBaseUrl}/?load=${created.id}`)}">${t(ctx.lang, 'msg_view_on_board')}</a>`;
       await ctx.editMessageText(t(ctx.lang, 'wiz_posted', { link }), { parse_mode: 'HTML' });
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (err instanceof ApiError && err.code === 'subscription_required') {
+        await ctx.editMessageText(t(ctx.lang, 'wiz_subscription_required'));
+      } else if (err instanceof ApiError) {
         const detail = err.details?.length ? `\n${err.details.map((d2) => `• ${d2.path}: ${d2.code}`).join('\n')}` : '';
         await ctx.editMessageText(t(ctx.lang, 'wiz_post_failed', { message: escapeHtml(err.message) + escapeHtml(detail) }));
       } else {

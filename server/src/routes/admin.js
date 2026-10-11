@@ -1,4 +1,5 @@
-import { adminMembersQuery, fxBody, idParam } from '../lib/schemas.js';
+import { activateBody, adminMembersQuery, fxBody, idParam, subscriptionBody } from '../lib/schemas.js';
+import { loadSettings, stateOf } from '../lib/subscription.js';
 import { memberDto } from '../lib/dto.js';
 import { notFound } from '../lib/errors.js';
 import crypto from 'node:crypto';
@@ -22,7 +23,57 @@ export default async function adminRoutes(app, { pool, config }) {
     ]);
     const tally = { pending: 0, approved: 0, rejected: 0 };
     for (const c of counts) tally[c.status] = c.n;
-    return { items: rows.map(memberDto), counts: tally };
+    const settings = await app.subscriptionSettings();
+    return { items: rows.map((m) => ({ ...memberDto(m), subscription: stateOf(m, settings) })), counts: tally, subscriptionEnabled: settings.enabled };
+  });
+
+  // ---- subscriptions (managed by hand: the owner adds paid time after the member pays)
+  app.get('/api/admin/subscription', guard, async () => loadSettings(pool));
+
+  app.put('/api/admin/subscription', guard, async (req) => {
+    const body = subscriptionBody.parse(req.body);
+    const cur = await loadSettings(pool);
+    // The first time it is switched on, members who joined earlier get their trial from that moment (not from their sign-up).
+    const next = { ...body, enabledAt: cur.enabledAt ?? (body.enabled ? new Date().toISOString() : null) };
+    await withTx(pool, async (db) => {
+      await db.query(`INSERT INTO app_settings (key, value) VALUES ('subscription', $1::jsonb)
+                      ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = now()`, [JSON.stringify(next)]);
+      await publish(db, { entity: 'settings' });
+    });
+    return next;
+  });
+
+  // Add paid time (from now, or on top of what is left). The member's open app unlocks at once.
+  app.post('/api/admin/members/:id/subscription', guard, async (req) => {
+    const { id } = idParam.parse(req.params);
+    const { days } = activateBody.parse(req.body);
+    const m = await withTx(pool, async (db) => {
+      const { rows: [row] } = await db.query(
+        `UPDATE members SET paid_until = GREATEST(COALESCE(paid_until, now()), now()) + make_interval(days => $2), updated_at = now()
+          WHERE id = $1 AND role = 'member' RETURNING *`, [id, days]);
+      if (!row) throw notFound('Member not found');
+      await publish(db, { entity: 'me', email: row.email });
+      await publish(db, { entity: 'members', op: 'update', id });
+      return row;
+    });
+    app.invalidateMember(m.email);
+    return { subscription: stateOf(m, await loadSettings(pool)) };
+  });
+
+  // End a member's access now (paid time and trial).
+  app.delete('/api/admin/members/:id/subscription', guard, async (req) => {
+    const { id } = idParam.parse(req.params);
+    const m = await withTx(pool, async (db) => {
+      const { rows: [row] } = await db.query(
+        `UPDATE members SET paid_until = NULL, trial_ends_at = now() - interval '1 second', updated_at = now()
+          WHERE id = $1 AND role = 'member' RETURNING *`, [id]);
+      if (!row) throw notFound('Member not found');
+      await publish(db, { entity: 'me', email: row.email });
+      await publish(db, { entity: 'members', op: 'update', id });
+      return row;
+    });
+    app.invalidateMember(m.email);
+    return { subscription: stateOf(m, await loadSettings(pool)) };
   });
 
   async function decide(req, status) {

@@ -1,5 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { forbidden, unauthorized } from './lib/errors.js';
+import { HttpError, forbidden, unauthorized } from './lib/errors.js';
+import { loadSettings, stateOf } from './lib/subscription.js';
 import { TtlCache } from './lib/ttl.js';
 import { phoneIdentity } from './lib/identity.js';
 import { isOwnToken, verifySession } from './lib/pin.js';
@@ -115,6 +116,11 @@ export function registerAuth(app, { config, pool, verifyToken: verifyExternal, h
   const phoneOwner = new TtlCache({ ttlMs: config.memberCacheMs, max: 5000 });
   hub?.observe((evt) => { if (evt.entity === 'me' || evt.entity === 'resync') phoneOwner.clear(); });
 
+  // Subscription settings (a few seconds of cache; cleared at once when the owner saves them, on any instance).
+  const subCache = new TtlCache({ ttlMs: Math.min(config.memberCacheMs, 5000), max: 2 });
+  hub?.observe((evt) => { if (evt.entity === 'settings' || evt.entity === 'resync') subCache.clear(); });
+  app.decorate('subscriptionSettings', () => subCache.getOrLoad('s', () => loadSettings(pool)));
+
   async function loadMember(req) {
     if (req.user.provider === 'phone') {
       const identity = await phoneOwner.getOrLoad(req.user.phone, async () => (await pool.query('SELECT email FROM members WHERE login_phone = $1', [req.user.phone])).rows[0]?.email ?? '');
@@ -137,6 +143,12 @@ export function registerAuth(app, { config, pool, verifyToken: verifyExternal, h
     }
   }
 
+  // The marketplace is for members whose free trial or paid time has not run out. Profile and sign-in routes use `approved`.
+  async function requireActive(req) {
+    const st = stateOf(req.member, await app.subscriptionSettings());
+    if (st.state === 'expired') throw new HttpError(402, 'subscription_required', 'Your free trial or subscription has ended');
+  }
+
   async function requireOwner(req) {
     if (req.member?.role !== 'owner') throw forbidden('Owner only', 'owner_only');
   }
@@ -144,6 +156,7 @@ export function registerAuth(app, { config, pool, verifyToken: verifyExternal, h
   const guards = {
     authed: [authenticate, loadMember],
     approved: [authenticate, loadMember, requireApproved],
+    active: [authenticate, loadMember, requireApproved, requireActive],
     owner: [authenticate, loadMember, requireOwner],
   };
   app.decorate('guards', guards);

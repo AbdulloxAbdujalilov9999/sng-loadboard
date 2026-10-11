@@ -5,6 +5,7 @@ const Admin = (() => {
   const SEEN_KEY = 'sng.membersSeenAt';
   let status = 'all';
   let items = [];
+  let subOn = false;       // subscriptions switched on (shows each member's trial / paid time and the activate buttons)
   let counts = { pending: 0, approved: 0, rejected: 0 };
   let newSince = '';          // members who joined after this moment get a NEW tag (the previous visit)
   let entered = false;
@@ -21,6 +22,7 @@ const Admin = (() => {
       const res = await API.get('/api/admin/members', { status });
       items = res.items;
       counts = res.counts;
+      subOn = Boolean(res.subscriptionEnabled);
     } catch (err) {
       items = [];
       U.toast(err.message, 'error');
@@ -73,6 +75,14 @@ const Admin = (() => {
     const sameNumber = !m.email && String(m.phone || '').replace(/\D/g, '') === String(m.login).replace(/\D/g, ''); // phone sign-in: do not print the number twice
     const login = sameNumber ? '' : m.email ? `<a href="mailto:${esc(m.email)}" class="text-blue-600 hover:underline">${esc(m.email)}</a>` : `<a href="tel:${esc(m.login)}" class="text-blue-600 hover:underline">${esc(m.login)}</a>`;
     const contacts = [m.phone && `<a href="tel:${esc(String(m.phone).replace(/[^\d+]/g, ''))}" class="hover:underline">${esc(m.phone)}</a>`, m.telegram && `<a href="https://t.me/${esc(m.telegram.replace('@', ''))}" target="_blank" rel="noopener noreferrer" class="hover:underline">${esc(m.telegram)}</a>`].filter(Boolean).join(' • ');
+    const subState = m.subscription || { state: 'off' };
+    const subBlock = subOn && subState.state !== 'off' ? `<div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
+        <span class="font-semibold ${subState.state === 'expired' ? 'text-rose-600' : subState.state === 'paid' ? 'text-emerald-700' : 'text-sky-700'}">${esc(t(`sub_member_${subState.state}`, { days: subState.daysLeft, date: subState.until ? new Date(subState.until).toLocaleDateString() : '' }))}</span>
+        <span class="flex-1"></span>
+        <select data-sub-days="${m.id}" class="border border-slate-300 rounded p-1.5 bg-white">${[30, 90, 180, 365].map((n) => `<option value="${n}">${esc(t('opt_days', { n }))}</option>`).join('')}</select>
+        <button type="button" data-act="activate" data-id="${m.id}" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded">${esc(t('btn_activate'))}</button>
+        <button type="button" data-act="endaccess" data-id="${m.id}" class="text-slate-400 hover:text-rose-600 px-1" title="${esc(t('btn_end_access'))}"><i data-lucide="calendar-x" class="w-3.5 h-3.5"></i></button>
+      </div>` : '';
     return `<div class="bg-white border ${isNew(m) ? 'border-emerald-300 ring-1 ring-emerald-200' : 'border-slate-200'} rounded-lg p-4 shadow-sm">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
@@ -84,6 +94,7 @@ const Admin = (() => {
         <span class="${badge[0]} border text-[10px] font-bold px-2 py-0.5 rounded flex-shrink-0">${esc(t(badge[1]))}</span>
       </div>
       <div class="flex gap-2 mt-3">${actions}</div>
+      ${subBlock}
     </div>`;
   }
 
@@ -105,6 +116,18 @@ const Admin = (() => {
         const ok = await U.confirmDialog({ title: t('confirm_block_title'), message: t('confirm_block', { company: label }), confirmText: t('btn_block') });
         if (!ok) return;
         await API.post(`/api/admin/members/${id}/reject`);
+      } else if (kind === 'activate') {
+        const days = Number(document.querySelector(`[data-sub-days="${id}"]`)?.value || 30);
+        await API.post(`/api/admin/members/${id}/subscription`, { days });
+        U.toast(t('toast_sub_activated', { days }), 'success');
+        load();
+        return;
+      } else if (kind === 'endaccess') {
+        const ok = await U.confirmDialog({ title: t('btn_end_access'), message: t('confirm_end_access', { company: label }), confirmText: t('btn_end_access') });
+        if (!ok) return;
+        await API.del(`/api/admin/members/${id}/subscription`);
+        load();
+        return;
       } else if (kind === 'resetpin') {
         const ok = await U.confirmDialog({ title: t('btn_reset_pin'), message: t('confirm_reset_pin', { company: label }), confirmText: t('btn_reset_pin') });
         if (!ok) return;
@@ -122,6 +145,28 @@ const Admin = (() => {
     } catch (err) {
       U.toast(err.message, 'error');
     }
+  }
+
+  // ---- subscription settings ----
+  async function loadSub() {
+    try {
+      const c = await API.get('/api/admin/subscription');
+      $('sub-enabled').checked = Boolean(c.enabled);
+      $('sub-trial-days').value = c.trialDays;
+      $('sub-price-text').value = c.priceText || '';
+      $('sub-pay-text').value = c.payText || '';
+    } catch { /* the form keeps its defaults */ }
+  }
+
+  async function saveSub(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    U.setBusy(form, true);
+    try {
+      await API.put('/api/admin/subscription', { enabled: $('sub-enabled').checked, trialDays: Number($('sub-trial-days').value) || 14, priceText: $('sub-price-text').value, payText: $('sub-pay-text').value });
+      U.toast(t('toast_sub_saved'), 'success');
+      load();
+    } catch (err) { U.toast(err.message, 'error'); } finally { U.setBusy(form, false); }
   }
 
   // ---- display currency rates ----
@@ -152,6 +197,7 @@ const Admin = (() => {
     document.querySelectorAll('#approvals-tabs [data-status]').forEach((b) => b.addEventListener('click', () => { status = b.dataset.status; load(); }));
     $('approvals-list').addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (b) act(b.dataset.act, Number(b.dataset.id)); });
     $('fx-form').addEventListener('submit', saveFx);
+    $('sub-form').addEventListener('submit', saveSub);
     Live.on(async (evt) => {
       if (!entered || !Session.me?.isOwner) return;
       if (evt.entity === 'members' && evt.op === 'insert') {
@@ -171,7 +217,7 @@ const Admin = (() => {
     newSince = seenAt() || Session.me?.profile?.requestedAt || ''; // NEW tags are relative to the previous visit...
     U.store.set(SEEN_KEY, new Date().toISOString());      // ...and this visit counts as "seen"
     newCount = 0;
-    load(); loadFx();
+    load(); loadFx(); loadSub();
   }
 
   return { init, enter, leave, onShow, render: () => { renderCounts(); renderList(); } };

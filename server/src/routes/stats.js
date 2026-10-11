@@ -3,7 +3,7 @@ const CAP = 10_000;
 // Headline numbers for the navigation badges: how many live loads / trucks are on the board right now.
 // Counted with the same cap as search totals and cached, so a busy dashboard costs one query per few seconds.
 export default async function statsRoutes(app, { pool }) {
-  app.get('/api/stats', { preHandler: app.guards.approved }, async () => {
+  app.get('/api/stats', { preHandler: app.guards.active }, async () => {
     const one = async (sql) => {
       const { rows: [r] } = await app.countCache.getOrLoad(sql, () => pool.query(sql));
       return { count: Math.min(r.n, CAP), capped: r.n > CAP };

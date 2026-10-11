@@ -173,7 +173,12 @@ const Session = (() => {
   }
 
   /** Re-ask the server who we are and route accordingly. Called after sign-in and on 'me' live events. */
-  async function refresh() {
+  let refreshP = null;
+  function refresh() { // several parallel requests can all learn at once that the subscription ended: one refresh serves them
+    if (!refreshP) refreshP = refreshNow().finally(() => { refreshP = null; });
+    return refreshP;
+  }
+  async function refreshNow() {
     let fresh;
     try {
       fresh = await API.get('/api/me');

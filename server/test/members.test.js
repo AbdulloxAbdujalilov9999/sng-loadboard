@@ -214,3 +214,64 @@ test('everyone is an individual until they say they work with a company', async 
   // naming a company on its own switches it on (older clients)
   assert.equal((await api.patch('/api/me/profile', { company: 'Anvar Cargo' })).json.profile.worksWithCompany, true);
 });
+
+test('subscriptions: off by default; free trial, then the whole board closes until the owner adds paid time', async () => {
+  const owner = env.as('owner@test.com');
+  const sam = env.as('sub-sam@gmail.com');
+  await sam.post('/api/me/access-request', { contactName: 'Sam Driver', telegram: '@sam_driver' });
+  assert.equal((await sam.get('/api/me')).json.subscription.state, 'off', 'nobody pays while it is switched off');
+  assert.equal((await sam.get('/api/loads')).status, 200);
+
+  assert.equal((await sam.put('/api/admin/subscription', { enabled: true, trialDays: 14, priceText: 'x', payText: 'y' })).status, 403, 'owner only');
+  const on = await owner.put('/api/admin/subscription', { enabled: true, trialDays: 14, priceText: '100 000 UZS / month', payText: 'Humo 8600 ...\nSend the receipt to @owner' });
+  assert.equal(on.status, 200);
+  assert.ok(on.json.enabledAt);
+
+  // members who joined before it was switched on get their trial from now
+  let me = (await sam.get('/api/me')).json.subscription;
+  assert.equal(me.state, 'trial');
+  assert.ok(me.daysLeft >= 13 && me.daysLeft <= 14);
+  assert.equal(me.priceText, '100 000 UZS / month');
+  assert.match(me.payText, /Humo/);
+  assert.equal((await sam.get('/api/loads')).status, 200, 'trial: everything works');
+
+  // a new member's trial starts at sign-up
+  const nia = env.as('sub-nia@gmail.com');
+  await nia.post('/api/me/access-request', { contactName: 'Nia', telegram: '@nia_x' });
+  assert.equal((await nia.get('/api/me')).json.subscription.state, 'trial');
+
+  // the trial ends
+  await env.pool.query("UPDATE members SET trial_ends_at = now() - interval '1 hour' WHERE email = 'sub-sam@gmail.com'");
+  me = (await sam.get('/api/me')).json;
+  assert.equal(me.subscription.state, 'expired');
+  for (const url of ['/api/loads', '/api/trucks', '/api/directory', '/api/stats', '/api/cities?q=tash']) {
+    const r = await sam.get(url);
+    assert.equal(r.status, 402, url);
+    assert.equal(r.json.error.code, 'subscription_required');
+  }
+  assert.equal((await sam.post('/api/loads', {})).status, 402, 'posting is closed too');
+  assert.equal((await sam.post('/api/ai/parse-loads', { text: 'x' })).status, 402, 'AI paste too');
+  assert.equal((await sam.patch('/api/me/profile', { location: 'Tashkent' })).status, 200, 'the profile still works');
+  assert.equal((await owner.get('/api/loads')).status, 200, 'the owner is never locked out');
+
+  // the owner adds paid time after the member pays
+  const { rows: [m] } = await env.pool.query("SELECT id FROM members WHERE email = 'sub-sam@gmail.com'");
+  assert.equal((await sam.post(`/api/admin/members/${m.id}/subscription`, { days: 30 })).status, 403);
+  const paid = await owner.post(`/api/admin/members/${m.id}/subscription`, { days: 30 });
+  assert.equal(paid.json.subscription.state, 'paid');
+  assert.ok(paid.json.subscription.daysLeft >= 29);
+  assert.equal((await sam.get('/api/loads')).status, 200, 'unlocked');
+  const more = await owner.post(`/api/admin/members/${m.id}/subscription`, { days: 90 });
+  assert.ok(more.json.subscription.daysLeft >= 119, 'paid time adds up');
+
+  const list = (await owner.get('/api/admin/members')).json;
+  assert.equal(list.subscriptionEnabled, true);
+  assert.equal(list.items.find((x) => x.id === m.id).subscription.state, 'paid');
+
+  // end access, and switch the whole thing off again
+  assert.equal((await owner.del(`/api/admin/members/${m.id}/subscription`)).json.subscription.state, 'expired');
+  assert.equal((await sam.get('/api/loads')).status, 402);
+  await owner.put('/api/admin/subscription', { enabled: false, trialDays: 14, priceText: '', payText: '' });
+  assert.equal((await sam.get('/api/loads')).status, 200, 'switched off: everyone is back in');
+  assert.equal((await sam.get('/api/me')).json.subscription.state, 'off');
+});

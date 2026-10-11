@@ -47,6 +47,7 @@ const API = (() => {
     try { data = await res.json(); } catch { /* non-JSON body */ }
     if (!res.ok) {
       const e = data?.error;
+      if (res.status === 402 && e?.code === 'subscription_required') window.Session?.refresh?.();
       throw new ApiError(res.status, e?.code || `http_${res.status}`, e?.message || res.statusText, e?.details);
     }
     return data;

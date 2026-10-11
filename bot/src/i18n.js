@@ -114,6 +114,7 @@ const DICT = {
     link_cancelled: "Cancelled.",
     wiz_contact_need_one: "Please give at least a phone number or a Telegram username so people can reach you.",
     owner_new_member: "🆕 New member on SNG ONE: {name}\n{contact}",
+    wiz_subscription_required: "Your free trial or subscription has ended, so posting is closed. Pay and the platform owner reopens it - see the website, Account & Settings.",
   },
 
   ru: {
@@ -221,6 +222,7 @@ const DICT = {
     link_cancelled: "Отменено.",
     wiz_contact_need_one: "Укажите хотя бы телефон или Telegram, чтобы с вами могли связаться.",
     owner_new_member: "🆕 Новый участник SNG ONE: {name}\n{contact}",
+    wiz_subscription_required: "Пробный период или подписка закончились, поэтому публикация закрыта. Оплатите, и владелец платформы откроет доступ - подробности на сайте, «Аккаунт и настройки».",
   },
 
   uz: {
@@ -328,6 +330,7 @@ const DICT = {
     link_cancelled: "Bekor qilindi.",
     wiz_contact_need_one: "Siz bilan bogʻlanish uchun kamida telefon raqami yoki Telegram foydalanuvchi nomini kiriting.",
     owner_new_member: "🆕 SNG ONE'da yangi aʼzo: {name}\n{contact}",
+    wiz_subscription_required: "Bepul sinov davri yoki obuna tugadi, shuning uchun eʼlon joylash yopiq. Toʻlov qiling — platforma egasi qayta ochadi; batafsil saytda, «Hisob va sozlamalar».",
   },
 };
 

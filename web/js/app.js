@@ -74,20 +74,42 @@ const App = (() => {
   }
 
   // ---------------------------------------------------------------- session hooks
-  function enter(me) {
-    const first = !entered;
-    entered = true;
-    $('app-workspace').classList.remove('hidden');
-    const owner = Boolean(me.isOwner);
-    $('nav-admin-section').classList.toggle('hidden', !owner);
-    $('menu-approvals').classList.toggle('hidden', !owner);
-    Account.populate();
-    if (!first) return; // later calls are profile refreshes
+  // The board's modules run only while the member has access. When the free trial / paid time has run out the whole board is
+  // closed except Account & Settings (profile, and how to pay); paying (the owner adds time) reopens it without a reload.
+  let modulesOn = false;
+  function startModules() {
+    modulesOn = true;
     Loads.enter(); AiImport.enter(); Trucks.enter(); AiTrucks.enter(); Directory.enter(); Admin.enter();
     setView(U.store.get('sng.view', 'search-loads'));
     setTimeout(refreshStats, 0);
     statsTimer = setInterval(refreshStats, 45000 + Math.random() * 30000);
     openDeepLinkFromUrl();
+  }
+  function stopModules() {
+    if (!modulesOn) return;
+    modulesOn = false;
+    clearInterval(statsTimer);
+    Loads.leave(); AiImport.leave(); Trucks.leave(); AiTrucks.leave(); Directory.leave(); Admin.leave();
+  }
+  function applyLock(locked, owner) {
+    document.querySelectorAll('#main-sidebar nav > div[data-i18n]').forEach((el) => el.classList.toggle('hidden', locked)); // section titles
+    for (const v of VIEWS) $(`menu-${v}`).classList.toggle('hidden', v !== 'account-settings' && (locked || (v === 'approvals' && !owner)));
+    $('nav-admin-section').classList.toggle('hidden', locked || !owner);
+  }
+
+  function enter(me) {
+    entered = true;
+    $('app-workspace').classList.remove('hidden');
+    const owner = Boolean(me.isOwner);
+    const locked = me.subscription?.state === 'expired';
+    applyLock(locked, owner);
+    Account.populate();
+    if (locked) {
+      stopModules();
+      setView('account-settings');
+      return;
+    }
+    if (!modulesOn) startModules();
   }
 
   // A link to one specific load (e.g. posted by the Telegram bot) looks like "/?load=123". Consumed
@@ -103,8 +125,7 @@ const App = (() => {
   function leave() {
     if (!entered) return;
     entered = false;
-    clearInterval(statsTimer);
-    Loads.leave(); AiImport.leave(); Trucks.leave(); AiTrucks.leave(); Directory.leave(); Admin.leave();
+    stopModules();
     resetForms();
     showSyncBanner('');
     $('app-workspace').classList.add('hidden');

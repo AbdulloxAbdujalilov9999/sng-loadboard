@@ -136,7 +136,7 @@ export default async function aiRoutes(app, { config, ai }) {
   }
 
   // ------------------------------------------------------------------ loads
-  app.post('/api/ai/parse-loads', { preHandler: app.guards.approved }, async (req) => {
+  app.post('/api/ai/parse-loads', { preHandler: app.guards.active }, async (req) => {
     const { index, today, items } = await run(req, 'parseLoads', loadsRaw, 'loads');
     const drafts = items.slice(0, MAX_ITEMS).map((r) => {
       const flags = [];
@@ -190,7 +190,7 @@ export default async function aiRoutes(app, { config, ai }) {
   });
 
   // ------------------------------------------------------------------ trucks
-  app.post('/api/ai/parse-trucks', { preHandler: app.guards.approved }, async (req) => {
+  app.post('/api/ai/parse-trucks', { preHandler: app.guards.active }, async (req) => {
     const { index, today, items } = await run(req, 'parseTrucks', trucksRaw, 'trucks');
     const drafts = items.slice(0, MAX_ITEMS).map((r) => {
       const flags = [];

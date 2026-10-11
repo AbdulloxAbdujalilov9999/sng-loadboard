@@ -92,6 +92,8 @@ export class EventHub {
         return this.#enqueue(evt);
       case 'fx':
         return this.#broadcast(evt, (c) => c.approved);
+      case 'settings': // subscription rules changed: every open page re-reads who it is
+        return this.#broadcast({ entity: 'settings' }, () => true);
       case 'members':
         return this.#broadcast(evt, (c) => c.isOwner);
       case 'me': // a membership decision about one specific person

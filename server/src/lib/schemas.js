@@ -191,3 +191,11 @@ export const fxBody = z.object({
 }).strict();
 
 export const idParam = z.object({ id: z.coerce.number().int().positive() }).strict();
+
+export const subscriptionBody = z.object({
+  enabled: z.boolean(),
+  trialDays: z.coerce.number().int().min(1).max(365),
+  priceText: z.string().trim().max(200),
+  payText: z.string().trim().max(1500),
+}).strict();
+export const activateBody = z.object({ days: z.coerce.number().int().min(1).max(3650) }).strict();

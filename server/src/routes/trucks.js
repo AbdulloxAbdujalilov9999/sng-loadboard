@@ -23,11 +23,11 @@ const SORTS = {
 };
 
 export default async function truckRoutes(app, { pool, config }) {
-  const approved = { preHandler: app.guards.approved };
+  const approved = { preHandler: app.guards.active };
   // Writes: a per-member budget (after sign-in) plus the ordinary per-IP backstop. See lib/memberlimit.js for why
   // it is per member and not per IP (the Telegram bot posts for many members from one address).
   const memberWrites = createMemberLimiter({ max: config.writeRateLimitPerMin });
-  const write = { preHandler: [...app.guards.approved, memberWrites] };
+  const write = { preHandler: [...app.guards.active, memberWrites] };
   const countCached = (sql, params) => app.countCache.getOrLoad(`${sql}|${JSON.stringify(params)}`, () => pool.query(sql, params));
 
   app.get('/api/trucks', approved, async (req) => {

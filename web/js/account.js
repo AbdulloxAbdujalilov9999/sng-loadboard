@@ -4,6 +4,39 @@ const Account = (() => {
 
   const initials = (name) => (name || '?').trim().slice(0, 2).toUpperCase();
 
+  // ---------------------------------------------------------------- subscription (free trial -> paid time added by the owner)
+  const SUB_STYLE = {
+    trial: ['bg-sky-50', 'border-sky-200', 'text-sky-900'],
+    paid: ['bg-emerald-50', 'border-emerald-200', 'text-emerald-900'],
+    expired: ['bg-rose-50', 'border-rose-300', 'text-rose-900'],
+  };
+  const ALL_SUB_STYLES = Object.values(SUB_STYLE).flat();
+  const dateText = (iso) => (iso ? new Date(iso).toLocaleDateString(I18N.lang === 'ru' ? 'ru-RU' : I18N.lang === 'uz' ? 'uz-UZ' : 'en-GB') : '');
+
+  function renderSubscription() {
+    const me = Session.me;
+    const s = me?.subscription;
+    const card = $('sub-card'); const chip = $('sub-chip');
+    if (!s || !s.enabled || s.state === 'off') { card.classList.add('hidden'); chip.classList.add('hidden'); return; }
+    const vars = { days: s.daysLeft, date: dateText(s.until) };
+    $('sub-state').textContent = t(`sub_state_${s.state}`, vars);
+    card.classList.remove('hidden', ...ALL_SUB_STYLES);
+    card.classList.add(...SUB_STYLE[s.state]);
+    $('sub-price').textContent = s.priceText ? `${t('sub_price')}: ${s.priceText}` : '';
+    $('sub-price').classList.toggle('hidden', !s.priceText);
+    $('sub-pay').textContent = s.payText || '';
+    $('sub-pay-wrap').classList.toggle('hidden', !s.payText);
+    const owner = me.ownerContact;
+    $('sub-contact').textContent = owner ? t('sub_contact_owner', { contact: owner }) : '';
+    $('sub-contact').classList.toggle('hidden', !owner);
+    // a small reminder in the header: always while in trial / expired, and the last week of paid time
+    const showChip = s.state !== 'paid' || s.daysLeft <= 7;
+    chip.classList.remove('hidden', ...ALL_SUB_STYLES);
+    chip.classList.toggle('hidden', !showChip);
+    chip.classList.add(...SUB_STYLE[s.state]);
+    chip.textContent = t(`sub_chip_${s.state}`, vars);
+  }
+
   // Everyone is an individual until they say they work with a company: only then are the company fields asked for.
   let companyOn = false;
   function setCompanyMode(on) {
@@ -37,6 +70,7 @@ const Account = (() => {
     $('posting-as-company').textContent = p.company;
     prefillContacts();
     renderSecurity();
+    renderSubscription();
     Prefs.syncLanguage(); Prefs.syncCurrency();
     App.renderSidebarUser();
   }

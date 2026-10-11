@@ -110,6 +110,8 @@ Everything accepts Cyrillic: pasted posts, notes, company names, free-text searc
 
 **Countries as search targets.** In the search filters (not in posting forms) the city box also offers whole countries (`GET /api/cities?countries=1`: "UZ", "Узбекистан", "Oʻzbekiston" ...). Loads are filtered with `originCountry` / `destCountry`, trucks with `locCountry` (derived columns, migration `012`), so "UZ → KZ" is one search.
 
+**Subscriptions (managed by hand, OFF by default).** On the Members page the owner switches on "Require a subscription", sets the free-trial length, the price text and the "how to pay" text. From then on a member is *in trial* (their sign-up date + trial days; members who joined earlier start their trial the moment it is switched on), *paid* (the owner adds 30 / 90 / 180 / 365 days on their card after they pay, and time adds up) or *expired*. Expired members lose the whole board (every marketplace route answers `402 subscription_required`, including AI paste and the Telegram bot's posting) but keep Account & Settings, which shows the price and how to pay; their open page locks and unlocks by itself (live events). The owner is never charged. A header chip shows the trial / last week of paid time.
+
 **Individuals and companies.** Everyone starts as an individual (their name is shown on posts). In Settings, "I work with a company" reveals the company fields; until then none are asked for (`members.works_with_company`).
 
 ## Design for thousands of simultaneous users
@@ -157,7 +159,7 @@ It talks to this same API and database; nothing on the server needed to change. 
 ## Tests
 
 ```bash
-npm test      # 147 tests. server: real embedded PostgreSQL - auth, approval, search, quotas, security, SSE, boot/cluster, i18n
+npm test      # 148 tests. server: real embedded PostgreSQL - auth, approval, search, quotas, security, SSE, boot/cluster, i18n
               # bot (28): crypto + formatting + translations, and integration tests against the real API, database and
               #           LISTEN/NOTIFY channel (only Telegram itself is faked)
 ```
