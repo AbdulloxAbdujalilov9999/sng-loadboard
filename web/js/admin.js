@@ -174,18 +174,18 @@ const Admin = (() => {
     try {
       const c = await API.get('/api/admin/load-expiry');
       $('exp-enabled').checked = Boolean(c.enabled);
-      $('exp-hours').value = c.hours;
+      $('exp-days').value = Math.max(1, Math.round(c.hours / 24));
     } catch { /* the form keeps its defaults */ }
   }
 
   async function saveExp(e) {
     e.preventDefault();
     const form = e.currentTarget;
-    const hours = Math.round(Number($('exp-hours').value));
-    if (!(hours >= 1 && hours <= 720)) { $('exp-hours').focus(); U.toast(t('exp_invalid'), 'error'); return; }
+    const days = Math.round(Number($('exp-days').value));
+    if (!(days >= 1 && days <= 30)) { $('exp-days').focus(); U.toast(t('exp_invalid'), 'error'); return; }
     U.setBusy(form, true);
     try {
-      const r = await API.put('/api/admin/load-expiry', { enabled: $('exp-enabled').checked, hours });
+      const r = await API.put('/api/admin/load-expiry', { enabled: $('exp-enabled').checked, hours: days * 24 });
       U.toast(t('toast_exp_saved', { n: r.removed }), 'success');
     } catch (err) { U.toast(err.message, 'error'); } finally { U.setBusy(form, false); }
   }

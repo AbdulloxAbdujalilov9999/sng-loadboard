@@ -1,9 +1,10 @@
 import { publish } from '../events.js';
 import { withTx } from '../db.js';
 
-// Loads leave the board by themselves `hours` after they were posted (a load posted at 14:05 goes at 14:05 the next day).
+// Loads leave the board by themselves `hours` after they were posted (default 14 days: most people never set a load date,
+// and nobody posts freight more than two weeks ahead).
 // The owner can switch it off or change the time; the owner's choice lives in app_settings under 'loadExpiry'.
-export const DEFAULTS = { enabled: true, hours: 24 };
+export const DEFAULTS = { enabled: true, hours: 336 };
 const LOCK_KEY = [1016, 1]; // two-int advisory-lock namespace: never collides with the per-member (single bigint) locks
 
 export async function loadExpirySettings(pool) {

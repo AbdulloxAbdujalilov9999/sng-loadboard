@@ -407,42 +407,16 @@ const Loads = (() => {
 
   // Loads leave the board by themselves `hours` after they were posted (the owner can change or switch this off).
   const expiryHours = () => Session.me?.loadExpiry?.hours || 0;
-  function leftText(ms) {
-    const m = Math.max(1, Math.ceil(ms / 60000));
-    return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
-  }
-  function expiryLine(l) {
-    const h = expiryHours();
-    if (!h) return '';
-    const end = Date.parse(l.createdAt) + h * 3600000;
-    return `<div data-expires="${end}" class="mt-0.5 text-[10px] font-semibold font-sans ${end - Date.now() < 3600000 ? 'text-rose-600' : 'text-amber-600'}">⏳ ${esc(t('exp_left', { time: leftText(end - Date.now()) }))}</div>`;
-  }
-  function tickExpiry() {
-    document.querySelectorAll('#my-loads-tbody [data-expires]').forEach((el) => {
-      const left = Number(el.dataset.expires) - Date.now();
-      if (left <= 0) { loadMine(); return; }       // the server removes it about now: refresh the list
-      el.textContent = `⏳ ${t('exp_left', { time: leftText(left) })}`;
-      el.classList.toggle('text-rose-600', left < 3600000);
-      el.classList.toggle('text-amber-600', left >= 3600000);
-    });
-  }
-  function showPostHint() {
-    const h = expiryHours();
-    const el = $('post-expiry-hint');
-    el.classList.toggle('hidden', !h);
-    if (h) el.querySelector('span').textContent = t('exp_hint_post', { hours: h });
-  }
   async function renewMine(id) {
-    try { await API.post(`/api/loads/${id}/renew`, {}); U.toast(t('toast_load_renewed', { hours: expiryHours() }), 'success'); loadMine(); } catch (err) { U.toast(err.message, 'error'); loadMine(); }
+    try { await API.post(`/api/loads/${id}/renew`, {}); U.toast(t('toast_load_renewed'), 'success'); loadMine(); } catch (err) { U.toast(err.message, 'error'); loadMine(); }
   }
 
   function renderMine() {
-    showPostHint();
     $('my-loads-count').textContent = mine.length;
     const tbody = $('my-loads-tbody');
     if (!mine.length) { tbody.innerHTML = `<tr class="status-row"><td colspan="7" class="p-4 text-center text-slate-400 font-sans">${esc(t('my_loads_empty'))}</td></tr>`; return; }
     tbody.innerHTML = mine.map((l) => `<tr class="data-row hover:bg-slate-50 transition border-b border-slate-200">
-      <td class="cell-heading p-2.5 font-bold text-slate-900">${esc(l.originCity)} → ${esc(l.destCity)}${expiryLine(l)}</td>
+      <td class="cell-heading p-2.5 font-bold text-slate-900">${esc(l.originCity)} → ${esc(l.destCity)}</td>
       <td data-label="${esc(t('th_pickup_delivery'))}" class="p-2.5 text-slate-600">${esc(l.pickupDate)} <span class="text-slate-400">/</span> ${esc(l.deliveryDate || '--')}</td>
       <td data-label="${esc(t('th_type_weight'))}" class="p-2.5"><span class="bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">${esc(l.equip)}</span> ${esc(l.weightT)}t</td>
       <td data-label="${esc(t('th_distance'))}" class="p-2.5 text-slate-600">${esc(l.distanceKm.toLocaleString())} km</td>
@@ -634,7 +608,6 @@ const Loads = (() => {
     $('view-search-loads').addEventListener('scroll', loadIfNearEnd, { passive: true });
 
     $('post-load-form').addEventListener('submit', submitPost);
-    setInterval(tickExpiry, 30000);
     $('my-loads-tbody').addEventListener('click', (e) => {
       const b = e.target.closest('[data-action]');
       if (!b) return;

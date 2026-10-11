@@ -16,15 +16,15 @@ after(async () => { await env.close(); });
 const age = (id, hours) => env.pool.query(`UPDATE loads SET created_at = now() - make_interval(hours => $2::int) WHERE id = $1`, [id, hours]);
 const status = async (id) => (await env.pool.query('SELECT status FROM loads WHERE id = $1', [id])).rows[0].status;
 
-test('loads expire 24 hours after they were posted, by default; younger ones stay', async () => {
+test('loads expire 14 days after they were posted, by default; younger ones stay', async () => {
   const dias = env.as('exp-dias@test.com');
   const me = (await dias.get('/api/me')).json;
-  assert.deepEqual(me.loadExpiry, { enabled: true, hours: 24 });
+  assert.deepEqual(me.loadExpiry, { enabled: true, hours: 336 });
 
   const old = (await dias.post('/api/loads', validLoad(almaty, tash))).json;
   const young = (await dias.post('/api/loads', validLoad(almaty, tash))).json;
-  await age(old.id, 25);
-  await age(young.id, 23);
+  await age(old.id, 15 * 24);
+  await age(young.id, 13 * 24);
   assert.equal(await sweepExpiredLoads(env.pool), 1);
   assert.equal(await status(old.id), 'closed');
   assert.equal(await status(young.id), 'active');
@@ -43,7 +43,7 @@ test('the owner changes or switches off the expiry; only the owner can', async (
   assert.equal((await owner.put('/api/admin/load-expiry', { enabled: true, hours: 9999 })).status, 400);
 
   const load = (await dias.post('/api/loads', validLoad(almaty, tash))).json;
-  await age(load.id, 30);
+  await age(load.id, 400);
   assert.equal((await owner.put('/api/admin/load-expiry', { enabled: false, hours: 24 })).status, 200);
   assert.equal(await sweepExpiredLoads(env.pool), 0, 'switched off: nothing expires');
   assert.equal(await status(load.id), 'active');
@@ -56,21 +56,21 @@ test('the owner changes or switches off the expiry; only the owner can', async (
   assert.ok(on.json.removed >= 1);
   assert.equal(await status(load.id), 'closed');
   assert.equal((await owner.get('/api/admin/load-expiry')).json.hours, 6);
-  await owner.put('/api/admin/load-expiry', { enabled: true, hours: 24 });
+  await owner.put('/api/admin/load-expiry', { enabled: true, hours: 336 });
 });
 
-test('renew: the owner of a load starts its 24 hours over; nobody else can', async () => {
+test('renew: the owner of a load starts its clock over; nobody else can', async () => {
   const dias = env.as('exp-dias@test.com');
   const sardor = env.as('exp-sardor@test.com');
   const load = (await dias.post('/api/loads', validLoad(almaty, tash))).json;
-  await age(load.id, 20);
+  await age(load.id, 340);
   assert.equal((await sardor.post(`/api/loads/${load.id}/renew`)).status, 403);
   const renewed = await dias.post(`/api/loads/${load.id}/renew`);
   assert.equal(renewed.status, 200);
   assert.ok(Date.now() - Date.parse(renewed.json.createdAt) < 60_000, 'counts as posted now');
   assert.equal(await sweepExpiredLoads(env.pool), 0);
   assert.equal((await dias.post('/api/loads/99999999/renew')).status, 404);
-  await age(load.id, 25);
+  await age(load.id, 400);
   await sweepExpiredLoads(env.pool);
   assert.equal((await dias.post(`/api/loads/${load.id}/renew`)).status, 404, 'too late: it has expired');
 });
@@ -78,7 +78,7 @@ test('renew: the owner of a load starts its 24 hours over; nobody else can', asy
 test('two sweepers at once do not trip over each other', async () => {
   const dias = env.as('exp-dias@test.com');
   const ids = [];
-  for (let i = 0; i < 3; i += 1) { const l = (await dias.post('/api/loads', validLoad(almaty, tash))).json; await age(l.id, 48); ids.push(l.id); }
+  for (let i = 0; i < 3; i += 1) { const l = (await dias.post('/api/loads', validLoad(almaty, tash))).json; await age(l.id, 400); ids.push(l.id); }
   const counts = await Promise.all([sweepExpiredLoads(env.pool), sweepExpiredLoads(env.pool), sweepExpiredLoads(env.pool)]);
   assert.equal(counts.reduce((a, b) => a + b, 0), 3, 'each load is closed exactly once');
 });

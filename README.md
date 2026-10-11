@@ -106,7 +106,7 @@ Everything accepts Cyrillic: pasted posts, notes, company names, free-text searc
 
 ### Loads remove themselves
 
-A load leaves the board 24 hours after it was posted (posted today at 14:05 -> gone tomorrow at 14:05), so old freight never piles up. The owner can switch this off or change the number of hours (1-720) on the Members page ("Automatic removal of loads"); a shorter limit is applied at once. A background job (every minute, safe to run on many workers at once) closes the expired loads; members see "removed in 5h 12m" under each of their loads and can press **Renew** to start the clock again. Closed posts are purged from the database after 90 days.
+A load leaves the board 14 days after it was posted (most people never set a load date, and nobody posts freight further ahead), so old freight never piles up. The owner can switch this off or change the number of days (1-30) on the Members page ("Automatic removal of loads"); a shorter limit is applied at once. A background job (every minute, safe to run on many workers at once) closes the expired loads; members can press **Renew** on a load that is still available to start its clock again (the removal time is not shown). Closed posts are purged from the database after 90 days.
 
 ### City database
 
