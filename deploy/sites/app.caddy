@@ -1,0 +1,7 @@
+# Second address for the same site (a name no browser or DNS cache has seen before).
+app.sng-pro.com {
+	encode zstd gzip
+	reverse_proxy api:8080 {
+		flush_interval -1
+	}
+}

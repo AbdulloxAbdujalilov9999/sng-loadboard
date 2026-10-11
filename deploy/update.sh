@@ -20,6 +20,8 @@ PROFILES=()
 grep -q '^TELEGRAM_BOT_TOKEN=.\+' .env && grep -q '^BOT_ENCRYPTION_KEY=.\+' .env && PROFILES+=(--profile bot)
 docker compose "${PROFILES[@]}" up -d --build --remove-orphans
 docker image prune -f >/dev/null
+# pick up changes to Caddyfile / sites/*.caddy without restarting the proxy
+docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || true
 
 # wait until the API answers
 for i in $(seq 1 40); do
