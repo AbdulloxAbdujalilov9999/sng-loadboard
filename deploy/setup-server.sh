@@ -9,8 +9,13 @@ apt-get update -y
 apt-get install -y ca-certificates curl git ufw unattended-upgrades fail2ban
 
 if ! command -v docker >/dev/null; then
-  curl -fsSL https://get.docker.com | sh
+  # Docker's own installer first; brand-new Ubuntu releases are sometimes not supported yet -> Ubuntu's own packages
+  curl -fsSL https://get.docker.com | sh || {
+    echo "get.docker.com failed - using Ubuntu's docker packages instead"
+    apt-get install -y docker.io docker-compose-v2 || apt-get install -y docker.io docker-compose-plugin
+  }
 fi
+docker compose version >/dev/null 2>&1 || apt-get install -y docker-compose-v2 || apt-get install -y docker-compose-plugin
 systemctl enable --now docker
 
 # keep container logs from filling the disk
