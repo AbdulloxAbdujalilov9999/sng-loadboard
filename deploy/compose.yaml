@@ -1,5 +1,5 @@
 # Production stack for ONE server (Hetzner): Caddy (automatic HTTPS) -> API (serves the web app) -> PostgreSQL.
-# Run from this folder:   docker compose up -d --build        (settings come from ./.env, see env.example)
+# Run from this folder (docker compose finds this file by its name):   docker compose up -d --build   (settings: ./.env, see env.example)
 # Nothing but Caddy is reachable from the internet; PostgreSQL and the API only listen on the private Docker network.
 name: sng
 

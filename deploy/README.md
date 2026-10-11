@@ -60,7 +60,7 @@ truckerz.example.com {
 	reverse_proxy host.docker.internal:3000
 }
 ```
-and `docker compose -f /opt/sng/app/deploy/docker-compose.prod.yml exec caddy caddy reload --config /etc/caddy/Caddyfile`.
+and `cd /opt/sng/app/deploy && docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`.
 
 ## Useful commands (run in /opt/sng/app/deploy)
 ```bash
