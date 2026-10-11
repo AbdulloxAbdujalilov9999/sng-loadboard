@@ -17,7 +17,7 @@ if [ "$before" != "$after" ] && docker compose ps --status running --services 2>
 fi
 
 PROFILES=()
-grep -q '^TELEGRAM_BOT_TOKEN=.\+' .env && PROFILES+=(--profile bot)
+grep -q '^TELEGRAM_BOT_TOKEN=.\+' .env && grep -q '^BOT_ENCRYPTION_KEY=.\+' .env && PROFILES+=(--profile bot)
 docker compose "${PROFILES[@]}" up -d --build --remove-orphans
 docker image prune -f >/dev/null
 
