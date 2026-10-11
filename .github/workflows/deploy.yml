@@ -1,0 +1,29 @@
+# Automatic deploy to the server on every push to main - OFF until you switch it on:
+#   GitHub repo -> Settings -> Secrets and variables -> Actions
+#     Variables:  DEPLOY_ENABLED = true
+#     Secrets:    DEPLOY_HOST (server IP), DEPLOY_SSH_KEY (private key of a key authorised on the server), DEPLOY_KNOWN_HOSTS (output of: ssh-keyscan <ip>)
+# See deploy/README.md. The server pulls the code itself (deploy/update.sh), so no code is uploaded from here.
+name: Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency: deploy-production
+
+jobs:
+  deploy:
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Update the server
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_deploy "root@$HOST" 'bash /opt/sng/app/deploy/update.sh'

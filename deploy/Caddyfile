@@ -1,0 +1,12 @@
+# Caddy gets and renews the HTTPS certificate by itself. SITE_ADDRESS comes from .env.
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	# flush_interval -1: live updates (Server-Sent Events) must not be buffered
+	reverse_proxy api:8080 {
+		flush_interval -1
+	}
+}
+
+# Other projects on the same server: add a file such as sites/truckerz.caddy containing
+#   truckerz.example.com { reverse_proxy host.docker.internal:3000 }
+import /etc/caddy/sites/*.caddy

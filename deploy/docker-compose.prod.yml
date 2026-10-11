@@ -1,0 +1,95 @@
+# Production stack for ONE server (Hetzner): Caddy (automatic HTTPS) -> API (serves the web app) -> PostgreSQL.
+# Run from this folder:   docker compose up -d --build        (settings come from ./.env, see env.example)
+# Nothing but Caddy is reachable from the internet; PostgreSQL and the API only listen on the private Docker network.
+name: sng
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # lets Caddy reach other projects running on this server
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS in .env (your domain, e.g. sng.example.com)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./sites:/etc/caddy/sites:ro        # other projects on this server drop a *.caddy file here
+      - caddy_data:/data                   # certificates - keep this volume
+      - caddy_config:/config
+    depends_on:
+      - api
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    shm_size: 256mb
+    environment:
+      POSTGRES_USER: sng
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: sng
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"   # city names / Russian text need UTF8 (the app refuses to start otherwise)
+      LANG: C.UTF-8
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sng -d sng"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    command: ["postgres", "-c", "max_connections=100", "-c", "shared_buffers=768MB", "-c", "effective_cache_size=2GB",
+              "-c", "work_mem=8MB", "-c", "log_min_duration_statement=2000"]
+
+  api:
+    build:
+      context: ..
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://sng:${POSTGRES_PASSWORD}@db:5432/sng
+      OWNER_EMAILS: ${OWNER_EMAILS:?set OWNER_EMAILS in .env}
+      TRUST_PROXY: "true"                       # we are behind Caddy: use the real client IP for rate limits
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      DB_POOL_MAX: ${DB_POOL_MAX:-20}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite,gemini-3.5-flash,gemini-3.8-flash}
+      AI_RATE_PER_HOUR: ${AI_RATE_PER_HOUR:-40}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-sng-pro}
+      CSP_ENFORCE: ${CSP_ENFORCE:-false}
+    ulimits:
+      nofile: 200000
+
+  # Telegram bot - start with:  docker compose --profile bot up -d
+  bot:
+    build:
+      context: ..
+    command: ["node", "bot/src/index.js"]
+    restart: unless-stopped
+    profiles: ["bot"]
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    healthcheck:
+      disable: true
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://sng:${POSTGRES_PASSWORD}@db:5432/sng
+      API_BASE_URL: http://api:8080
+      PUBLIC_WEB_URL: https://${SITE_ADDRESS}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?set TELEGRAM_BOT_TOKEN in .env to run the bot}
+      FIREBASE_WEB_API_KEY: ${FIREBASE_WEB_API_KEY:-AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg}
+      BOT_ENCRYPTION_KEY: ${BOT_ENCRYPTION_KEY:?set BOT_ENCRYPTION_KEY in .env to run the bot}
+      BOT_BROADCAST_LANG: ${BOT_BROADCAST_LANG:-ru}
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
