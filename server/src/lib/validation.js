@@ -11,6 +11,9 @@ const TEMPLATES = {
   email: 'Enter a valid email address',
   phone: 'Enter a valid phone number',
   telegram: 'Telegram handle: 4-32 letters, digits or _',
+  contact_required: 'Add a phone number or a Telegram username',
+  pin_format: 'The PIN must be exactly 4 digits',
+  pin_weak: 'Choose a less obvious PIN (not 1234, 0000 ...)',
   date_format: 'Use YYYY-MM-DD',
   date_real: 'Not a real calendar date',
   text_max: 'Too long (max {max} characters)',
@@ -51,8 +54,10 @@ export function describeIssue(issue) {
     case 'invalid_format':
       if (issue.message in TEMPLATES) return detail(path, issue.message); // our regex rules use the code as their message
       return detail(path, issue.format === 'email' ? 'email' : 'invalid');
-    case 'invalid_union':
-      return detail(path, 'email'); // the only union in our schemas is "empty or e-mail"
+    case 'invalid_union': { // "empty, or a valid phone / Telegram / e-mail": report what is wrong with the non-empty branch
+      const inner = (issue.errors ?? []).flat().find((i) => i.code !== 'invalid_value');
+      return inner ? describeIssue({ ...inner, path: issue.path }) : detail(path, 'invalid');
+    }
     case 'invalid_value':
       return detail(path, 'choice');
     case 'unrecognized_keys':

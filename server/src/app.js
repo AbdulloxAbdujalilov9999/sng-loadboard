@@ -14,6 +14,7 @@ import { describeIssue } from './lib/validation.js';
 import { buildCityIndex } from './lib/ai/cities.js';
 import publicRoutes from './routes/public.js';
 import meRoutes from './routes/me.js';
+import pinRoutes from './routes/pin.js';
 import adminRoutes from './routes/admin.js';
 import cityRoutes from './routes/cities.js';
 import loadRoutes from './routes/loads.js';
@@ -148,6 +149,7 @@ export async function buildApp({ config, pool, verifyToken, hub: providedHub, lo
   const opts = { pool, config, hub, ai };
   await app.register(publicRoutes, opts);
   await app.register(meRoutes, opts);
+  await app.register(pinRoutes, opts);
   await app.register(adminRoutes, opts);
   await app.register(cityRoutes, opts);
   await app.register(loadRoutes, opts);

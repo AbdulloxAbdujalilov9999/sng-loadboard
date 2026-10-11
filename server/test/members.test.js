@@ -57,53 +57,68 @@ test('owner (from OWNER_EMAILS) is auto-provisioned and recognised', async () =>
   assert.equal(me.json.status, 'approved');
 });
 
-test('new user: status none -> request access -> pending, and cannot use the platform', async () => {
+test('new user: sign up with a name + one contact -> a member straight away (no approval)', async () => {
   const alice = env.as('alice@gmail.com', 'Alice K');
   let me = await alice.get('/api/me');
   assert.equal(me.json.status, 'none');
   assert.equal(me.json.isOwner, false);
 
   assert.equal((await alice.get('/api/loads')).status, 403, 'no account yet');
+  assert.equal((await alice.get('/api/loads')).json.error.code, 'no_account');
 
-  const bad = await alice.post('/api/me/access-request', { company: '', phone: 'x', telegram: '??' });
+  const bad = await alice.post('/api/me/access-request', { contactName: '', phone: 'x', telegram: '??' });
   assert.equal(bad.status, 400);
   assert.equal(bad.json.error.code, 'validation_error');
 
-  const ok = await alice.post('/api/me/access-request', { company: 'Alice Cargo', phone: '+998 90 111 22 33', telegram: 'alice_cargo' });
+  const noContact = await alice.post('/api/me/access-request', { contactName: 'Alice K' });
+  assert.equal(noContact.status, 400, 'a phone number OR a Telegram username is required');
+  assert.deepEqual(noContact.json.error.details.map((d) => d.code), ['contact_required', 'contact_required']);
+
+  const ok = await alice.post('/api/me/access-request', { contactName: 'Alice K', phone: '+998 90 111 22 33', telegram: 'alice_cargo' });
   assert.equal(ok.status, 201);
   assert.equal(ok.json.profile.telegram, '@alice_cargo', 'handle normalised with @');
-  assert.equal(ok.json.profile.status, 'pending');
+  assert.equal(ok.json.profile.status, 'approved', 'no waiting for approval');
+  assert.equal(ok.json.profile.company, 'Alice K', 'no company given: the name stands in');
 
   me = await alice.get('/api/me');
-  assert.equal(me.json.status, 'pending');
-  assert.equal((await alice.get('/api/loads')).status, 403);
-  assert.equal((await alice.get('/api/loads')).json.error.code, 'not_approved_pending');
+  assert.equal(me.json.status, 'approved');
+  assert.equal((await alice.get('/api/loads')).status, 200, 'can use the platform at once');
 
-  const twice = await alice.post('/api/me/access-request', { company: 'Again', phone: '+998 90 111 22 33', telegram: '@alice_cargo' });
-  assert.equal(twice.status, 409, 'cannot request twice');
+  const twice = await alice.post('/api/me/access-request', { contactName: 'Again', phone: '+998 90 111 22 33' });
+  assert.equal(twice.status, 409, 'cannot sign up twice');
+
+  // either contact alone is enough; e-mail and company are optional
+  const onlyTg = await env.as('tg-only@gmail.com').post('/api/me/access-request', { contactName: 'Tg Only', telegram: '@tg_only' });
+  assert.equal(onlyTg.status, 201);
+  const onlyPhone = await env.as('phone-only@gmail.com').post('/api/me/access-request', { contactName: 'Phone Only', phone: '+998901234567', company: 'Phone Co' });
+  assert.equal(onlyPhone.status, 201);
+  assert.equal(onlyPhone.json.profile.company, 'Phone Co');
 });
 
-test('only the owner can see and decide requests; approval unlocks the platform', async () => {
+test('the owner sees who joined, and can still block, unblock and remove members', async () => {
   const alice = env.as('alice@gmail.com');
   const owner = env.as('owner@test.com');
   const outsider = env.as('mallory@gmail.com');
 
-  assert.equal((await alice.get('/api/admin/members')).status, 403, 'members cannot list requests');
+  assert.equal((await alice.get('/api/admin/members')).status, 403, 'members cannot list members');
   assert.equal((await outsider.get('/api/admin/members')).status, 403);
 
-  const list = await owner.get('/api/admin/members?status=pending');
+  const list = await owner.get('/api/admin/members');
   assert.equal(list.status, 200);
-  const req = list.json.items.find((m) => m.email === 'alice@gmail.com');
-  assert.ok(req, 'request visible to owner');
-  assert.ok(list.json.counts.pending >= 1);
+  const joined = list.json.items.find((m) => m.email === 'alice@gmail.com');
+  assert.ok(joined, 'new member visible to the owner');
+  assert.equal(joined.status, 'approved');
+  assert.equal(list.json.counts.pending, 0, 'nobody waits for approval any more');
 
-  assert.equal((await alice.post(`/api/admin/members/${req.id}/approve`)).status, 403, 'cannot self-approve');
+  assert.equal((await alice.post(`/api/admin/members/${joined.id}/reject`)).status, 403, 'cannot block others / self');
 
-  const approved = await owner.post(`/api/admin/members/${req.id}/approve`);
-  assert.equal(approved.status, 200);
-  assert.equal(approved.json.profile.status, 'approved');
+  const blocked = await owner.post(`/api/admin/members/${joined.id}/reject`);
+  assert.equal(blocked.status, 200);
+  assert.equal((await alice.get('/api/loads')).status, 403);
+  assert.equal((await alice.get('/api/loads')).json.error.code, 'not_approved_rejected');
 
-  assert.equal((await alice.get('/api/me')).json.status, 'approved');
+  const back = await owner.post(`/api/admin/members/${joined.id}/approve`);
+  assert.equal(back.json.profile.status, 'approved');
   assert.equal((await alice.get('/api/loads')).status, 200);
 });
 

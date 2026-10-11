@@ -15,33 +15,54 @@ const telegram = z.string().trim().regex(/^@?[A-Za-z0-9_]{4,32}$/, 'telegram')
   .transform((v) => (v.startsWith('@') ? v : `@${v}`));
 const email = z.string().trim().toLowerCase().email().max(254);
 
-export const accessRequestBody = z.object({
-  company: trimmed(120),
-  phone,
-  telegram,
-  contactEmail: z.union([z.literal(''), email]).optional(),
-  contactName: optionalText(120),
-}).strict();
+// Contact rule used everywhere: a phone number OR a Telegram username is required, the other one is optional
+// (e-mail is always optional). Reports on both fields so the form can highlight them.
+const needsContact = (v, ctx, phoneKey = 'contactPhone', tgKey = 'contactTelegram') => {
+  if (!v[phoneKey] && !v[tgKey]) {
+    for (const path of [phoneKey, tgKey]) ctx.addIssue({ code: 'custom', path: [path], message: 'contact_required' });
+  }
+};
 
-// A profile may leave contact fields empty (they are only REQUIRED when posting), so "default contact info"
-// can be saved a piece at a time. An empty string clears the field.
 const orEmpty = (schema) => z.union([z.literal(''), schema]);
+const pin = z.string().regex(/^\d{4}$/, 'pin_format');
+
+// Signing up: a name and one way to be reached. Company is optional (added later in Settings; the name stands in until then).
+export const signupBody = z.object({
+  contactName: trimmed(120),
+  company: optionalText(120),
+  phone: orEmpty(phone).default(''),
+  telegram: orEmpty(telegram).default(''),
+  contactEmail: orEmpty(email).default(''),
+  pin: pin.optional(),
+}).strict();
+export const accessRequestBody = signupBody; // the endpoint keeps its old URL
+
+export const pinBody = z.object({ pin, currentPin: pin.optional() }).strict();
+export const pinLoginBody = z.object({
+  phone: z.string().trim().regex(/^\+\d{8,15}$/, 'phone'),
+  pin,
+  purpose: z.enum(['web', 'bot']).default('web'),
+}).strict();
+export const phoneCheckBody = z.object({ phone: z.string().trim().regex(/^\+\d{8,15}$/, 'phone') }).strict();
+
+// A profile may leave contact fields empty while it is being filled in; an empty string clears a field.
+// (The route checks that a phone or Telegram username is always left.)
 export const profileBody = z.object({
-  company: trimmed(120),
-  contactName: optionalText(120),
-  phone: orEmpty(phone),
-  telegram: orEmpty(telegram),
+  company: z.string().trim().max(120),      // '' = "no company": the name is shown instead
+  contactName: z.string().trim().max(120),
+  phone: z.union([z.literal(''), phone]),
+  telegram: z.union([z.literal(''), telegram]),
   contactEmail: z.union([z.literal(''), email]),
-  location: optionalText(120),
-  tirCarnet: optionalText(60),
-  fleet: optionalText(200),
-  routes: optionalText(300),
+  location: z.string().trim().max(120),
+  tirCarnet: z.string().trim().max(60),
+  fleet: z.string().trim().max(200),
+  routes: z.string().trim().max(300),
 }).partial().strict();
 
 const cityId = z.coerce.number().int().positive();
 const money = z.coerce.number().min(0).max(10_000_000).transform((n) => Math.round(n * 100) / 100);
 
-export const loadBody = z.object({
+const loadBase = z.object({
   originCityId: cityId,
   destCityId: cityId,
   equip: z.enum(EQUIP),
@@ -54,16 +75,22 @@ export const loadBody = z.object({
   commodity: trimmed(200),
   notes: z.string().trim().max(500).optional(), // optional (no default) so PATCH never wipes it by accident
   contactName: trimmed(120),
-  contactPhone: phone,
-  contactEmail: email,
-  contactTelegram: telegram,
+  contactPhone: orEmpty(phone),
+  contactEmail: orEmpty(email),
+  contactTelegram: orEmpty(telegram),
 }).strict();
+// Creating: contacts may be left out (they become ''). Editing (below) never applies defaults, so omitted fields stay as they are.
+export const loadBody = loadBase.extend({
+  contactPhone: orEmpty(phone).default(''),
+  contactEmail: orEmpty(email).default(''),
+  contactTelegram: orEmpty(telegram).default(''),
+}).superRefine((v, ctx) => needsContact(v, ctx));
 
 export const loadsBulkBody = z.object({ loads: z.array(loadBody).min(1).max(40) }).strict();
 
-export const loadPatchBody = loadBody.partial().strict();
+export const loadPatchBody = loadBase.partial().strict(); // the route checks the merged result still has a phone or Telegram
 
-export const truckBody = z.object({
+const truckBase = z.object({
   locCityId: cityId,
   destPref: z.string().trim().max(120).default('Anywhere').transform((v) => v || 'Anywhere'),
   equip: z.enum(EQUIP),
@@ -77,9 +104,13 @@ export const truckBody = z.object({
   hasGps: z.boolean().default(false),
   sideLoading: z.boolean().default(false),
   notes: z.string().trim().max(500).optional(), // optional (no default), like loads
-  contactPhone: phone,
-  contactTelegram: telegram,
+  contactPhone: orEmpty(phone),
+  contactTelegram: orEmpty(telegram),
 }).strict();
+export const truckBody = truckBase.extend({
+  contactPhone: orEmpty(phone).default(''),
+  contactTelegram: orEmpty(telegram).default(''),
+}).superRefine((v, ctx) => needsContact(v, ctx));
 
 export const trucksBulkBody = z.object({ trucks: z.array(truckBody).min(1).max(40) }).strict();
 
@@ -135,7 +166,7 @@ export const citiesQuery = z.object({
 }).strict();
 
 export const adminMembersQuery = z.object({
-  status: z.enum(['pending', 'approved', 'rejected', 'all']).default('pending'),
+  status: z.enum(['pending', 'approved', 'rejected', 'all']).default('all'),
 }).strict();
 
 export const fxBody = z.object({

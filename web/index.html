@@ -38,7 +38,7 @@
                 <div class="absolute top-2 right-2 flex items-center gap-1.5">
                     <label for="gate-lang" class="sr-only" data-i18n="lang_label">Language</label>
                     <select id="gate-lang" class="bg-[#0f2942] text-slate-200 text-[11px] font-semibold rounded px-1.5 py-1 border border-slate-600 focus:outline-none cursor-pointer">
-                        <option value="en">EN</option><option value="ru">RU</option><option value="uz">UZ</option>
+                        <option value="uz">UZ</option><option value="ru">RU</option><option value="en">EN</option>
                     </select>
                     <button type="button" data-theme-toggle class="text-slate-300 hover:text-white bg-[#0f2942] border border-slate-600 rounded p-1" aria-label="Theme"><i data-lucide="moon" class="w-3.5 h-3.5 icon-to-dark"></i><i data-lucide="sun" class="w-3.5 h-3.5 icon-to-light"></i></button>
                 </div>
@@ -50,13 +50,49 @@
             <!-- Start -->
             <div id="auth-pane-start" class="p-5 sm:p-6 space-y-4">
                 <div id="auth-methods" role="tablist" class="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-lg text-[11px] font-bold">
+                    <button type="button" role="tab" data-method="phone" class="auth-method flex items-center justify-center gap-1.5 py-2 rounded-md transition"><i data-lucide="smartphone" class="w-3.5 h-3.5"></i><span data-i18n="auth_tab_phone">Phone</span></button>
                     <button type="button" role="tab" data-method="google" class="auth-method flex items-center justify-center gap-1.5 py-2 rounded-md transition"><i data-lucide="log-in" class="w-3.5 h-3.5"></i><span>Google</span></button>
                     <button type="button" role="tab" data-method="email" class="auth-method flex items-center justify-center gap-1.5 py-2 rounded-md transition"><i data-lucide="mail" class="w-3.5 h-3.5"></i><span data-i18n="auth_tab_email">Email</span></button>
-                    <button type="button" role="tab" data-method="phone" class="auth-method flex items-center justify-center gap-1.5 py-2 rounded-md transition"><i data-lucide="smartphone" class="w-3.5 h-3.5"></i><span data-i18n="auth_tab_phone">Phone</span></button>
+                </div>
+
+                <!-- Phone: number -> PIN (returning) or SMS code (first time / forgot PIN) -->
+                <div data-method-pane="phone" class="space-y-3">
+                    <form id="phone-form" class="space-y-3" novalidate>
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1" for="auth-phone" data-i18n="lbl_phone">Phone Number</label>
+                            <input type="tel" id="auth-phone" autocomplete="tel" inputmode="tel" placeholder="+998 90 123 45 67" required class="w-full border border-slate-300 rounded p-2.5 text-base sm:text-sm focus:border-blue-500 focus:outline-none">
+                            <p class="text-[10px] text-slate-400 mt-1" data-i18n="auth_phone_hint2">Enter your number with the country code. New here? We send a one-time code by SMS, then you choose a 4-digit PIN. Next time you only need the PIN.</p>
+                        </div>
+                        <button type="submit" id="phone-send-btn" class="w-full bg-[#0066cc] hover:bg-blue-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs transition shadow" data-i18n="btn_continue">Continue</button>
+                    </form>
+                    <form id="phone-pin-form" class="hidden space-y-3" novalidate>
+                        <p class="text-[11px] text-slate-500"><span data-i18n="pin_enter_for">Enter the 4-digit PIN for</span> <strong id="pin-target" class="text-slate-800"></strong></p>
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1" for="auth-pin" data-i18n="lbl_pin">PIN (4 digits)</label>
+                            <input type="password" id="auth-pin" autocomplete="current-password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required class="w-full border border-slate-300 rounded p-2.5 text-xl tracking-[0.6em] text-center font-mono focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <button type="submit" id="pin-submit-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs transition shadow" data-i18n="btn_signin">Sign in</button>
+                        <div class="flex justify-between text-[11px] font-semibold">
+                            <button type="button" id="pin-forgot-btn" class="text-blue-600 hover:underline" data-i18n="pin_forgot">Forgot PIN? Use SMS code</button>
+                            <button type="button" id="pin-change-btn" class="text-slate-500 hover:text-slate-700" data-i18n="auth_change_number">Change number</button>
+                        </div>
+                    </form>
+                    <form id="phone-code-form" class="hidden space-y-3" novalidate>
+                        <p class="text-[11px] text-slate-500"><span data-i18n="auth_code_sent">We sent a 6-digit code to</span> <strong id="phone-code-target" class="text-slate-800"></strong></p>
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1" for="auth-code" data-i18n="lbl_code">Code from SMS</label>
+                            <input type="text" id="auth-code" autocomplete="one-time-code" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required class="w-full border border-slate-300 rounded p-2.5 text-lg tracking-[0.4em] text-center font-mono focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <button type="submit" id="phone-verify-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs transition shadow" data-i18n="auth_verify_code">Verify and sign in</button>
+                        <div class="flex justify-between text-[11px] font-semibold">
+                            <button type="button" id="phone-resend-btn" class="text-blue-600 hover:underline disabled:text-slate-400 disabled:no-underline" data-i18n="auth_resend_code">Send code again</button>
+                            <button type="button" id="phone-change-btn" class="text-slate-500 hover:text-slate-700" data-i18n="auth_change_number">Change number</button>
+                        </div>
+                    </form>
                 </div>
 
                 <!-- Google -->
-                <div data-method-pane="google" class="space-y-3">
+                <div data-method-pane="google" class="hidden space-y-3">
                     <button type="button" id="google-signin-btn" disabled class="disabled:opacity-60 disabled:cursor-wait w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-2.5 rounded text-xs transition shadow border border-slate-300 flex items-center justify-center space-x-2">
                         <svg class="w-4 h-4" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.5 6 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.5 6 29.5 4 24 4 16.3 4 9.6 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-1.8 14-5l-6.5-5.4C29.5 35.2 26.9 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5c3.3 6.5 10 10.9 17.8 10.9z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.5 5.4C41.1 35.9 44 30.4 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
                         <span id="google-signin-btn-label">…</span>
@@ -103,30 +139,6 @@
                     </form>
                 </div>
 
-                <!-- Phone (SMS code) -->
-                <div data-method-pane="phone" class="hidden space-y-3">
-                    <form id="phone-form" class="space-y-3" novalidate>
-                        <div>
-                            <label class="block font-semibold text-slate-700 mb-1" for="auth-phone" data-i18n="lbl_phone">Phone Number</label>
-                            <input type="tel" id="auth-phone" autocomplete="tel" inputmode="tel" placeholder="+998 90 123 45 67" required class="w-full border border-slate-300 rounded p-2.5 text-sm focus:border-blue-500 focus:outline-none">
-                            <p class="text-[10px] text-slate-400 mt-1" data-i18n="auth_phone_hint">Include the country code, e.g. +998 for Uzbekistan, +7 for Russia/Kazakhstan. We send a one-time code by SMS.</p>
-                        </div>
-                        <button type="submit" id="phone-send-btn" class="w-full bg-[#0066cc] hover:bg-blue-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs transition shadow" data-i18n="auth_send_code">Send SMS code</button>
-                    </form>
-                    <form id="phone-code-form" class="hidden space-y-3" novalidate>
-                        <p class="text-[11px] text-slate-500"><span data-i18n="auth_code_sent">We sent a 6-digit code to</span> <strong id="phone-code-target" class="text-slate-800"></strong></p>
-                        <div>
-                            <label class="block font-semibold text-slate-700 mb-1" for="auth-code" data-i18n="lbl_code">Code from SMS</label>
-                            <input type="text" id="auth-code" autocomplete="one-time-code" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required class="w-full border border-slate-300 rounded p-2.5 text-lg tracking-[0.4em] text-center font-mono focus:border-blue-500 focus:outline-none">
-                        </div>
-                        <button type="submit" id="phone-verify-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs transition shadow" data-i18n="auth_verify_code">Verify and sign in</button>
-                        <div class="flex justify-between text-[11px] font-semibold">
-                            <button type="button" id="phone-resend-btn" class="text-blue-600 hover:underline disabled:text-slate-400 disabled:no-underline" data-i18n="auth_resend_code">Send code again</button>
-                            <button type="button" id="phone-change-btn" class="text-slate-500 hover:text-slate-700" data-i18n="auth_change_number">Change number</button>
-                        </div>
-                    </form>
-                </div>
-
                 <!-- Local development only: the server advertises devAuth, production never does. -->
                 <form id="dev-signin" class="hidden space-y-2 border border-dashed border-amber-300 bg-amber-50 rounded p-3">
                     <p class="text-[11px] font-bold text-amber-800">Dev sign-in (local server only)</p>
@@ -135,7 +147,7 @@
                 </form>
 
                 <p id="auth-start-error" role="alert" class="hidden text-rose-600 bg-rose-50 border border-rose-200 rounded p-2 text-[11px] font-semibold"></p>
-                <p class="text-[10px] text-slate-400 text-center leading-relaxed" data-i18n="auth_start_hint">New companies fill in a few details after signing in and wait for the platform owner to approve access. Returning members and the owner get in immediately.</p>
+                <p class="text-[10px] text-slate-400 text-center leading-relaxed" data-i18n="auth_start_hint">New here? Sign up in a minute: your name and a phone number or Telegram username. You can use the platform straight away.</p>
             </div>
 
             <!-- E-mail address must be confirmed before first use -->
@@ -151,44 +163,71 @@
                 <button type="button" data-action="gate-signout" class="w-full text-slate-400 hover:text-slate-600 text-[11px] font-semibold" data-i18n="btn_other_account">Use a different account</button>
             </div>
 
-            <!-- New Google sign-in with no account yet -->
+            <!-- Signed in, but no account yet: sign up -->
             <div id="auth-pane-complete-profile" class="hidden p-6 space-y-4">
-                <p class="text-[11px] text-slate-500" data-i18n="lbl_request_sub">You're signed in. Add your company details to send an access request — you'll be able to use the platform once the owner approves it.</p>
+                <p class="text-[11px] text-slate-500" data-i18n="lbl_signup_sub">You're signed in. Just your name and how people can reach you, and you can start using the platform.</p>
                 <form id="request-form" class="space-y-3" novalidate>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block font-semibold text-slate-700 mb-1" for="gate-request-name" data-i18n="lbl_your_name">Your name</label>
-                            <input type="text" id="gate-request-name" name="contactName" maxlength="120" autocomplete="name" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1" for="gate-request-name" data-i18n="lbl_your_name">Your name</label>
+                        <input type="text" id="gate-request-name" name="contactName" maxlength="120" autocomplete="name" required class="w-full border border-slate-300 rounded p-2.5 text-base sm:text-xs focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1" for="gate-request-email" data-i18n="lbl_signed_in_as">Signed in as</label>
+                        <input type="text" id="gate-request-email" class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 text-slate-600" readonly>
+                    </div>
+                    <div id="gate-contact-wrap" class="space-y-3">
+                        <div id="gate-phone-wrap">
+                            <label class="block font-semibold text-slate-700 mb-1" for="gate-request-phone" data-i18n="lbl_phone">Phone Number</label>
+                            <input type="tel" id="gate-request-phone" name="phone" autocomplete="tel" placeholder="+998 90 123 45 67" class="w-full border border-slate-300 rounded p-2.5 text-base sm:text-xs focus:border-blue-500 focus:outline-none">
                         </div>
                         <div>
-                            <label class="block font-semibold text-slate-700 mb-1" for="gate-request-email" data-i18n="lbl_signed_in_as">Signed in as</label>
-                            <input type="text" id="gate-request-email" class="w-full border border-slate-300 rounded p-2 text-xs bg-slate-50 text-slate-600" readonly>
+                            <div class="flex justify-between items-center mb-1"><label class="font-semibold text-slate-700" for="gate-request-tg" data-i18n="lbl_telegram">Telegram Handle</label><span id="gate-tg-opt" class="hidden text-[9px] text-slate-400 italic" data-i18n="lbl_optional">Optional</span></div>
+                            <input type="text" id="gate-request-tg" name="telegram" placeholder="@alisher_disp" autocapitalize="none" class="w-full border border-slate-300 rounded p-2.5 text-base sm:text-xs focus:border-blue-500 focus:outline-none">
                         </div>
+                        <p id="gate-contact-hint" class="text-[10px] text-slate-400" data-i18n="hint_phone_or_tg">A phone number or a Telegram username is required (one is enough).</p>
                     </div>
                     <div id="gate-contact-email-wrap" class="hidden">
                         <div class="flex justify-between items-center mb-1"><label class="font-semibold text-slate-700" for="gate-request-contact-email" data-i18n="lbl_contact_email">Contact email</label><span class="text-[9px] text-slate-400 italic" data-i18n="lbl_optional">Optional</span></div>
-                        <input type="email" id="gate-request-contact-email" autocomplete="email" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                        <input type="email" id="gate-request-contact-email" autocomplete="email" class="w-full border border-slate-300 rounded p-2.5 text-base sm:text-xs focus:border-blue-500 focus:outline-none">
                     </div>
-                    <div>
-                        <label class="block font-semibold text-slate-700 mb-1" for="gate-request-company" data-i18n="lbl_company">Company Name</label>
-                        <input type="text" id="gate-request-company" name="company" maxlength="120" required placeholder="SilkRoad Trans LLC" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block font-semibold text-slate-700 mb-1" for="gate-request-phone" data-i18n="lbl_phone">Phone Number</label>
-                            <input type="tel" id="gate-request-phone" name="phone" required placeholder="+998 (90) 123-45-67" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block font-semibold text-slate-700 mb-1" for="gate-request-tg" data-i18n="lbl_telegram">Telegram Handle</label>
-                            <input type="text" id="gate-request-tg" name="telegram" required placeholder="@alisher_disp" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 focus:outline-none">
+                    <div id="gate-pin-wrap" class="hidden space-y-2 border border-emerald-200 bg-emerald-50/60 rounded-lg p-3">
+                        <p class="text-[11px] font-bold text-emerald-800" data-i18n="pin_choose_title">Choose a 4-digit PIN</p>
+                        <p class="text-[10px] text-slate-500" data-i18n="pin_choose_sub">Next time you sign in with your phone number and this PIN, no SMS needed. The Telegram bot asks for it too.</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="password" id="gate-request-pin" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••" aria-label="PIN" class="w-full border border-slate-300 rounded p-2.5 text-lg tracking-[0.5em] text-center font-mono focus:border-blue-500 focus:outline-none">
+                            <input type="password" id="gate-request-pin2" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••" aria-label="Repeat PIN" class="w-full border border-slate-300 rounded p-2.5 text-lg tracking-[0.5em] text-center font-mono focus:border-blue-500 focus:outline-none">
                         </div>
                     </div>
                     <p id="request-error" role="alert" class="hidden text-rose-600 bg-rose-50 border border-rose-200 rounded p-2 text-[11px] font-semibold"></p>
                     <button type="submit" id="request-submit-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs transition shadow flex items-center justify-center space-x-2">
-                        <i data-lucide="send" class="w-4 h-4"></i>
-                        <span data-i18n="btn_signup_submit">Submit Access Request</span>
+                        <i data-lucide="check" class="w-4 h-4"></i>
+                        <span data-i18n="btn_signup_submit2">Create account</span>
                     </button>
                     <button type="button" data-action="gate-signout" class="w-full text-slate-400 hover:text-slate-600 text-[11px] font-semibold" data-i18n="btn_other_account">Use a different account</button>
+                </form>
+            </div>
+
+            <!-- Set / reset the PIN of a phone account -->
+            <div id="auth-pane-set-pin" class="hidden p-6 space-y-4">
+                <div class="text-center">
+                    <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-2"><i data-lucide="key-round" class="w-6 h-6"></i></div>
+                    <h2 id="setpin-title" class="text-sm font-bold text-slate-800" data-i18n="pin_set_title">Create your 4-digit PIN</h2>
+                    <p class="text-slate-500 text-[11px] mt-1" data-i18n="pin_set_sub">Sign in next time with your phone number and this PIN, no SMS code needed. The Telegram bot asks for it too.</p>
+                </div>
+                <form id="setpin-form" class="space-y-3" novalidate>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1" for="setpin-1" data-i18n="lbl_pin_new">New PIN</label>
+                            <input type="password" id="setpin-1" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••" class="w-full border border-slate-300 rounded p-2.5 text-xl tracking-[0.5em] text-center font-mono focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1" for="setpin-2" data-i18n="lbl_pin_repeat">Repeat PIN</label>
+                            <input type="password" id="setpin-2" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••" class="w-full border border-slate-300 rounded p-2.5 text-xl tracking-[0.5em] text-center font-mono focus:border-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <p id="setpin-error" role="alert" class="hidden text-rose-600 bg-rose-50 border border-rose-200 rounded p-2 text-[11px] font-semibold"></p>
+                    <button type="submit" id="setpin-submit-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs transition shadow" data-i18n="btn_save_pin">Save PIN</button>
+                    <button type="button" id="setpin-skip" class="w-full text-slate-400 hover:text-slate-600 text-[11px] font-semibold" data-i18n="btn_skip_now">Skip for now</button>
                 </form>
             </div>
 
@@ -279,7 +318,7 @@
                 <div id="nav-admin-section" class="hidden pt-3 px-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider" data-i18n="nav_admin_sec">Administration</div>
                 <button data-view="approvals" id="menu-approvals" class="hidden w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition text-slate-400">
                     <i data-lucide="user-check" class="w-4 h-4"></i>
-                    <span class="flex-1 text-left" data-i18n="nav_approvals">Users to Approve</span>
+                    <span class="flex-1 text-left" data-i18n="nav_approvals">Members</span>
                     <span class="hidden bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-mono" id="badge-approvals">0</span>
                 </button>
             </nav>
@@ -535,17 +574,18 @@
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div>
                                 <label class="block font-semibold text-slate-700 mb-1" for="post-phone" data-i18n="lbl_phone">Phone Number</label>
-                                <input type="tel" id="post-phone" name="contactPhone" required class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                                <input type="tel" id="post-phone" name="contactPhone" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
                             </div>
                             <div>
-                                <label class="block font-semibold text-slate-700 mb-1" for="post-email" data-i18n="lbl_email">Email</label>
-                                <input type="email" id="post-email" name="contactEmail" required class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                                <label class="block font-semibold text-slate-700 mb-1" for="post-email" data-i18n="lbl_email_opt">Email (optional)</label>
+                                <input type="email" id="post-email" name="contactEmail" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
                             </div>
                             <div>
                                 <label class="block font-semibold text-slate-700 mb-1" for="post-tg" data-i18n="lbl_telegram">Telegram Username</label>
-                                <input type="text" id="post-tg" name="contactTelegram" required class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
+                                <input type="text" id="post-tg" name="contactTelegram" class="w-full border border-slate-300 rounded p-2 focus:border-blue-500 text-xs">
                             </div>
                         </div>
+                        <p class="text-[10px] text-slate-400 -mt-1" data-i18n="hint_phone_or_tg">A phone number or a Telegram username is required (one is enough).</p>
                         <button type="submit" class="w-full bg-[#0066cc] hover:bg-blue-700 disabled:opacity-60 text-white font-bold py-2.5 px-4 rounded text-xs transition shadow flex items-center justify-center space-x-2">
                             <i data-lucide="upload-cloud" class="w-4 h-4"></i><span data-i18n="btn_publish_load">Publish Load to Live Exchange</span>
                         </button>
@@ -702,13 +742,14 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block font-semibold text-slate-700 mb-1" for="truck-post-phone" data-i18n="lbl_disp_phone">Dispatcher Phone</label>
-                                <input type="tel" id="truck-post-phone" name="contactPhone" required class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                                <input type="tel" id="truck-post-phone" name="contactPhone" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
                             </div>
                             <div>
                                 <label class="block font-semibold text-slate-700 mb-1" for="truck-post-tg" data-i18n="lbl_telegram">Telegram Username</label>
-                                <input type="text" id="truck-post-tg" name="contactTelegram" required class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                                <input type="text" id="truck-post-tg" name="contactTelegram" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
                             </div>
                         </div>
+                        <p class="text-[10px] text-slate-400 -mt-1" data-i18n="hint_phone_or_tg">A phone number or a Telegram username is required (one is enough).</p>
                         <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs shadow transition flex items-center justify-center space-x-2">
                             <i data-lucide="check-circle" class="w-4 h-4"></i><span data-i18n="btn_publish_truck">Publish Available Equipment</span>
                         </button>
@@ -845,7 +886,17 @@
                         <p class="text-slate-600" data-i18n="sec_set_password_hint">You can also sign in with your email and a password. We will email you a link to choose one.</p>
                         <button type="button" id="sec-set-password-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-4 py-2 rounded text-xs border border-slate-300" data-i18n="sec_set_password_btn">Email me a link to set a password</button>
                     </div>
-                    <p id="sec-phone-only" class="hidden text-slate-600" data-i18n="sec_phone_only">You sign in with your phone number and an SMS code, so there is no password to manage.</p>
+                    <p id="sec-phone-only" class="hidden text-slate-600" data-i18n="sec_phone_only">You sign in with your phone number and an SMS code or PIN, so there is no password to manage.</p>
+                    <form id="pin-form" class="hidden space-y-2 border-t border-slate-100 pt-3" novalidate>
+                        <p class="font-bold text-slate-700" data-i18n="pin_change_title">Your 4-digit PIN</p>
+                        <p class="text-[11px] text-slate-500" data-i18n="pin_change_sub">Used to sign in with your phone number and in the Telegram bot. Changing it signs out your other devices and the bot.</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div id="pin-current-wrap"><label class="block font-semibold text-slate-700 mb-1" for="pin-current" data-i18n="lbl_pin_current">Current PIN</label><input type="password" id="pin-current" inputmode="numeric" maxlength="4" autocomplete="current-password" class="w-full border border-slate-300 rounded p-2 text-sm tracking-[0.4em] text-center font-mono"></div>
+                            <div><label class="block font-semibold text-slate-700 mb-1" for="pin-new" data-i18n="lbl_pin_new">New PIN</label><input type="password" id="pin-new" inputmode="numeric" maxlength="4" autocomplete="new-password" class="w-full border border-slate-300 rounded p-2 text-sm tracking-[0.4em] text-center font-mono"></div>
+                            <div><label class="block font-semibold text-slate-700 mb-1" for="pin-new2" data-i18n="lbl_pin_repeat">Repeat PIN</label><input type="password" id="pin-new2" inputmode="numeric" maxlength="4" autocomplete="new-password" class="w-full border border-slate-300 rounded p-2 text-sm tracking-[0.4em] text-center font-mono"></div>
+                        </div>
+                        <button type="submit" class="bg-[#0066cc] hover:bg-blue-700 disabled:opacity-60 text-white font-bold px-4 py-2 rounded" data-i18n="btn_save_pin">Save PIN</button>
+                    </form>
                 </div>
             </section>
 
@@ -853,13 +904,12 @@
             <section id="view-approvals" class="hidden flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100">
                 <div class="max-w-4xl mx-auto space-y-5">
                     <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-                        <h3 class="text-base font-bold text-slate-800 flex items-center space-x-2"><i data-lucide="shield-check" class="w-4 h-4 text-blue-600"></i><span data-i18n="nav_approvals">Users to Approve</span></h3>
-                        <p class="text-xs text-slate-500 mt-1" data-i18n="approvals_sub">New companies request access with Google sign-in. Approve or decline each request — approved companies can then sign in and use the platform.</p>
+                        <h3 class="text-base font-bold text-slate-800 flex items-center space-x-2"><i data-lucide="shield-check" class="w-4 h-4 text-blue-600"></i><span data-i18n="nav_approvals">Members</span></h3>
+                        <p class="text-xs text-slate-500 mt-1" data-i18n="approvals_sub">Everyone who signs up can use the platform straight away. You are notified about each new member here and can block or remove anyone.</p>
                     </div>
                     <div class="flex gap-1 text-xs font-semibold" role="tablist" id="approvals-tabs">
-                        <button data-status="pending" class="px-3 py-1.5 rounded-t bg-white border border-b-0 border-slate-200 text-blue-700"><span data-i18n="st_pending">Pending</span> (<span id="cnt-pending">0</span>)</button>
-                        <button data-status="approved" class="px-3 py-1.5 rounded-t bg-slate-200 text-slate-600"><span data-i18n="st_approved">Approved</span> (<span id="cnt-approved">0</span>)</button>
-                        <button data-status="rejected" class="px-3 py-1.5 rounded-t bg-slate-200 text-slate-600"><span data-i18n="st_rejected">Declined</span> (<span id="cnt-rejected">0</span>)</button>
+                        <button data-status="all" class="px-3 py-1.5 rounded-t bg-white border border-b-0 border-slate-200 text-blue-700"><span data-i18n="st_all_members">All members</span> (<span id="cnt-all">0</span>)</button>
+                        <button data-status="rejected" class="px-3 py-1.5 rounded-t bg-slate-200 text-slate-600"><span data-i18n="st_blocked">Blocked</span> (<span id="cnt-rejected">0</span>)</button>
                     </div>
                     <div id="approvals-list" class="space-y-3 text-xs"></div>
 
@@ -906,9 +956,10 @@
                 <div><label class="block font-semibold text-slate-700 mb-1" for="edit-notes" data-i18n="lbl_notes">Notes</label><textarea id="edit-notes" name="notes" rows="2" maxlength="500" class="w-full border border-slate-300 rounded p-2 text-xs"></textarea></div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div><label class="block font-semibold text-slate-700 mb-1" for="edit-contact-name" data-i18n="lbl_disp_name">Contact Dispatcher Name</label><input type="text" id="edit-contact-name" name="contactName" required class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-phone" data-i18n="lbl_phone">Phone Number</label><input type="tel" id="edit-phone" name="contactPhone" required class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-email" data-i18n="lbl_email">Email</label><input type="email" id="edit-email" name="contactEmail" required class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-tg" data-i18n="lbl_telegram">Telegram Username</label><input type="text" id="edit-tg" name="contactTelegram" required class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-phone" data-i18n="lbl_phone">Phone Number</label><input type="tel" id="edit-phone" name="contactPhone" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-email" data-i18n="lbl_email_opt">Email (optional)</label><input type="email" id="edit-email" name="contactEmail" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="edit-tg" data-i18n="lbl_telegram">Telegram Username</label><input type="text" id="edit-tg" name="contactTelegram" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                    <p class="sm:col-span-3 text-[10px] text-slate-400" data-i18n="hint_phone_or_tg">A phone number or a Telegram username is required (one is enough).</p>
                 </div>
                 <div class="flex space-x-2 pt-2 border-t">
                     <button type="button" id="edit-cancel" class="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded text-xs transition" data-i18n="btn_cancel">Cancel</button>

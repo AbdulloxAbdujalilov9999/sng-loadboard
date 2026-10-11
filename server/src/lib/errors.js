@@ -12,3 +12,5 @@ export const forbidden = (message = 'Not allowed', code = 'forbidden') => new Ht
 export const notFound = (message = 'Not found') => new HttpError(404, 'not_found', message);
 export const conflict = (message, code = 'conflict') => new HttpError(409, code, message);
 export const tooMany = (message) => new HttpError(429, 'quota_exceeded', message);
+/** Same shape as a schema validation failure, for rules a schema cannot see (they need the signed-in user). */
+export const validationError = (details) => new HttpError(400, 'validation_error', 'Please check the highlighted fields', details);

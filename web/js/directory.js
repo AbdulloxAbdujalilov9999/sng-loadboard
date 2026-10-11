@@ -40,10 +40,10 @@ const Directory = (() => {
         ${c.routes ? `<div><strong class="text-slate-700">${esc(t('lbl_routes'))}:</strong> ${esc(c.routes)}</div>` : ''}
         <div><strong class="text-slate-700">${esc(t('lbl_lead_dispatcher'))}:</strong> ${esc(c.contactName)}</div>
       </div>
-      <div class="pt-2 border-t border-slate-100 grid grid-cols-3 gap-2 text-[10px]">
-        <a href="tel:${esc(String(c.phone).replace(/[^\d+]/g, ''))}" class="bg-blue-50 text-blue-700 font-bold py-1.5 px-2 rounded text-center hover:bg-blue-100 transition flex items-center justify-center space-x-1"><i data-lucide="phone" class="w-3 h-3"></i><span class="truncate">${esc(c.phone)}</span></a>
+      <div class="pt-2 border-t border-slate-100 flex flex-wrap gap-2 text-[10px] [&>a]:flex-1 [&>a]:min-w-[80px]">
+        ${c.phone ? `<a href="tel:${esc(String(c.phone).replace(/[^\d+]/g, ''))}" class="bg-blue-50 text-blue-700 font-bold py-1.5 px-2 rounded text-center hover:bg-blue-100 transition flex items-center justify-center space-x-1"><i data-lucide="phone" class="w-3 h-3"></i><span class="truncate">${esc(c.phone)}</span></a>` : ''}
         ${c.email ? `<a href="mailto:${esc(c.email)}" class="bg-slate-100 text-slate-700 font-semibold py-1.5 px-2 rounded text-center hover:bg-slate-200 transition flex items-center justify-center space-x-1"><i data-lucide="mail" class="w-3 h-3"></i><span>${esc(t('lbl_email_btn'))}</span></a>` : ''}
-        <a href="https://t.me/${esc(c.telegram.replace('@', ''))}" target="_blank" rel="noopener noreferrer" class="bg-[#229ED9] text-white font-bold py-1.5 px-2 rounded text-center hover:bg-[#1e8bc0] transition flex items-center justify-center space-x-1"><i data-lucide="send" class="w-3 h-3"></i><span class="truncate">${esc(c.telegram)}</span></a>
+        ${c.telegram ? `<a href="https://t.me/${esc(c.telegram.replace('@', ''))}" target="_blank" rel="noopener noreferrer" class="bg-[#229ED9] text-white font-bold py-1.5 px-2 rounded text-center hover:bg-[#1e8bc0] transition flex items-center justify-center space-x-1"><i data-lucide="send" class="w-3 h-3"></i><span class="truncate">${esc(c.telegram)}</span></a>` : ''}
       </div>
     </div>`;
   }

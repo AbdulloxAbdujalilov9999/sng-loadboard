@@ -305,8 +305,15 @@ test('profile: contact fields can be saved one at a time and cleared; /api/confi
     assert.equal(onlyPhone.status, 200, JSON.stringify(onlyPhone.json));
     assert.equal(onlyPhone.json.profile.phone, '+998 90 123 45 67');
     assert.equal((await api.patch('/api/me/profile', { telegram: 'ab' })).status, 400, 'a filled-in but invalid handle is still rejected');
-    assert.equal((await api.patch('/api/me/profile', { phone: '' })).status, 200, 'and a field can be cleared');
-    assert.equal((await api.patch('/api/me/profile', { company: '' })).status, 400, 'company stays required');
+    const lastContact = await api.patch('/api/me/profile', { phone: '' });
+    assert.equal(lastContact.status, 400, 'the last way to be reached cannot be cleared');
+    assert.equal(lastContact.json.error.details[0].code, 'contact_required');
+    assert.equal((await api.patch('/api/me/profile', { telegram: '@new_co' })).status, 200);
+    assert.equal((await api.patch('/api/me/profile', { phone: '' })).status, 200, 'one contact can be cleared while the other stays');
+    const noCompany = await api.patch('/api/me/profile', { company: '', contactName: 'Nodir' });
+    assert.equal(noCompany.status, 200, 'company is optional');
+    assert.equal(noCompany.json.profile.company, 'Nodir', 'the name stands in for a missing company');
+    assert.equal((await api.patch('/api/me/profile', { location: 'Tashkent' })).json.profile.contactName, 'Nodir', 'a partial update never blanks other fields');
     assert.equal((await fresh.app.inject({ method: 'GET', url: '/api/config' })).json().aiImport, 'basic');
   } finally { await fresh.close(); }
   const off = await startTestEnv({}, { ai: null });

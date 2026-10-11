@@ -21,7 +21,7 @@ const Account = (() => {
     set('setting-routes', p.routes);
     set('setting-default-dh', U.store.get('sng.defaultDh', 100));
 
-    $('acc-big-avatar').textContent = me.isOwner ? '★' : initials(p.company);
+    $('acc-big-avatar').textContent = me.isOwner ? '★' : initials(p.company || p.contactName);
     $('acc-title-name').textContent = p.company;
     $('acc-status-badge').textContent = me.isOwner ? t('role_owner') : t('role_member');
     $('acc-sub-details').textContent = [p.tirCarnet ? `TIR ${p.tirCarnet}` : t('no_tir'), p.location || t('no_location')].join(' • ');
@@ -43,9 +43,10 @@ const Account = (() => {
       el.value = v || '';
       el.dataset.auto = el.value;
     };
-    fill('post-contact-name', p.contactName); fill('post-phone', p.phone); fill('post-email', p.contactEmail || p.email); // phone sign-ins have no login e-mail: stays blank until they set one fill('post-tg', p.telegram);
+    fill('post-contact-name', p.contactName); fill('post-phone', p.phone); fill('post-email', p.contactEmail || p.email); // phone sign-ins have no login e-mail: stays blank until they set one
+    fill('post-tg', p.telegram);
     fill('truck-post-phone', p.phone); fill('truck-post-tg', p.telegram);
-    $('contact-incomplete').classList.toggle('hidden', Boolean(p.phone && p.telegram));
+    $('contact-incomplete').classList.toggle('hidden', Boolean(p.phone || p.telegram));
   }
 
   async function save(e) {
@@ -54,7 +55,7 @@ const Account = (() => {
     U.clearFormErrors(form);
     const body = {};
     for (const el of form.querySelectorAll('[name]')) body[el.name] = el.value.trim();
-    if (!body.company) { U.fieldError($('setting-company-name'), t('err_required')); return; }
+    if (!body.phone && !body.telegram) { U.fieldError($('setting-phone'), t('v_contact_required')); U.fieldError($('setting-tg'), t('v_contact_required')); return; }
     const dh = Number($('setting-default-dh').value);
     if (Number.isFinite(dh) && dh >= 0 && dh <= 2000) U.store.set('sng.defaultDh', Math.round(dh));
     U.setBusy(form, true);
@@ -87,6 +88,34 @@ const Account = (() => {
     $('password-form').classList.toggle('hidden', !info.hasPassword);
     $('sec-set-password').classList.toggle('hidden', info.hasPassword || !info.email);
     $('sec-phone-only').classList.toggle('hidden', !(info.phone && !info.email));
+    const me = Session.me;
+    const canPin = Boolean(Session.config?.pinLogin) && (me?.provider === 'phone' || me?.provider === 'pin');
+    $('pin-form').classList.toggle('hidden', !canPin);
+    $('pin-current-wrap').classList.toggle('hidden', me?.provider !== 'pin'); // after an SMS code no current PIN is needed
+  }
+
+  const WEAK_PINS = new Set(['0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777', '8888', '9999', '1234', '4321', '0123', '3210', '1212', '2580', '1122', '1010', '2000', '2024', '2025', '2026']);
+  async function changePin(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    U.clearFormErrors(form);
+    const needCurrent = Session.me?.provider === 'pin';
+    const cur = $('pin-current').value.trim(); const next = $('pin-new').value.trim();
+    let ok = true;
+    if (needCurrent && !/^\d{4}$/.test(cur)) { U.fieldError($('pin-current'), t('v_pin_format')); ok = false; }
+    if (!/^\d{4}$/.test(next)) { U.fieldError($('pin-new'), t('v_pin_format')); ok = false; } else if (WEAK_PINS.has(next)) { U.fieldError($('pin-new'), t('v_pin_weak')); ok = false; } else if ($('pin-new2').value.trim() !== next) { U.fieldError($('pin-new2'), t('pin_mismatch')); ok = false; }
+    if (!ok) { form.querySelector('.field-invalid')?.focus(); return; }
+    U.setBusy(form, true);
+    try {
+      const r = await API.put('/api/me/pin', { pin: next, ...(needCurrent ? { currentPin: cur } : {}) });
+      if (r?.token) Session.storePinToken(r.token, r.expiresAt);
+      form.reset();
+      Session.me.profile.hasPin = true;
+      U.toast(t('toast_pin_saved'), 'success');
+    } catch (err) {
+      const map = { pin: 'pin-new', currentPin: 'pin-current' };
+      if (err.code === 'validation_error') for (const d of err.details || []) { const el = $(map[d.path]); if (el) U.fieldError(el, U.detailText(d)); } else U.toast(err.message, 'error');
+    } finally { U.setBusy(form, false); }
   }
 
   async function changePassword(e) {
@@ -121,6 +150,7 @@ const Account = (() => {
 
   function init() {
     $('password-form').addEventListener('submit', changePassword);
+    $('pin-form').addEventListener('submit', changePin);
     $('sec-forgot-btn').addEventListener('click', (e) => emailReset(e.currentTarget));
     $('sec-set-password-btn').addEventListener('click', (e) => emailReset(e.currentTarget));
     $('profile-form').addEventListener('submit', save);

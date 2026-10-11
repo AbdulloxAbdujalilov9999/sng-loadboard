@@ -40,7 +40,7 @@ export async function startTestEnv(envOverrides = {}, { ai = null } = {}) {
   const config = loadConfig({
     DATABASE_URL: `postgres://postgres:pw@127.0.0.1:${port}/postgres`,
     NODE_ENV: 'test', LOG_LEVEL: 'silent', OWNER_EMAILS: 'owner@test.com', WEB_ROOT: path.join(dir, 'no-web'),
-    RATE_LIMIT_PER_MIN: '100000', WRITE_RATE_LIMIT_PER_MIN: '100000', DB_POOL_MAX: '10',
+    RATE_LIMIT_PER_MIN: '100000', WRITE_RATE_LIMIT_PER_MIN: '100000', PIN_LOGIN_RATE_PER_MIN: '1000', DB_POOL_MAX: '10',
     COUNT_CACHE_MS: '0', MEMBER_CACHE_MS: '0', EVENT_BATCH_MS: '0', SEARCH_CACHE_MS: '0', // off by default so tests see every write immediately
     ...envOverrides,
   });
@@ -49,8 +49,8 @@ export async function startTestEnv(envOverrides = {}, { ai = null } = {}) {
   const app = await buildApp({ config, pool, verifyToken: testVerifier, ai });
   await app.ready();
 
-  const as = (email, name) => {
-    const headers = { authorization: `Bearer ${tokenFor(email, name)}` };
+  const client = (authorization) => {
+    const headers = authorization ? { authorization } : {};
     const call = async (method, url, payload) => {
       const res = await app.inject({ method, url, headers: { ...headers, ...(payload !== undefined ? { 'content-type': 'application/json' } : {}) }, payload: payload !== undefined ? JSON.stringify(payload) : undefined });
       let json = null;
@@ -62,6 +62,9 @@ export async function startTestEnv(envOverrides = {}, { ai = null } = {}) {
       put: (url, body) => call('PUT', url, body), del: (url) => call('DELETE', url),
     };
   };
+  const as = (email, name) => client(`Bearer ${tokenFor(email, name)}`);
+  const withToken = (token) => client(`Bearer ${token}`); // a session token the server issued itself (PIN sign-in)
+  const anon = () => client(null);
 
   const cityId = async (label) => (await pool.query('SELECT id FROM cities WHERE label = $1', [label])).rows[0].id;
 
@@ -72,7 +75,7 @@ export async function startTestEnv(envOverrides = {}, { ai = null } = {}) {
      ON CONFLICT (email) DO UPDATE SET status = 'approved' RETURNING *`, [email, company])).rows[0];
 
   return {
-    app, pool, config, as, cityId, approvedMember,
+    app, pool, config, as, withToken, anon, cityId, approvedMember,
     async close() {
       await app.close();
       await pool.end();

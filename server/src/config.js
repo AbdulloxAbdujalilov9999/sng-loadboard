@@ -40,6 +40,9 @@ export function loadConfig(env = process.env) {
     eventBatchMs: Number(env.EVENT_BATCH_MS ?? 1000),
     memberCacheMs: Number(env.MEMBER_CACHE_MS ?? 10000),
     workers: env.WEB_CONCURRENCY === 'auto' ? os.availableParallelism() : Number(env.WEB_CONCURRENCY || 1),
+    // Secret for phone + PIN sign-in (hashes and session tokens). Required in production; without it PIN sign-in is simply off.
+    authSecret: env.AUTH_SECRET || (isProd ? '' : 'dev-only-auth-secret-not-for-production'),
+    pinLoginPerMin: Number(env.PIN_LOGIN_RATE_PER_MIN || 12), // per IP; the per-phone lockout is separate
     devAuth: truthy(env.DEV_FAKE_AUTH, false),
     cspEnforce: truthy(env.CSP_ENFORCE, false),
     // Default is resolved from this file, not the process cwd, so the server works from any launch directory.
@@ -48,6 +51,7 @@ export function loadConfig(env = process.env) {
   const problems = [];
   if (!cfg.databaseUrl) problems.push('DATABASE_URL is required');
   if (isProd && cfg.ownerEmails.length === 0) problems.push('OWNER_EMAILS is required in production (comma-separated owner Google emails)');
+  if (cfg.authSecret && cfg.authSecret.length < 16) problems.push('AUTH_SECRET must be at least 16 characters (use: openssl rand -base64 48)');
   if (cfg.devAuth && isProd) problems.push('DEV_FAKE_AUTH must never be enabled in production');
   if (!(cfg.workers >= 1 && cfg.workers <= 64)) problems.push('WEB_CONCURRENCY must be 1-64 or "auto"');
   if (!(cfg.roadFactor >= 1 && cfg.roadFactor <= 2)) problems.push('ROAD_FACTOR must be between 1 and 2');

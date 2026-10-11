@@ -232,7 +232,7 @@ const Loads = (() => {
   }
 
   function detailHtml(l) {
-    const tel = String(l.contactPhone).replace(/[^\d+]/g, '');
+    const tel = String(l.contactPhone || '').replace(/[^\d+]/g, '');
     // Exact coordinates when we have them: a town name can be ambiguous or spelled differently by the map, a point cannot.
     const from = l.originLat != null ? `${l.originLat},${l.originLng}` : l.originCity;
     const to = l.destLat != null ? `${l.destLat},${l.destLng}` : l.destCity;
@@ -268,10 +268,10 @@ const Loads = (() => {
             </div>
             <div class="space-y-2 text-slate-700 text-[11px] pt-1">
               <div class="flex items-center justify-between"><div class="flex items-center space-x-1.5"><i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i><strong class="text-slate-900">${esc(l.company)}</strong></div><span class="text-slate-500 font-medium">${esc(l.contactName)}</span></div>
-              <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-100"><div class="flex items-center space-x-2"><i data-lucide="phone" class="w-3.5 h-3.5 text-blue-600"></i><a href="tel:${esc(tel)}" class="font-bold text-blue-700 hover:underline">${esc(l.contactPhone)}</a></div><a href="tel:${esc(tel)}" class="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold hover:bg-blue-200">${esc(t('lbl_call'))}</a></div>
-              <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-100"><div class="flex items-center space-x-2 truncate"><i data-lucide="mail" class="w-3.5 h-3.5 text-amber-600"></i><a href="mailto:${esc(l.contactEmail)}" class="text-slate-800 hover:underline truncate">${esc(l.contactEmail)}</a></div><a href="mailto:${esc(l.contactEmail)}" class="text-[10px] bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-semibold hover:bg-slate-300">${esc(t('lbl_email_btn'))}</a></div>
-              <div class="grid grid-cols-2 gap-2 pt-1">
-                <a href="https://t.me/${esc(l.contactTelegram.replace('@', ''))}" target="_blank" rel="noopener noreferrer" class="bg-[#229ED9] hover:bg-[#1e8bc0] text-white font-bold py-1.5 px-2 rounded flex items-center justify-center space-x-1.5 transition text-xs"><i data-lucide="send" class="w-3 h-3"></i><span>${esc(l.contactTelegram)}</span></a>
+              ${l.contactPhone ? `<div class="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-100"><div class="flex items-center space-x-2"><i data-lucide="phone" class="w-3.5 h-3.5 text-blue-600"></i><a href="tel:${esc(tel)}" class="font-bold text-blue-700 hover:underline">${esc(l.contactPhone)}</a></div><a href="tel:${esc(tel)}" class="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold hover:bg-blue-200">${esc(t('lbl_call'))}</a></div>` : ''}
+              ${l.contactEmail ? `<div class="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-100"><div class="flex items-center space-x-2 truncate"><i data-lucide="mail" class="w-3.5 h-3.5 text-amber-600"></i><a href="mailto:${esc(l.contactEmail)}" class="text-slate-800 hover:underline truncate">${esc(l.contactEmail)}</a></div><a href="mailto:${esc(l.contactEmail)}" class="text-[10px] bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-semibold hover:bg-slate-300">${esc(t('lbl_email_btn'))}</a></div>` : ''}
+              <div class="grid ${l.contactTelegram ? 'grid-cols-2' : 'grid-cols-1'} gap-2 pt-1">
+                ${l.contactTelegram ? `<a href="https://t.me/${esc(l.contactTelegram.replace('@', ''))}" target="_blank" rel="noopener noreferrer" class="bg-[#229ED9] hover:bg-[#1e8bc0] text-white font-bold py-1.5 px-2 rounded flex items-center justify-center space-x-1.5 transition text-xs"><i data-lucide="send" class="w-3 h-3"></i><span>${esc(l.contactTelegram)}</span></a>` : ''}
                 <button type="button" data-action="copy" data-id="${l.id}" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-1.5 px-2 rounded border border-slate-300 flex items-center justify-center space-x-1 transition text-xs"><i data-lucide="copy" class="w-3 h-3"></i><span>${esc(t('lbl_copy'))}</span></button>
               </div>
             </div>
@@ -350,7 +350,7 @@ const Loads = (() => {
   async function copyContact(id) {
     const l = list.items.find((x) => x.id === id) || (deepLinked?.id === id ? deepLinked : null);
     if (!l) return;
-    const text = `${t('th_company')}: ${l.company}\n${t('lbl_disp_name')}: ${l.contactName}\n${t('lbl_phone')}: ${l.contactPhone}\n${t('lbl_email')}: ${l.contactEmail}\nTelegram: ${l.contactTelegram}`;
+    const text = [`${t('th_company')}: ${l.company}`, `${t('lbl_disp_name')}: ${l.contactName}`, l.contactPhone && `${t('lbl_phone')}: ${l.contactPhone}`, l.contactEmail && `${t('lbl_email')}: ${l.contactEmail}`, l.contactTelegram && `Telegram: ${l.contactTelegram}`].filter(Boolean).join('\n');
     try { await navigator.clipboard.writeText(text); U.toast(t('toast_copied'), 'success'); } catch { U.toast(text, 'info', 9000); }
   }
 

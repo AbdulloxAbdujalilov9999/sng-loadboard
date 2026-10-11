@@ -20,6 +20,7 @@ export default async function publicRoutes(app, { pool, config, ai }) {
       roadFactor: config.roadFactor,
       ownerContact: config.ownerEmails[0] ?? null,
       aiImport: ai ? (ai.name.startsWith('gemini') ? 'ai' : 'basic') : false, // false = off; 'basic' = rule-based reader, no AI key
+      pinLogin: Boolean(config.authSecret), // phone + 4-digit PIN sign-in is available
       devAuth: config.devAuth, // true only for the local dev server: lets the UI offer a fake sign-in
     };
   });

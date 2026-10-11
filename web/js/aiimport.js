@@ -60,7 +60,7 @@ const AiImport = (() => {
         <p class="font-semibold text-slate-700">${esc(t('ai_shared_contacts'))}</p>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           <div class="relative"><label class="block text-slate-600 mb-0.5" for="ai-c-name">${esc(t('lbl_disp_name'))}</label><input id="ai-c-name" type="text" maxlength="120" value="${esc(c.name)}" class="${input}"></div>
-          <div class="relative"><label class="block text-slate-600 mb-0.5" for="ai-c-email">${esc(t('lbl_email'))}</label><input id="ai-c-email" type="email" value="${esc(c.email)}" class="${input}"></div>
+          <div class="relative"><label class="block text-slate-600 mb-0.5" for="ai-c-email">${esc(t('lbl_email_opt'))}</label><input id="ai-c-email" type="email" value="${esc(c.email)}" class="${input}"></div>
           <div class="relative"><label class="block text-slate-600 mb-0.5" for="ai-c-tg">${esc(t('lbl_telegram'))}</label><input id="ai-c-tg" type="text" value="${esc(c.tg)}" class="${input}"></div>
         </div>
         <p class="text-[10px] text-slate-400">${esc(t('ai_shared_hint'))}</p>
@@ -140,14 +140,16 @@ const AiImport = (() => {
     for (const id of Object.values(SHARED)) { $(id).classList.remove('field-invalid'); $(id).parentElement.querySelector('.field-error')?.remove(); }
     const shared = { contactName: $('ai-c-name').value.trim(), contactEmail: $('ai-c-email').value.trim(), contactTelegram: $('ai-c-tg').value.trim() };
     let ok = true;
-    for (const [key, id] of Object.entries(SHARED)) if (!shared[key]) { U.fieldError($(id), t('err_required')); ok = false; }
+    if (!shared.contactName) { U.fieldError($('ai-c-name'), t('err_required')); ok = false; } // e-mail and Telegram are optional on their own
 
     const loads = [];
     for (const form of forms) {
       const body = await Cities.readForm(form); // validates the city pickers and clears old errors
       if (!body) { ok = false; continue; }
       body.contactPhone = body.contactPhone || profileContacts().phone;
-      if (!body.contactPhone) { U.fieldError(form.elements.contactPhone, t('err_required')); ok = false; }
+      if (!body.contactPhone && !shared.contactTelegram) { // a phone OR a Telegram username is needed (one is enough)
+        U.fieldError(form.elements.contactPhone, t('v_contact_required')); U.fieldError($('ai-c-tg'), t('v_contact_required')); ok = false;
+      }
       loads.push({ ...body, ...shared, deliveryDate: null, volumeM3: body.volumeM3 ? Number(body.volumeM3) : null });
     }
     if (!ok) { (document.querySelector('#ai-review .field-invalid'))?.focus(); return; }

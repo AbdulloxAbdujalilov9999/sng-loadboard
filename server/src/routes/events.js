@@ -8,6 +8,14 @@ export default async function eventRoutes(app, { hub }) {
       email: req.user.email,
       approved: member?.status === 'approved',
       isOwner: member?.role === 'owner',
+      // Called when this person's membership changes (signed up, blocked, unblocked): their open stream follows at once.
+      refresh: async () => {
+        try {
+          const m = await app.memberStatusOf(req.user.email);
+          conn.approved = m?.status === 'approved';
+          conn.isOwner = m?.role === 'owner';
+        } catch { /* keep the old flags; the next reconnect re-reads them */ }
+      },
     };
     if (!hub.add(conn)) {
       return reply.code(429).send({ error: { code: 'too_many_streams', message: 'Too many open live connections for this account' } });

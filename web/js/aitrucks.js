@@ -130,14 +130,13 @@ const AiTrucks = (() => {
     tgEl.classList.remove('field-invalid'); tgEl.parentElement.querySelector('.field-error')?.remove();
     const telegram = tgEl.value.trim();
     let ok = true;
-    if (!telegram) { U.fieldError(tgEl, t('err_required')); ok = false; }
 
     const trucks = [];
     for (const form of forms) {
       const body = await Cities.readForm(form); // validates the city picker and clears old errors
       if (!body) { ok = false; continue; }
       body.contactPhone = body.contactPhone || profileContacts().phone;
-      if (!body.contactPhone) { U.fieldError(form.elements.contactPhone, t('err_required')); ok = false; }
+      if (!body.contactPhone && !telegram) { U.fieldError(form.elements.contactPhone, t('v_contact_required')); U.fieldError(tgEl, t('v_contact_required')); ok = false; } // one of the two is enough
       if (!body.destPref) body.destPref = 'Anywhere';
       trucks.push({ ...body, contactTelegram: telegram });
     }

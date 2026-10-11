@@ -1,11 +1,18 @@
-// Owner-only: approve / decline / revoke members and maintain display-currency rates.
+// Owner-only: who joined (new members are announced here), block / unblock / remove members, display-currency rates.
+// Sign-up is open: nobody waits for approval. "Blocked" (status 'rejected') is the owner's moderation tool.
 const Admin = (() => {
   const { $, esc } = U;
-  let status = 'pending';
+  const SEEN_KEY = 'sng.membersSeenAt';
+  let status = 'all';
   let items = [];
   let counts = { pending: 0, approved: 0, rejected: 0 };
+  let newSince = '';          // members who joined after this moment get a NEW tag (the previous visit)
   let entered = false;
   let loading = false;
+
+  const seenAt = () => U.store.get(SEEN_KEY) || '';
+  const total = () => counts.pending + counts.approved + counts.rejected;
+  const isNew = (m) => Boolean(newSince) && m.requestedAt > newSince;
 
   async function load() {
     loading = true;
@@ -23,17 +30,28 @@ const Admin = (() => {
     renderList();
   }
 
-  /** Cheap badge refresh that doesn't touch the visible list. */
+  /** Cheap badge refresh that doesn't touch the visible list: how many joined since the owner last looked. */
   async function refreshCounts() {
-    try { counts = (await API.get('/api/admin/members', { status: 'pending' })).counts; } catch { return; }
+    try {
+      const res = await API.get('/api/admin/members', { status: 'all' });
+      counts = res.counts;
+      // First visit ever: count members who joined after the owner's own account was created (not the whole history).
+      const since = seenAt() || Session.me?.profile?.requestedAt || new Date().toISOString();
+      newCount = res.items.filter((m) => m.requestedAt > since).length;
+      latest = res.items[0] || null;
+    } catch { return; }
     renderCounts();
   }
+  let newCount = 0;
+  let latest = null;
 
   function renderCounts() {
-    for (const k of ['pending', 'approved', 'rejected']) $(`cnt-${k}`).textContent = counts[k];
+    $('cnt-all').textContent = total();
+    $('cnt-rejected').textContent = counts.rejected;
     const badge = $('badge-approvals');
-    badge.textContent = counts.pending;
-    badge.classList.toggle('hidden', counts.pending === 0);
+    const shown = App.view === 'approvals' ? 0 : newCount;
+    badge.textContent = shown;
+    badge.classList.toggle('hidden', shown === 0);
     document.querySelectorAll('#approvals-tabs [data-status]').forEach((b) => {
       const on = b.dataset.status === status;
       b.className = `px-3 py-1.5 rounded-t ${on ? 'bg-white border border-b-0 border-slate-200 text-blue-700' : 'bg-slate-200 text-slate-600'}`;
@@ -43,22 +61,24 @@ const Admin = (() => {
 
   function card(m) {
     const when = U.ageText(m.requestedAt);
-    const badge = { pending: ['bg-amber-50 text-amber-700 border-amber-200', 'st_pending'], approved: ['bg-emerald-50 text-emerald-700 border-emerald-200', 'st_approved'], rejected: ['bg-slate-100 text-slate-500 border-slate-200', 'st_rejected'] }[m.status];
-    const actions = m.status === 'pending'
-      ? `<button type="button" data-act="approve" data-id="${m.id}" class="flex-1 justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded flex items-center space-x-1.5 transition"><i data-lucide="check" class="w-3.5 h-3.5"></i><span>${esc(t('btn_approve'))}</span></button>
-         <button type="button" data-act="reject" data-id="${m.id}" class="flex-1 justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold py-1.5 rounded border border-rose-200 flex items-center space-x-1.5 transition"><i data-lucide="x" class="w-3.5 h-3.5"></i><span>${esc(t('btn_decline'))}</span></button>`
-      : m.status === 'rejected'
-        ? `<button type="button" data-act="approve" data-id="${m.id}" class="justify-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-1.5 px-3 rounded border border-emerald-200 transition">${esc(t('btn_approve'))}</button>
-           <button type="button" data-act="remove" data-id="${m.id}" class="text-slate-400 hover:text-rose-600 px-2" title="${esc(t('btn_remove'))}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`
-        : `<button type="button" data-act="reject" data-id="${m.id}" class="justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold py-1.5 px-3 rounded border border-rose-200 transition">${esc(t('btn_revoke'))}</button>
-           <button type="button" data-act="remove" data-id="${m.id}" class="text-slate-400 hover:text-rose-600 px-2" title="${esc(t('btn_remove'))}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`;
-    return `<div class="bg-white border ${m.status === 'pending' ? 'border-amber-200' : 'border-slate-200'} rounded-lg p-4 shadow-sm">
+    const blocked = m.status === 'rejected';
+    const badge = blocked ? ['bg-slate-100 text-slate-500 border-slate-200', 'st_blocked'] : ['bg-emerald-50 text-emerald-700 border-emerald-200', 'st_active'];
+    const actions = blocked
+      ? `<button type="button" data-act="approve" data-id="${m.id}" class="justify-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-1.5 px-3 rounded border border-emerald-200 transition">${esc(t('btn_unblock'))}</button>
+         <button type="button" data-act="remove" data-id="${m.id}" class="text-slate-400 hover:text-rose-600 px-2" title="${esc(t('btn_remove'))}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`
+      : `<button type="button" data-act="reject" data-id="${m.id}" class="justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold py-1.5 px-3 rounded border border-rose-200 transition">${esc(t('btn_block'))}</button>
+         <button type="button" data-act="remove" data-id="${m.id}" class="text-slate-400 hover:text-rose-600 px-2" title="${esc(t('btn_remove'))}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`;
+    const name = m.company && m.company !== m.contactName ? `${m.company} <span class="font-normal text-slate-500">· ${esc(m.contactName)}</span>` : esc(m.contactName || m.company);
+    const sameNumber = !m.email && String(m.phone || '').replace(/\D/g, '') === String(m.login).replace(/\D/g, ''); // phone sign-in: do not print the number twice
+    const login = sameNumber ? '' : m.email ? `<a href="mailto:${esc(m.email)}" class="text-blue-600 hover:underline">${esc(m.email)}</a>` : `<a href="tel:${esc(m.login)}" class="text-blue-600 hover:underline">${esc(m.login)}</a>`;
+    const contacts = [m.phone && `<a href="tel:${esc(String(m.phone).replace(/[^\d+]/g, ''))}" class="hover:underline">${esc(m.phone)}</a>`, m.telegram && `<a href="https://t.me/${esc(m.telegram.replace('@', ''))}" target="_blank" rel="noopener noreferrer" class="hover:underline">${esc(m.telegram)}</a>`].filter(Boolean).join(' • ');
+    return `<div class="bg-white border ${isNew(m) ? 'border-emerald-300 ring-1 ring-emerald-200' : 'border-slate-200'} rounded-lg p-4 shadow-sm">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <p class="font-bold text-slate-900">${esc(m.company)}</p>
-          <p class="text-slate-500">${esc(m.contactName)} • ${m.email ? `<a href="mailto:${esc(m.email)}" class="text-blue-600 hover:underline">${esc(m.email)}</a>` : `<a href="tel:${esc(m.login)}" class="text-blue-600 hover:underline">${esc(m.login)}</a>`}</p>
-          <p class="text-slate-500">${esc(m.phone)} • ${esc(m.telegram)}</p>
-          <p class="text-[10px] text-slate-400 mt-1">${esc(t('requested_ago', { age: when }))}</p>
+          <p class="font-bold text-slate-900 break-words">${name} ${isNew(m) ? `<span class="ml-1 text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-bold align-middle">${esc(t('badge_new'))}</span>` : ''}</p>
+          ${login ? `<p class="text-slate-500 break-words">${login}</p>` : ''}
+          <p class="text-slate-500 break-words">${contacts}</p>
+          <p class="text-[10px] text-slate-400 mt-1">${esc(when === t('age_now') ? t('joined_now') : t('joined_ago', { age: when }))}</p>
         </div>
         <span class="${badge[0]} border text-[10px] font-bold px-2 py-0.5 rounded flex-shrink-0">${esc(t(badge[1]))}</span>
       </div>
@@ -77,14 +97,15 @@ const Admin = (() => {
   async function act(kind, id) {
     const m = items.find((x) => x.id === id);
     if (!m) return;
+    const label = m.company || m.contactName;
     try {
       if (kind === 'approve') await API.post(`/api/admin/members/${id}/approve`);
       else if (kind === 'reject') {
-        const ok = await U.confirmDialog({ title: t(m.status === 'approved' ? 'confirm_revoke_title' : 'confirm_decline_title'), message: t(m.status === 'approved' ? 'confirm_revoke' : 'confirm_decline', { company: m.company }), confirmText: t(m.status === 'approved' ? 'btn_revoke' : 'btn_decline') });
+        const ok = await U.confirmDialog({ title: t('confirm_block_title'), message: t('confirm_block', { company: label }), confirmText: t('btn_block') });
         if (!ok) return;
         await API.post(`/api/admin/members/${id}/reject`);
       } else if (kind === 'remove') {
-        const ok = await U.confirmDialog({ title: t('confirm_delete_member_title'), message: t('confirm_delete_member', { company: m.company }), confirmText: t('btn_remove') });
+        const ok = await U.confirmDialog({ title: t('confirm_delete_member_title'), message: t('confirm_delete_member', { company: label }), confirmText: t('btn_remove') });
         if (!ok) return;
         await API.del(`/api/admin/members/${id}`);
       }
@@ -123,14 +144,27 @@ const Admin = (() => {
     document.querySelectorAll('#approvals-tabs [data-status]').forEach((b) => b.addEventListener('click', () => { status = b.dataset.status; load(); }));
     $('approvals-list').addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (b) act(b.dataset.act, Number(b.dataset.id)); });
     $('fx-form').addEventListener('submit', saveFx);
-    Live.on((evt) => {
+    Live.on(async (evt) => {
       if (!entered || !Session.me?.isOwner) return;
-      if (evt.entity === 'members' || evt.entity === 'resync') { if (App.view === 'approvals') load(); else refreshCounts(); }
+      if (evt.entity === 'members' && evt.op === 'insert') {
+        // someone just signed up: tell the owner, whatever they are looking at
+        const before = newCount;
+        if (App.view === 'approvals') await load(); else await refreshCounts();
+        const who = latest ? (latest.company && latest.company !== latest.contactName ? `${latest.company} (${latest.contactName})` : latest.contactName || latest.company) : '';
+        U.toast(t('toast_new_member', { name: who }), 'success', 7000);
+        if (newCount === before && App.view !== 'approvals') newCount += 1; // the list may not have caught up yet
+        renderCounts();
+      } else if (evt.entity === 'members' || evt.entity === 'resync') { if (App.view === 'approvals') load(); else refreshCounts(); }
     });
   }
   function enter() { entered = Boolean(Session.me?.isOwner); if (entered) refreshCounts(); }
-  function leave() { entered = false; items = []; counts = { pending: 0, approved: 0, rejected: 0 }; renderCounts(); }
-  function onShow() { load(); loadFx(); }
+  function leave() { entered = false; items = []; counts = { pending: 0, approved: 0, rejected: 0 }; newCount = 0; latest = null; renderCounts(); }
+  function onShow() {
+    newSince = seenAt() || Session.me?.profile?.requestedAt || ''; // NEW tags are relative to the previous visit...
+    U.store.set(SEEN_KEY, new Date().toISOString());      // ...and this visit counts as "seen"
+    newCount = 0;
+    load(); loadFx();
+  }
 
   return { init, enter, leave, onShow, render: () => { renderCounts(); renderList(); } };
 })();

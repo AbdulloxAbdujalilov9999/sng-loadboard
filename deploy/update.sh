@@ -5,6 +5,14 @@ set -euo pipefail
 cd "$(dirname "$0")"
 [ -f .env ] || { echo "deploy/.env is missing (copy env.example)"; exit 1; }
 
+# Phone + PIN sign-in needs a long random secret (never stored in git). Made once, kept in .env; losing it only signs everyone out.
+if ! grep -q '^AUTH_SECRET=.\+' .env; then
+  sed -i '/^AUTH_SECRET=/d' .env
+  [ -z "$(tail -c1 .env)" ] || echo >> .env   # make sure the file ends with a newline first
+  printf 'AUTH_SECRET=%s\n' "$(openssl rand -base64 48 | tr -d '\n')" >> .env
+  echo "generated AUTH_SECRET (phone + PIN sign-in)"
+fi
+
 git -C .. fetch --quiet origin
 before=$(git -C .. rev-parse --short HEAD)
 git -C .. pull --ff-only --quiet

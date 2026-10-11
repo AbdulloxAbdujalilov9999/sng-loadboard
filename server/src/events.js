@@ -95,6 +95,7 @@ export class EventHub {
       case 'members':
         return this.#broadcast(evt, (c) => c.isOwner);
       case 'me': // a membership decision about one specific person
+        for (const c of this.conns) if (c.email === evt.email) c.refresh?.();
         return this.#broadcast({ entity: 'me' }, (c) => c.email === evt.email);
       default:
         return undefined;

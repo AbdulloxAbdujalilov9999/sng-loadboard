@@ -77,23 +77,20 @@ test('a rolled-back transaction emits nothing (events are transactional)', async
   } finally { a.close(); }
 });
 
-test('pending users only hear about their own membership decision; the owner hears about requests', async () => {
+test('a new member hears marketplace events straight after signing up; the owner hears about the new member', async () => {
   const owner = await openStream('owner@test.com');
   const newbie = await openStream('newbie@test.com');
   try {
     assert.equal(newbie.events[0].data.status, 'none');
-    const req = await env.as('newbie@test.com').post('/api/me/access-request', { company: 'Newbie', phone: '+998 90 123 45 67', telegram: '@newbie_co' });
-    assert.ok(await owner.waitFor((e) => e.data.entity === 'members' && e.data.op === 'insert'), 'owner notified of the new request');
-    assert.equal(await newbie.waitFor((e) => e.data.entity === 'members', 500), null, 'requester is not told about admin traffic');
-
-    // someone else posts - the pending user must not be notified
-    await env.as('b@test.com').post('/api/loads', validLoad(await env.cityId('Almaty, KZ'), await env.cityId('Tashkent, UZ')));
-    assert.equal(await newbie.waitFor((e) => e.data.entity === 'loads', 600), null, 'pending users get no marketplace events');
-
-    await env.as('owner@test.com').post(`/api/admin/members/${req.json.profile.id}/approve`);
+    await env.as('newbie@test.com').post('/api/me/access-request', { contactName: 'Newbie', phone: '+998 90 123 45 67', telegram: '@newbie_co' });
+    assert.ok(await owner.waitFor((e) => e.data.entity === 'members' && e.data.op === 'insert'), 'owner notified of the new member');
+    assert.equal(await newbie.waitFor((e) => e.data.entity === 'members', 500), null, 'the new member is not told about admin traffic');
     const me = await newbie.waitFor((e) => e.data.entity === 'me');
-    assert.ok(me, 'requester told their status changed');
     assert.deepEqual(me.data, { entity: 'me' }, 'no email/PII in the notification');
+
+    // the same open connection now receives marketplace events (no reload, no reconnect)
+    await env.as('b@test.com').post('/api/loads', validLoad(await env.cityId('Almaty, KZ'), await env.cityId('Tashkent, UZ')));
+    assert.ok(await newbie.waitFor((e) => e.data.entity === 'loads', 3000), 'new members get live marketplace events at once');
   } finally { owner.close(); newbie.close(); }
 });
 

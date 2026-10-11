@@ -84,7 +84,7 @@ const Trucks = (() => {
 
   const features = (x) => [x.hasTir && 'TIR', x.hasAdr && 'ADR', x.hasGps && 'GPS', x.sideLoading && t('feat_side_short')].filter(Boolean).join(' • ') || t('feat_standard');
   const avail = (x) => `${esc(x.availableFrom)}${x.availableTo ? ` <span class="text-slate-400 font-normal">→ ${esc(x.availableTo)}</span>` : ''}`;
-  const contactUrl = (x) => `https://t.me/${esc(x.contactTelegram.replace('@', ''))}`;
+  const contactUrl = (x) => `https://t.me/${esc(String(x.contactTelegram || '').replace('@', ''))}`;
 
   function rowHtml(x) {
     const dh = x.dho === null ? '' : ` <span class="text-[10px] ${x.dho > 0 ? 'text-blue-600 font-bold' : 'text-slate-400 font-normal'}">(${x.dho}km)</span>`;
@@ -97,8 +97,8 @@ const Trucks = (() => {
       <td data-label="${esc(t('th_min_rate'))}" class="p-2.5 font-bold text-emerald-600">${x.minRateUsd ? esc(U.money(x.minRateUsd)) : esc(t('negotiable'))}</td>
       <td data-label="${esc(t('th_carrier'))}" class="p-2.5 font-semibold text-slate-900">${esc(x.company)}${x.mine ? ` <span class="text-[9px] bg-amber-100 text-amber-800 px-1 rounded font-bold">${esc(t('badge_yours'))}</span>` : ''}</td>
       <td class="p-2.5 text-center"><div class="flex items-center justify-center space-x-1.5">
-        <a href="${contactUrl(x)}" target="_blank" rel="noopener noreferrer" class="flex-1 md:flex-none text-center bg-[#229ED9] text-white hover:bg-blue-600 px-2 py-1.5 md:py-1 rounded text-[10px] font-bold">Telegram</a>
-        <a href="tel:${esc(String(x.contactPhone).replace(/[^\d+]/g, ''))}" class="flex-1 md:flex-none text-center bg-slate-200 text-slate-700 hover:bg-slate-300 px-2 py-1.5 md:py-1 rounded text-[10px] font-bold">${esc(t('lbl_call'))}</a>
+        ${x.contactTelegram ? `<a href="${contactUrl(x)}" target="_blank" rel="noopener noreferrer" class="flex-1 md:flex-none text-center bg-[#229ED9] text-white hover:bg-blue-600 px-2 py-1.5 md:py-1 rounded text-[10px] font-bold">Telegram</a>` : ''}
+        ${x.contactPhone ? `<a href="tel:${esc(String(x.contactPhone).replace(/[^\d+]/g, ''))}" class="flex-1 md:flex-none text-center bg-slate-200 text-slate-700 hover:bg-slate-300 px-2 py-1.5 md:py-1 rounded text-[10px] font-bold">${esc(t('lbl_call'))}</a>` : ''}
       </div></td>
     </tr>`;
   }
@@ -108,7 +108,7 @@ const Trucks = (() => {
   let previewTrigger = null;
 
   function previewHtml(x) {
-    const tel = String(x.contactPhone).replace(/[^\d+]/g, '');
+    const tel = String(x.contactPhone || '').replace(/[^\d+]/g, '');
     const chips = [x.hasTir && 'TIR', x.hasAdr && 'ADR', x.hasGps && 'GPS', x.sideLoading && t('feat_side')].filter(Boolean)
       .map((c) => `<span class="bg-slate-100 text-slate-700 font-bold px-1.5 py-0.5 rounded border border-slate-200 text-[10px]">${esc(c)}</span>`).join(' ') || `<span class="text-slate-500">${esc(t('feat_standard'))}</span>`;
     const row = (label, value) => `<div><span class="text-slate-500">${esc(label)}:</span> <strong class="text-slate-800 font-medium block">${value}</strong></div>`;
@@ -134,9 +134,9 @@ const Trucks = (() => {
         </div>
         <div class="space-y-2 text-slate-700 text-[11px] pt-1">
           <div class="flex items-center space-x-1.5"><i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i><strong class="text-slate-900">${esc(x.company)}</strong></div>
-          <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-100"><div class="flex items-center space-x-2"><i data-lucide="phone" class="w-3.5 h-3.5 text-blue-600"></i><a href="tel:${esc(tel)}" class="font-bold text-blue-700 hover:underline">${esc(x.contactPhone)}</a></div><a href="tel:${esc(tel)}" class="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold hover:bg-blue-200">${esc(t('lbl_call'))}</a></div>
-          <div class="grid grid-cols-2 gap-2 pt-1">
-            <a href="${contactUrl(x)}" target="_blank" rel="noopener noreferrer" class="bg-[#229ED9] hover:bg-[#1e8bc0] text-white font-bold py-1.5 px-2 rounded flex items-center justify-center space-x-1.5 transition text-xs"><i data-lucide="send" class="w-3 h-3"></i><span>${esc(x.contactTelegram)}</span></a>
+          ${x.contactPhone ? `<div class="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-100"><div class="flex items-center space-x-2"><i data-lucide="phone" class="w-3.5 h-3.5 text-blue-600"></i><a href="tel:${esc(tel)}" class="font-bold text-blue-700 hover:underline">${esc(x.contactPhone)}</a></div><a href="tel:${esc(tel)}" class="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold hover:bg-blue-200">${esc(t('lbl_call'))}</a></div>` : ''}
+          <div class="grid ${x.contactTelegram ? 'grid-cols-2' : 'grid-cols-1'} gap-2 pt-1">
+            ${x.contactTelegram ? `<a href="${contactUrl(x)}" target="_blank" rel="noopener noreferrer" class="bg-[#229ED9] hover:bg-[#1e8bc0] text-white font-bold py-1.5 px-2 rounded flex items-center justify-center space-x-1.5 transition text-xs"><i data-lucide="send" class="w-3 h-3"></i><span>${esc(x.contactTelegram)}</span></a>` : ''}
             <button type="button" data-action="copy" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-1.5 px-2 rounded border border-slate-300 flex items-center justify-center space-x-1 transition text-xs"><i data-lucide="copy" class="w-3 h-3"></i><span>${esc(t('lbl_copy'))}</span></button>
           </div>
         </div>
@@ -164,7 +164,7 @@ const Trucks = (() => {
 
   async function copyTruckContact() {
     if (!viewing) return;
-    const text = `${t('th_carrier')}: ${viewing.company}\n${t('lbl_phone')}: ${viewing.contactPhone}\nTelegram: ${viewing.contactTelegram}`;
+    const text = [`${t('th_carrier')}: ${viewing.company}`, viewing.contactPhone && `${t('lbl_phone')}: ${viewing.contactPhone}`, viewing.contactTelegram && `Telegram: ${viewing.contactTelegram}`].filter(Boolean).join('\n');
     try { await navigator.clipboard.writeText(text); U.toast(t('toast_copied'), 'success'); } catch { U.toast(text, 'info', 9000); }
   }
 

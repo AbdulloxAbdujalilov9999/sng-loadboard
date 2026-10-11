@@ -195,6 +195,9 @@ export default async function loadRoutes(app, { pool, config }) {
       if (!cur) throw notFound('Load not found');
       if (cur.owner_id !== req.member.id && req.member.role !== 'owner') throw forbidden('You can only edit your own loads');
 
+      if (!(patch.contactPhone ?? cur.contact_phone) && !(patch.contactTelegram ?? cur.contact_tg)) {
+        throw badRequest('Add a phone number or a Telegram username', [detail('contactPhone', 'contact_required'), detail('contactTelegram', 'contact_required')]);
+      }
       const originId = patch.originCityId ?? cur.origin_city_id;
       const destId = patch.destCityId ?? cur.dest_city_id;
       if (originId === destId) throw badRequest('Origin and destination must differ', [detail('destCityId', 'dest_same_as_origin')]);

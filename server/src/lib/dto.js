@@ -21,6 +21,7 @@ export const memberDto = (m) => ({
   routes: m.routes,
   status: m.status,
   role: m.role,
+  hasPin: Boolean(m.pin_hash),
   requestedAt: iso(m.requested_at),
   reviewedAt: iso(m.reviewed_at),
 });

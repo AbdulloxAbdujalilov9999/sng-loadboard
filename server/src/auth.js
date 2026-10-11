@@ -2,6 +2,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { forbidden, unauthorized } from './lib/errors.js';
 import { TtlCache } from './lib/ttl.js';
 import { phoneIdentity } from './lib/identity.js';
+import { isOwnToken, verifySession } from './lib/pin.js';
 
 const FIREBASE_JWKS = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 
@@ -46,7 +47,17 @@ export function createFirebaseVerifier({ projectId, keySet }) {
  *   guards.owner    - authed AND the platform owner
  * The owner is defined by the OWNER_EMAILS env var (never by client data) and is auto-provisioned.
  */
-export function registerAuth(app, { config, pool, verifyToken, hub }) {
+export function registerAuth(app, { config, pool, verifyToken: verifyExternal, hub }) {
+  // Two kinds of sessions: Firebase ID tokens (Google / e-mail / SMS code) and the ones this server issues after a
+  // phone + PIN sign-in (see lib/pin.js). A token is routed by its signing algorithm; neither can pass as the other.
+  const verifyToken = async (token) => {
+    if (!isOwnToken(token)) return verifyExternal(token);
+    if (!config.authSecret) throw new Error('PIN sign-in is not enabled');
+    const s = await verifySession({ secret: config.authSecret, token });
+    const phone = s.phone;
+    if (!/^\+\d{8,15}$/.test(phone) || s.identity !== phoneIdentity(phone)) throw new Error('bad session token');
+    return { uid: `pin:${s.identity}`, email: s.identity, loginEmail: '', phone, provider: 'pin', name: '', picture: '', iat: s.iat, purpose: s.purpose };
+  };
   app.decorateRequest('user', null);
   app.decorateRequest('member', null);
 
@@ -55,6 +66,8 @@ export function registerAuth(app, { config, pool, verifyToken, hub }) {
   // wholesale after a listener reconnect. The TTL is only a safety net.
   const memberCache = new TtlCache({ ttlMs: config.memberCacheMs, max: 5000 });
   app.decorate('invalidateMember', (email) => memberCache.delete(email));
+  // Fresh status/role for one identity (used to keep open live streams in step with approvals, blocks and sign-ups).
+  app.decorate('memberStatusOf', async (email) => (await pool.query('SELECT status, role FROM members WHERE email = $1', [email])).rows[0] ?? null);
   hub?.observe((evt) => {
     if (evt.entity === 'me') memberCache.delete(evt.email);
     else if (evt.entity === 'resync') memberCache.clear();
@@ -97,6 +110,12 @@ export function registerAuth(app, { config, pool, verifyToken, hub }) {
 
   async function loadMember(req) {
     req.member = await memberCache.getOrLoad(req.user.email, () => resolveMember(req.user));
+    if (req.user.provider === 'pin') {
+      // A PIN session ends the moment the PIN is changed or removed (the token carries its issue time).
+      const m = req.member;
+      const changed = m?.pin_changed_at ? Math.floor(new Date(m.pin_changed_at).getTime() / 1000) : 0;
+      if (!m || !m.pin_hash || req.user.iat < changed) throw unauthorized('Invalid or expired session');
+    }
   }
 
   // Hooks must be async (or call done): a sync hook that returns normally would hang the request.

@@ -1,6 +1,6 @@
 # SNG ONE — freight marketplace for the CIS / Eurasia
 
-Load board, truck board and carrier directory with owner-approved membership.
+Load board, truck board and carrier directory with open sign-up (the owner is notified and can block anyone).
 Node 22 + Fastify API · PostgreSQL · Firebase Google sign-in · vanilla-JS web app served by the same process.
 
 ```
@@ -12,14 +12,15 @@ browser ──HTTPS──▶ Fastify (N workers) ──▶ PostgreSQL
 
 ## What it does
 
-- **Sign in your way**: Google, email + password (with email confirmation, *forgot password* and *change password*), or phone number with an SMS code.
+- **Sign in your way**: **phone number first** (SMS code once, then phone + a 4-digit PIN), or Google, or email + password (with email confirmation, *forgot password* and *change password*). Uzbek is the default language.
 - **Three languages** (English, Русский, O‘zbekcha) and **light / dark / auto** appearance, switchable from the sign-in screen, the header, and Account → Preferences.
-- **Members only.** Anyone can sign in with Google and request access; they see nothing until an owner approves them (Approvals page, live).
+- **Open sign-up.** A name plus a phone number *or* a Telegram username is all it takes; new members can use the platform at once. The owner gets a live notification (and a Telegram message if their account is linked to the bot) for every new member, and can block, unblock or remove anyone on the Members page. Company and e-mail are optional and can be added in Settings.
 - **Loads**: post, edit, close; search by origin/destination **with deadhead radius**, equipment, dates, weight, rate, distance, free text; sort by any column; infinite scroll.
 - **AI paste import**: paste one or many Telegram/WhatsApp posts (Russian Cyrillic or Uzbek Latin/Cyrillic); Gemini splits them into separate loads and fills cities, cargo, truck type and notes; the member reviews and posts them all in one click. Details below.
 - **Default contact info** in Account: pre-fills the contact fields of every new load and truck (still editable per post).
 - **Trucks**: post availability with end date (auto-expires after 30 days without one); same radius/equipment/date search.
-- **Carrier directory** of approved companies; **display currencies** (USD, RUB, KZT, UZS, KGS, TJS, BYN, AZN, GEL, AMD) with owner-editable rates; **English / Russian** UI; mobile layout.
+- **Contact rule everywhere** (sign-up, profile, loads, trucks, AI import, Telegram bot): a phone number **or** a Telegram username is required (either one), e-mail is always optional.
+- **Carrier directory** of members; **display currencies** (USD, RUB, KZT, UZS, KGS, TJS, BYN, AZN, GEL, AMD) with owner-editable rates; **English / Russian** UI; mobile layout.
 - **Live updates**: new posts, approvals and rate changes reach open browsers within a second (Server-Sent Events, backed by Postgres `LISTEN/NOTIFY`).
 
 ## Run it locally (no accounts needed)
@@ -50,7 +51,7 @@ This is a Node server plus PostgreSQL, so it cannot run on static hosts (Vercel/
 2. When asked, enter `OWNER_EMAILS` (your Google email) and `GEMINI_API_KEY`.
 3. After the first deploy, open the service URL — the page loads, but Google sign-in will say the domain is not authorized until you do step 4.
 4. In the Firebase console (project `sng-pro`) → **Authentication → Settings → Authorized domains → Add** your `*.onrender.com` address (and your own domain later). Also make sure **Google** is enabled under Sign-in method.
-5. Sign in with the owner email: you are the owner and can approve other companies. Any other host that can run a Docker container (Railway, Fly.io, a VPS) works the same way; use the `Dockerfile` and the variables in `.env.example`.
+5. Sign in with the owner email: you are the owner and are told about every new member. Any other host that can run a Docker container (Railway, Fly.io, a VPS) works the same way; use the `Dockerfile` and the variables in `.env.example`.
 
 ### Sign-in methods: what to switch on in Firebase
 
@@ -59,10 +60,13 @@ In the [Firebase console](https://console.firebase.google.com) → project `sng-
 | Method | Switch on | Notes |
 | --- | --- | --- |
 | Google | **Google** provider | already on |
+| Phone | **Phone** provider (and allow SMS to your countries under *Settings → SMS region policy*) | first sign-in and "forgot PIN" only; afterwards phone + PIN needs no SMS |
 | Email + password | **Email/Password** provider | people must confirm their email before the platform lets them in (otherwise anyone could register the owner's address) |
 | Phone (SMS code) | **Phone** provider | SMS is paid per message after a free quota and may need the pay-as-you-go (Blaze) plan. Under **Settings → SMS region policy** allow Uzbekistan, Russia, Kazakhstan… Add **test phone numbers** there to try it for free |
 
 Also under **Authentication → Settings → Authorized domains** add your site's domain (e.g. `your-app.onrender.com`), and under **Templates** you can edit the wording and sender name of the *Password reset* and *Email verification* messages (Firebase sends them in the visitor's language).
+
+**Phone + 4-digit PIN.** After the first SMS code a member chooses a PIN; from then on `POST /api/auth/pin/login` (phone + PIN) gives a session signed by this server (`AUTH_SECRET`, at least 16 characters; `deploy/update.sh` generates one). A 4-digit PIN is weak on its own, so: it is stored only as a salted scrypt hash, 5 wrong tries lock that phone for 15 minutes (the SMS code still works), the endpoint is rate-limited per IP, obvious PINs (0000, 1234 ...) are refused, changing the PIN ends all other PIN sessions, and the owner (a verified e-mail) can never sign in with a PIN. Without `AUTH_SECRET` the feature is simply off and phone sign-in stays SMS-only.
 
 How identities work: Google and email accounts are identified by their verified email; phone accounts by the phone number (stored internally as `p<digits>@phone.sng`, never shown). The owner is only ever matched on a verified email in `OWNER_EMAILS`.
 
@@ -143,8 +147,7 @@ SOAK_BASE=http://127.0.0.1:8080 SOAK_USERS=20000 npm run soak
 
 ## Telegram bot
 
-`bot/` is a separate process that links a member's account (e-mail + password, same as the web
-sign-in), lets them `/postload` straight from a chat, and broadcasts every new load - from the web
+`bot/` is a separate process that links a member's account (`/link`: phone number + the 4-digit PIN; `/linkemail` keeps the older e-mail + password way), lets them `/postload` straight from a chat, and broadcasts every new load - from the web
 app or from Telegram - to every group/channel the bot has been added to, the instant it is posted.
 It talks to this same API and database; nothing on the server needed to change. See
 [`bot/README.md`](bot/README.md) for setup (`npm run bot`) and how it works.
@@ -152,7 +155,7 @@ It talks to this same API and database; nothing on the server needed to change. 
 ## Tests
 
 ```bash
-npm test      # 131 tests. server: real embedded PostgreSQL - auth, approval, search, quotas, security, SSE, boot/cluster, i18n
+npm test      # 142 tests. server: real embedded PostgreSQL - auth, approval, search, quotas, security, SSE, boot/cluster, i18n
               # bot (28): crypto + formatting + translations, and integration tests against the real API, database and
               #           LISTEN/NOTIFY channel (only Telegram itself is faked)
 ```
