@@ -2,6 +2,7 @@ import cluster from 'node:cluster';
 import { buildApp } from './app.js';
 import { createPool } from './db.js';
 import { runMigrations } from './migrate.js';
+import { startExpirySweeper } from './lib/expiry.js';
 
 /**
  * Boots the API. With WEB_CONCURRENCY > 1 a small primary process forks that many workers that share
@@ -70,6 +71,7 @@ async function startWorker({ config, verifyToken, migrate, onShutdown, ai }) {
   if (migrate && config.autoMigrate) await runMigrations(pool, console);
   const app = await buildApp({ config, pool, verifyToken, ai });
 
+  const stopSweeper = startExpirySweeper(pool, { log: app.log });
   let closing = false;
   const shutdown = async (signal) => {
     if (closing) return;
@@ -77,7 +79,7 @@ async function startWorker({ config, verifyToken, migrate, onShutdown, ai }) {
     app.log.info({ signal }, 'shutting down');
     const force = setTimeout(() => process.exit(1), 10_000);
     force.unref();
-    try { await app.close(); await pool.end(); await onShutdown?.(); } finally { process.exit(0); }
+    try { stopSweeper(); await app.close(); await pool.end(); await onShutdown?.(); } finally { process.exit(0); }
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));

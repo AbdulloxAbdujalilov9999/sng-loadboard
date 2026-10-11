@@ -198,4 +198,8 @@ export const subscriptionBody = z.object({
   priceText: z.string().trim().max(200),
   payText: z.string().trim().max(1500),
 }).strict();
+export const loadExpiryBody = z.object({
+  enabled: z.boolean(),
+  hours: z.coerce.number().int().min(1).max(720),
+}).strict();
 export const activateBody = z.object({ days: z.coerce.number().int().min(1).max(3650) }).strict();

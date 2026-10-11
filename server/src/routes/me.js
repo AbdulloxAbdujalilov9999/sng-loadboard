@@ -3,6 +3,7 @@ import { memberDto } from '../lib/dto.js';
 import { conflict, forbidden, validationError } from '../lib/errors.js';
 import { detail } from '../lib/validation.js';
 import { publicInfo, stateOf, trialEndFor } from '../lib/subscription.js';
+import { publicExpiry } from '../lib/expiry.js';
 import { hashPin, signSession, verifyPin } from '../lib/pin.js';
 import { loginLabel } from '../lib/identity.js';
 import { publish } from '../events.js';
@@ -24,6 +25,7 @@ export default async function meRoutes(app, { pool, config }) {
       profile: m ? memberDto(m) : null,
       // free trial / paid time (off until the owner switches subscriptions on); price + how to pay come with it
       subscription: m ? { enabled: settings.enabled, ...stateOf(m, settings), ...publicInfo(settings) } : null,
+      loadExpiry: publicExpiry(await app.loadExpiry()),   // loads leave the board by themselves after this many hours
       ownerContact: config.ownerEmails[0] ?? null,
     };
   });

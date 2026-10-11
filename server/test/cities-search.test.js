@@ -54,3 +54,11 @@ test('loads and trucks can be searched by whole country', async () => {
   assert.equal((await api.get('/api/trucks?locCountry=KZ')).json.total, 1);
   assert.equal((await api.get('/api/trucks?locCountry=UZ')).json.total, 0);
 });
+
+test('typing the first letters of a big city offers it first, not a tiny village whose other name happens to match', async () => {
+  for (const [q, first] of [['tash', 'Tashkent, UZ'], ['ташк', 'Tashkent, UZ'], ['andi', 'Andijan, UZ']]) {
+    const got = await labels(q);
+    assert.equal(got[0], first, `${q} -> ${got}`);
+  }
+  assert.equal((await labels('tashkent'))[0], 'Tashkent, UZ');
+});

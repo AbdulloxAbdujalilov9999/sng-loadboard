@@ -169,6 +169,27 @@ const Admin = (() => {
     } catch (err) { U.toast(err.message, 'error'); } finally { U.setBusy(form, false); }
   }
 
+  // ---- automatic removal of loads ----
+  async function loadExp() {
+    try {
+      const c = await API.get('/api/admin/load-expiry');
+      $('exp-enabled').checked = Boolean(c.enabled);
+      $('exp-hours').value = c.hours;
+    } catch { /* the form keeps its defaults */ }
+  }
+
+  async function saveExp(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const hours = Math.round(Number($('exp-hours').value));
+    if (!(hours >= 1 && hours <= 720)) { $('exp-hours').focus(); U.toast(t('exp_invalid'), 'error'); return; }
+    U.setBusy(form, true);
+    try {
+      const r = await API.put('/api/admin/load-expiry', { enabled: $('exp-enabled').checked, hours });
+      U.toast(t('toast_exp_saved', { n: r.removed }), 'success');
+    } catch (err) { U.toast(err.message, 'error'); } finally { U.setBusy(form, false); }
+  }
+
   // ---- display currency rates ----
   async function loadFx() {
     const cfg = await (await fetch(`${window.APP_CONFIG.apiBase || ''}/api/config`, { cache: 'no-store' })).json();
@@ -198,6 +219,7 @@ const Admin = (() => {
     $('approvals-list').addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (b) act(b.dataset.act, Number(b.dataset.id)); });
     $('fx-form').addEventListener('submit', saveFx);
     $('sub-form').addEventListener('submit', saveSub);
+    $('exp-form').addEventListener('submit', saveExp);
     Live.on(async (evt) => {
       if (!entered || !Session.me?.isOwner) return;
       if (evt.entity === 'members' && evt.op === 'insert') {
@@ -217,7 +239,7 @@ const Admin = (() => {
     newSince = seenAt() || Session.me?.profile?.requestedAt || ''; // NEW tags are relative to the previous visit...
     U.store.set(SEEN_KEY, new Date().toISOString());      // ...and this visit counts as "seen"
     newCount = 0;
-    load(); loadFx(); loadSub();
+    load(); loadFx(); loadSub(); loadExp();
   }
 
   return { init, enter, leave, onShow, render: () => { renderCounts(); renderList(); } };

@@ -1,5 +1,6 @@
-import { activateBody, adminMembersQuery, fxBody, idParam, subscriptionBody } from '../lib/schemas.js';
+import { activateBody, adminMembersQuery, fxBody, idParam, loadExpiryBody, subscriptionBody } from '../lib/schemas.js';
 import { loadSettings, stateOf } from '../lib/subscription.js';
+import { loadExpirySettings, sweepExpiredLoads } from '../lib/expiry.js';
 import { memberDto } from '../lib/dto.js';
 import { notFound } from '../lib/errors.js';
 import crypto from 'node:crypto';
@@ -41,6 +42,20 @@ export default async function adminRoutes(app, { pool, config }) {
       await publish(db, { entity: 'settings' });
     });
     return next;
+  });
+
+  // ---- automatic expiry of loads (on by default: a load leaves the board 24 h after it was posted)
+  app.get('/api/admin/load-expiry', guard, async () => loadExpirySettings(pool));
+
+  app.put('/api/admin/load-expiry', guard, async (req) => {
+    const next = loadExpiryBody.parse(req.body);
+    await withTx(pool, async (db) => {
+      await db.query(`INSERT INTO app_settings (key, value) VALUES ('loadExpiry', $1::jsonb)
+                      ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = now()`, [JSON.stringify(next)]);
+      await publish(db, { entity: 'settings' });
+    });
+    const removed = await sweepExpiredLoads(pool); // apply a shorter limit straight away instead of at the next tick
+    return { ...next, removed };
   });
 
   // Add paid time (from now, or on top of what is left). The member's open app unlocks at once.

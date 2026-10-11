@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { HttpError, forbidden, unauthorized } from './lib/errors.js';
 import { loadSettings, stateOf } from './lib/subscription.js';
+import { loadExpirySettings } from './lib/expiry.js';
 import { TtlCache } from './lib/ttl.js';
 import { phoneIdentity } from './lib/identity.js';
 import { isOwnToken, verifySession } from './lib/pin.js';
@@ -117,9 +118,10 @@ export function registerAuth(app, { config, pool, verifyToken: verifyExternal, h
   hub?.observe((evt) => { if (evt.entity === 'me' || evt.entity === 'resync') phoneOwner.clear(); });
 
   // Subscription settings (a few seconds of cache; cleared at once when the owner saves them, on any instance).
-  const subCache = new TtlCache({ ttlMs: Math.min(config.memberCacheMs, 5000), max: 2 });
+  const subCache = new TtlCache({ ttlMs: Math.min(config.memberCacheMs, 5000), max: 4 });
   hub?.observe((evt) => { if (evt.entity === 'settings' || evt.entity === 'resync') subCache.clear(); });
   app.decorate('subscriptionSettings', () => subCache.getOrLoad('s', () => loadSettings(pool)));
+  app.decorate('loadExpiry', () => subCache.getOrLoad('expiry', () => loadExpirySettings(pool)));
 
   async function loadMember(req) {
     if (req.user.provider === 'phone') {

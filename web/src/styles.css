@@ -245,3 +245,25 @@
   .dark #loads-tbody > tr.data-row:hover > td, .dark #trucks-tbody > tr.data-row:hover > td, .dark #my-loads-tbody > tr.data-row:hover > td, .dark #my-trucks-tbody > tr.data-row:hover > td { background: #172542; border-top-color: #3b6bb8; border-bottom-color: #3b6bb8; }
   .dark #loads-tbody > tr.data-row:hover > td:last-child, .dark #trucks-tbody > tr.data-row:hover > td:last-child { border-right-color: #3b6bb8; }
 }
+
+/* Owner settings cards on the Members page fold away, so they are never buried under a long list of members. */
+.settings-fold > summary { list-style: none; }
+.settings-fold > summary::-webkit-details-marker { display: none; }
+.settings-fold[open] > summary .fold-chev { transform: rotate(180deg); }
+
+/* Phones: iOS Safari zooms the whole page into any field below 16px and never zooms back out, so fields are 16px here,
+   and the small header buttons get a finger-sized tap area. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]), select, textarea { font-size: 16px !important; }
+  #sidebar-open, [data-theme-toggle], #sidebar-close { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+  input[type="checkbox"], input[type="radio"] { min-width: 20px; min-height: 20px; }
+}
+/* Notched phones (viewport-fit=cover): keep content clear of the notch / home bar. */
+body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+#to-filters-btn { bottom: calc(1rem + env(safe-area-inset-bottom)); }
+@media (max-width: 767px) {
+  /* the language / currency pickers share one row with three small buttons: keep every part of that row compact */
+  header #lang-select, header #currency-select { padding-left: 4px; padding-right: 2px; }
+  header #live-indicator { padding-left: 8px; padding-right: 8px; }
+  header [data-theme-toggle] { min-width: 36px; }
+}

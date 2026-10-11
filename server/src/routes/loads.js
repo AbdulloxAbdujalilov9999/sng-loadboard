@@ -233,6 +233,23 @@ export default async function loadRoutes(app, { pool, config }) {
     return loadDto(updated, req.member.id);
   });
 
+  // ---------- renew: "still available" - the load counts as posted now, so its expiry clock starts over ----------
+  app.post('/api/loads/:id/renew', write, async (req) => {
+    const { id } = idParam.parse(req.params);
+    const row = await withTx(pool, async (db) => {
+      const { rows: [r] } = await db.query(
+        `UPDATE loads SET created_at = now(), updated_at = now() WHERE id = $1 AND status = 'active' AND owner_id = $2 RETURNING *`,
+        [id, req.member.id]);
+      if (!r) {
+        const { rows: [exists] } = await db.query(`SELECT 1 FROM loads WHERE id = $1 AND status = 'active'`, [id]);
+        throw exists ? forbidden('You can only renew your own loads') : notFound('Load not found - it may already have expired');
+      }
+      await publish(db, { entity: 'loads', op: 'update', id, ownerId: r.owner_id });
+      return r;
+    });
+    return loadDto(row, req.member.id);
+  });
+
   // ---------- remove (soft: history is kept, the load just leaves the board) ----------
   app.delete('/api/loads/:id', write, async (req, reply) => {
     const { id } = idParam.parse(req.params);

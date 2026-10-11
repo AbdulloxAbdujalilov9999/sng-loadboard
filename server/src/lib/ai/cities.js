@@ -194,7 +194,12 @@ function searchOnce(index, query, { limit = 8, country = null } = {}) {
     const name = e.keys[0];
     for (const k of e.keys) {
       let s = 0;
-      if (k === q) s = k === name ? 100 : 90;
+      if (k === q) {
+        // Only a literal match (or a well-known town) counts as exact. A tiny village that matches merely after folding
+        // o/a, y/i ... ("Ondy" for "andi") or through another name must not outrank the big city the letters start.
+        const literal = e.raws.get(k)?.toLowerCase() === query.trim().toLowerCase();
+        s = e.pop >= 50_000 || literal ? (k === name ? 100 : 90) : 65;
+      }
       else if (k.startsWith(q)) s = k === name ? 70 : 60;
       else if (k.includes(` ${q}`)) s = 40;
       else if (q.length >= 3 && k.includes(q)) s = 20;
