@@ -13,6 +13,7 @@ const DICT = {
     welcome: "Welcome to SNG ONE.\n\n"
       + "• /link - connect your SNG ONE account with your phone number and password (DM only)\n"
       + "• /postload - post a load here; it appears on the web board and is broadcast to every group this bot is in\n"
+      + "• /myloads - list and delete your own loads\n"
       + "• /mystatus - check your link\n"
       + "• /unlink - disconnect your account\n"
       + "• /language - change this bot's language\n\n"
@@ -69,7 +70,11 @@ const DICT = {
     wiz_weight_invalid: 'Enter a weight in tons, e.g. "20" (0-100).',
     wiz_ask_pickup: 'Pickup date? Format YYYY-MM-DD, e.g. 2026-03-15.',
     wiz_pickup_invalid: 'Please use YYYY-MM-DD, e.g. 2026-03-15.',
+    wiz_btn_today: 'Today',
+    wiz_btn_asap: 'ASAP',
+    wiz_pickup_set: 'Pickup: {date}',
     wiz_ask_rate: 'Rate in USD? e.g. 1500 (send 0 or - if it is negotiable)',
+    wiz_rate_set_negotiable: 'Rate: Negotiable',
     wiz_rate_invalid: 'Enter a rate in USD, e.g. 1500.',
     wiz_ask_commodity: 'What is the cargo? e.g. "Furniture" or "ДСП МДФ".',
     wiz_commodity_invalid: 'Please describe the cargo.',
@@ -115,12 +120,24 @@ const DICT = {
     wiz_contact_need_one: "Please give at least a phone number or a Telegram username so people can reach you.",
     owner_new_member: "🆕 New member on SNG ONE: {name}\n{contact}",
     wiz_subscription_required: "Your free trial or subscription has ended, so posting is closed. Pay and the platform owner reopens it - see the website, Account & Settings.",
+
+    myloads_dm_only: 'DM me and send /myloads there.',
+    myloads_empty: "You haven't posted any loads yet.",
+    myloads_header: 'Your loads ({count}):',
+    myloads_btn_delete: '🗑 Delete',
+    myloads_confirm: 'Delete this load from the board, every group, and your own chat?',
+    myloads_btn_yes: 'Yes, delete',
+    myloads_btn_no: 'No',
+    myloads_cancelled: 'Kept - not deleted.',
+    myloads_deleted: '✅ Deleted - removed from the board and from every chat it was sent to.',
+    myloads_delete_failed: 'Could not delete - please try again later.',
   },
 
   ru: {
     welcome: 'Добро пожаловать в SNG ONE.\n\n'
       + "• /link - привязать аккаунт SNG ONE по номеру телефона и паролю (только в личных сообщениях)\n"
       + '• /postload - разместить груз прямо здесь; он появится на сайте и будет разослан во все группы, где есть этот бот\n'
+      + '• /myloads - список и удаление ваших грузов\n'
       + '• /mystatus - проверить привязку аккаунта\n'
       + '• /unlink - отвязать аккаунт\n'
       + '• /language - сменить язык бота\n\n'
@@ -177,7 +194,11 @@ const DICT = {
     wiz_weight_invalid: 'Укажите вес в тоннах, например «20» (0-100).',
     wiz_ask_pickup: 'Дата погрузки? Формат ГГГГ-ММ-ДД, например 2026-03-15.',
     wiz_pickup_invalid: 'Используйте формат ГГГГ-ММ-ДД, например 2026-03-15.',
+    wiz_btn_today: 'Сегодня',
+    wiz_btn_asap: 'Как можно скорее',
+    wiz_pickup_set: 'Погрузка: {date}',
     wiz_ask_rate: 'Ставка в USD? Например, 1500 (отправьте 0 или -, если договорная)',
+    wiz_rate_set_negotiable: 'Ставка: Договорная',
     wiz_rate_invalid: 'Укажите ставку в USD, например 1500.',
     wiz_ask_commodity: 'Какой груз? Например, «Мебель» или «ДСП МДФ».',
     wiz_commodity_invalid: 'Опишите, пожалуйста, груз.',
@@ -223,12 +244,24 @@ const DICT = {
     wiz_contact_need_one: "Укажите хотя бы телефон или Telegram, чтобы с вами могли связаться.",
     owner_new_member: "🆕 Новый участник SNG ONE: {name}\n{contact}",
     wiz_subscription_required: "Пробный период или подписка закончились, поэтому публикация закрыта. Оплатите, и владелец платформы откроет доступ - подробности на сайте, «Аккаунт и настройки».",
+
+    myloads_dm_only: 'Напишите мне в личные сообщения и отправьте /myloads там.',
+    myloads_empty: 'Вы пока не разместили ни одного груза.',
+    myloads_header: 'Ваши грузы ({count}):',
+    myloads_btn_delete: '🗑 Удалить',
+    myloads_confirm: 'Удалить этот груз с биржи, из всех групп и из вашего чата?',
+    myloads_btn_yes: 'Да, удалить',
+    myloads_btn_no: 'Нет',
+    myloads_cancelled: 'Оставлено - не удалено.',
+    myloads_deleted: '✅ Удалено - убрано с биржи и из всех чатов, куда было отправлено.',
+    myloads_delete_failed: 'Не удалось удалить - попробуйте позже.',
   },
 
   uz: {
     welcome: "SNG ONE'ga xush kelibsiz.\n\n"
       + "• /link - SNG ONE hisobingizni telefon raqami va parol bilan ulash (faqat shaxsiy xabarda)\n"
       + '• /postload - shu yerda yuk joylash; u saytda paydo boʻladi va bot qoʻshilgan barcha guruhlarga yuboriladi\n'
+      + "• /myloads - yuklaringiz roʻyxati va oʻchirish\n"
       + '• /mystatus - ulanishni tekshirish\n'
       + '• /unlink - hisobni uzish\n'
       + '• /language - bot tilini oʻzgartirish\n\n'
@@ -285,7 +318,11 @@ const DICT = {
     wiz_weight_invalid: 'Og\'irlikni tonnada kiriting, masalan "20" (0-100).',
     wiz_ask_pickup: "Olib ketish sanasi? Format YYYY-MM-DD, masalan 2026-03-15.",
     wiz_pickup_invalid: 'Iltimos, YYYY-MM-DD formatidan foydalaning, masalan 2026-03-15.',
+    wiz_btn_today: 'Bugun',
+    wiz_btn_asap: 'Imkon qadar tezroq',
+    wiz_pickup_set: 'Olib ketish: {date}',
     wiz_ask_rate: "Narx USD da? Masalan, 1500 (kelishilgan boʻlsa 0 yoki - yuboring)",
+    wiz_rate_set_negotiable: 'Narx: Kelishilgan',
     wiz_rate_invalid: 'Narxni USD da kiriting, masalan 1500.',
     wiz_ask_commodity: 'Yuk turi qanday? Masalan, "Mebel" yoki "ДСП МДФ".',
     wiz_commodity_invalid: 'Iltimos, yukni tasvirlab bering.',
@@ -331,6 +368,17 @@ const DICT = {
     wiz_contact_need_one: "Siz bilan bogʻlanish uchun kamida telefon raqami yoki Telegram foydalanuvchi nomini kiriting.",
     owner_new_member: "🆕 SNG ONE'da yangi aʼzo: {name}\n{contact}",
     wiz_subscription_required: "Bepul sinov davri yoki obuna tugadi, shuning uchun eʼlon joylash yopiq. Toʻlov qiling — platforma egasi qayta ochadi; batafsil saytda, «Hisob va sozlamalar».",
+
+    myloads_dm_only: 'Menga shaxsiy xabar yozib, u yerda /myloads yuboring.',
+    myloads_empty: "Siz hali birorta yuk joylamagansiz.",
+    myloads_header: 'Sizning yuklaringiz ({count}):',
+    myloads_btn_delete: "🗑 O'chirish",
+    myloads_confirm: "Bu yukni birjadan, barcha guruhlardan va o'z chatingizdan o'chirilsinmi?",
+    myloads_btn_yes: "Ha, o'chirish",
+    myloads_btn_no: "Yo'q",
+    myloads_cancelled: "Qoldirildi - o'chirilmadi.",
+    myloads_deleted: "✅ O'chirildi - birjadan va yuborilgan barcha chatlardan olib tashlandi.",
+    myloads_delete_failed: "O'chirib bo'lmadi - keyinroq qayta urinib ko'ring.",
   },
 };
 

@@ -53,7 +53,31 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?set TELEGRAM_BOT_TOKEN to your @BotFather token}
       FIREBASE_WEB_API_KEY: ${FIREBASE_WEB_API_KEY:-AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg}
       BOT_ENCRYPTION_KEY: ${BOT_ENCRYPTION_KEY:?set BOT_ENCRYPTION_KEY - generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"}
-      BOT_BROADCAST_LANG: ${BOT_BROADCAST_LANG:-en}
+      BOT_BROADCAST_LANG: ${BOT_BROADCAST_LANG:-uz}
+
+  # Optional: the Telegram INGEST bot (bot/src/ingestIndex.js) - a separate bot that joins source
+  # groups and posts loads it finds there automatically. `--profile ingest` once configured; see
+  # bot/README.md "Ingestion bot" and .env.example before turning this on.
+  ingest:
+    build: .
+    command: ["node", "bot/src/ingestIndex.js"]
+    restart: unless-stopped
+    profiles: ["ingest"]
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    healthcheck:
+      disable: true
+    environment:
+      DATABASE_URL: postgres://sng:${POSTGRES_PASSWORD:-sng-local-only}@db:5432/sng
+      API_BASE_URL: http://api:8080
+      FIREBASE_WEB_API_KEY: ${FIREBASE_WEB_API_KEY:-AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg}
+      TELEGRAM_INGEST_BOT_TOKEN: ${TELEGRAM_INGEST_BOT_TOKEN:?set TELEGRAM_INGEST_BOT_TOKEN to a second @BotFather token, privacy mode disabled}
+      INGEST_SERVICE_EMAIL: ${INGEST_SERVICE_EMAIL:?set INGEST_SERVICE_EMAIL to a member account you created and approved}
+      INGEST_SERVICE_PASSWORD: ${INGEST_SERVICE_PASSWORD:?set INGEST_SERVICE_PASSWORD to that account's password}
+      INGEST_ADMIN_TG_IDS: ${INGEST_ADMIN_TG_IDS:-}
 
 volumes:
   pgdata:

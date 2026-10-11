@@ -25,7 +25,11 @@ async function waitFor(cond, ms = 6000) { const t0 = Date.now(); while (Date.now
 async function startBroadcaster({ chats = [111], failWith } = {}) {
   const sent = []; const removed = [];
   const bot = { telegram: { sendMessage: async (chatId, text) => { const e = failWith?.(chatId, sent.length); if (e) throw e; sent.push({ chatId, text }); } } };
-  const store = { listActiveChatIds: async () => chats, markChatRemoved: async (id) => removed.push(id) };
+  const store = {
+    listActiveChatIds: async () => chats, markChatRemoved: async (id) => removed.push(id),
+    getTelegramUserIdByMemberId: async () => null, saveSentMessage: async () => {},
+    listSentMessages: async () => [], deleteSentMessages: async () => {},
+  };
   const broadcaster = makeBroadcaster({
     config: { databaseUrl: env.config.databaseUrl, broadcastSpacingMs: 0, broadcastLang: 'en', webBaseUrl: 'https://sng.example', webUrlIsPublic: true },
     pool: env.pool, store, bot, log: { warn() {}, error() {} }, sleep: async () => {},

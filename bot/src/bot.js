@@ -163,6 +163,68 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     await ctx.scene.enter('postload', { idToken, member: me.profile });
   });
 
+  // /myloads: everything I've posted, each with a Delete button - the same soft-close the web
+  // app's "Remove" button does (DELETE /api/loads/:id), which also pulls the load back out of every
+  // group/DM it was broadcast to (see broadcaster.js's 'delete' event handling).
+  bot.command('myloads', async (ctx) => {
+    if (ctx.chat.type !== 'private') { await ctx.reply(t(ctx.lang, 'myloads_dm_only')); return; }
+    let idToken;
+    try {
+      idToken = await tokens.getIdToken(ctx.from.id);
+    } catch (err) {
+      await ctx.reply(t(ctx.lang, err instanceof NotLinkedError ? 'postload_not_linked' : 'postload_session_error'));
+      return;
+    }
+    let items;
+    try {
+      ({ items } = await apiClient.listMine(idToken));
+    } catch {
+      await ctx.reply(t(ctx.lang, 'postload_unreachable'));
+      return;
+    }
+    if (!items.length) { await ctx.reply(t(ctx.lang, 'myloads_empty')); return; }
+    await ctx.reply(t(ctx.lang, 'myloads_header', { count: items.length }));
+    for (const l of items.slice(0, 20)) {
+      const rate = l.rateUsd === 0 ? t(ctx.lang, 'msg_negotiable') : `$${Number(l.rateUsd).toLocaleString('en-US')}`;
+      const line = `${escapeHtml(l.originCity)} → ${escapeHtml(l.destCity)} · ${l.pickupDate} · ${rate}`;
+      await ctx.reply(line, { parse_mode: 'HTML', ...Markup.inlineKeyboard([
+        [Markup.button.callback(t(ctx.lang, 'myloads_btn_delete'), `myloads:ask:${l.id}`)],
+      ]) });
+    }
+  });
+
+  bot.action(/^myloads:ask:(\d+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const id = ctx.match[1];
+    const line = ctx.callbackQuery.message.text;
+    await ctx.editMessageText(`${line}\n\n${t(ctx.lang, 'myloads_confirm')}`, { parse_mode: 'HTML', ...Markup.inlineKeyboard([
+      [Markup.button.callback(t(ctx.lang, 'myloads_btn_yes'), `myloads:del:${id}`), Markup.button.callback(t(ctx.lang, 'myloads_btn_no'), 'myloads:cancel')],
+    ]) });
+  });
+
+  bot.action('myloads:cancel', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.editMessageText(t(ctx.lang, 'myloads_cancelled'));
+  });
+
+  bot.action(/^myloads:del:(\d+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const id = Number(ctx.match[1]);
+    let idToken;
+    try {
+      idToken = await tokens.getIdToken(ctx.from.id);
+    } catch (err) {
+      await ctx.editMessageText(t(ctx.lang, err instanceof NotLinkedError ? 'postload_not_linked' : 'postload_session_error'));
+      return;
+    }
+    try {
+      await apiClient.deleteLoad(idToken, id);
+      await ctx.editMessageText(t(ctx.lang, 'myloads_deleted'));
+    } catch {
+      await ctx.editMessageText(t(ctx.lang, 'myloads_delete_failed'));
+    }
+  });
+
   bot.catch((err, ctx) => {
     console.error(`bot error for update ${ctx.update.update_id}:`, err instanceof ApiError ? `${err.code}: ${err.message}` : err);
     ctx.reply?.(t(ctx.lang ?? 'en', 'generic_error')).catch(() => {});
