@@ -16,15 +16,15 @@ const freePort = () => new Promise((resolve, reject) => {
 });
 
 /** Test token format: "test:<email>[:<name>]". Only the injected test verifier understands it. */
-export const tokenFor = (email, name) => (/^\+\d/.test(email) ? `testphone:${email}` : `test:${email}${name ? `:${name}` : ''}`);
+export const tokenFor = (email, name, phone) => (/^\+\d/.test(email) ? `testphone:${email}` : `test:${email}:${name ?? ''}${phone ? `:${phone}` : ''}`);
 
 async function testVerifier(token) {
-  const [prefix, email, name] = String(token).split(':');
+  const [prefix, email, name, linkedPhone] = String(token).split(':');
   if (prefix === 'testphone' && /^\+\d{8,15}$/.test(email ?? '')) {
     return { uid: `uid-${email}`, email: phoneIdentity(email), loginEmail: '', phone: email, provider: 'phone', name: '', picture: '' };
   }
   if (prefix !== 'test' || !email) throw new Error('bad test token');
-  return { uid: `uid-${email}`, email: email.toLowerCase(), loginEmail: email.toLowerCase(), phone: '', provider: 'google.com', name: name ?? email.split('@')[0], picture: '' };
+  return { uid: `uid-${email}`, email: email.toLowerCase(), loginEmail: email.toLowerCase(), phone: linkedPhone ?? '', provider: 'google.com', name: name || email.split('@')[0], picture: '' };
 }
 
 /** Boots a throwaway real PostgreSQL + the real app (migrations included). */
@@ -40,7 +40,7 @@ export async function startTestEnv(envOverrides = {}, { ai = null } = {}) {
   const config = loadConfig({
     DATABASE_URL: `postgres://postgres:pw@127.0.0.1:${port}/postgres`,
     NODE_ENV: 'test', LOG_LEVEL: 'silent', OWNER_EMAILS: 'owner@test.com', WEB_ROOT: path.join(dir, 'no-web'),
-    RATE_LIMIT_PER_MIN: '100000', WRITE_RATE_LIMIT_PER_MIN: '100000', PIN_LOGIN_RATE_PER_MIN: '1000', DB_POOL_MAX: '10',
+    RATE_LIMIT_PER_MIN: '100000', WRITE_RATE_LIMIT_PER_MIN: '100000', PIN_LOGIN_RATE_PER_MIN: '1000', REGISTER_RATE_PER_HOUR: '1000', DB_POOL_MAX: '10',
     COUNT_CACHE_MS: '0', MEMBER_CACHE_MS: '0', EVENT_BATCH_MS: '0', SEARCH_CACHE_MS: '0', // off by default so tests see every write immediately
     ...envOverrides,
   });
@@ -62,7 +62,7 @@ export async function startTestEnv(envOverrides = {}, { ai = null } = {}) {
       put: (url, body) => call('PUT', url, body), del: (url) => call('DELETE', url),
     };
   };
-  const as = (email, name) => client(`Bearer ${tokenFor(email, name)}`);
+  const as = (email, name, phone) => client(`Bearer ${tokenFor(email, name, phone)}`);
   const withToken = (token) => client(`Bearer ${token}`); // a session token the server issued itself (PIN sign-in)
   const anon = () => client(null);
 

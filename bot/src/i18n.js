@@ -11,7 +11,7 @@ export const LANG_NAMES = { en: 'English', ru: 'Русский', uz: 'Oʻzbekcha
 const DICT = {
   en: {
     welcome: "Welcome to SNG ONE.\n\n"
-      + "• /link - connect your SNG ONE account with your phone number and 4-digit PIN (DM only)\n"
+      + "• /link - connect your SNG ONE account with your phone number and password (DM only)\n"
       + "• /postload - post a load here; it appears on the web board and is broadcast to every group this bot is in\n"
       + "• /mystatus - check your link\n"
       + "• /unlink - disconnect your account\n"
@@ -20,8 +20,8 @@ const DICT = {
     language_prompt: 'Choose a language:',
     language_set: 'Language set to English.',
     group_connected: 'Connected. Every new load posted on SNG ONE - from the web app or from /postload here - will be sent to this chat automatically.',
-    link_dm_only: "To keep your PIN private, DM me to link your account (tap my name, then Message).",
-    link_usage: "Send /link and then your phone number and your 4-digit PIN.\nOr in one message: /link +998901234567 1234\n\nNo account yet? Sign up on the website with your phone number first, then come back. (Signed up with an e-mail? Use /linkemail your@email.com password.)",
+    link_dm_only: "To keep your password private, DM me to link your account (tap my name, then Message).",
+    link_usage: "Send /link and then your phone number and your password (4-6 digits).\nOr in one message: /link +998901234567 482915\n\nNo account yet? Create one on the website with your phone number first, then come back. (Signed up with an e-mail? Use /linkemail your@email.com password.)",
     link_unreachable: 'Could not reach the loadboard right now - please try again in a moment.',
     link_unverified: 'Your e-mail is not confirmed yet. Open the confirmation link we e-mailed you (check Spam), then /link again.',
     link_no_account: "No SNG ONE account for that number. Sign up on the website first, then /link again.",
@@ -33,7 +33,7 @@ const DICT = {
     mystatus_linked: "Linked as {company} ({login}) - status: {status}.",
     postload_dm_only: 'DM me and send /postload there - posting asks a few questions and may include contact details.',
     postload_not_linked: "Not linked yet. Send /link first.",
-    postload_session_error: "Your session ended (e.g. the PIN was changed) - please /link again.",
+    postload_session_error: "Your session ended (e.g. the password was changed) - please /link again.",
     postload_unreachable: 'Could not reach the loadboard right now - please try again in a moment.',
     postload_not_approved: 'Your account is not approved to post right now.',
     generic_error: 'Something went wrong - please try again.',
@@ -105,11 +105,11 @@ const DICT = {
     link_share_phone: "📱 Share my number",
     link_contact_not_yours: "That is not your own number. Type the phone number of your SNG ONE account.",
     link_bad_phone: "That does not look like a phone number. Send it with the country code, e.g. +998901234567.",
-    link_ask_pin: "Now send your 4-digit PIN. I delete your message right away.",
-    link_bad_pin: "The PIN is exactly 4 digits. Try again, or /cancel.",
-    link_pin_wrong: "Wrong phone number or PIN. Try the PIN again, or /cancel.\n\nNo PIN yet? Sign in on the website with your phone (SMS code) and choose one, then /link again.",
-    link_pin_wrong_final: "Wrong phone number or PIN. Send /link to start again.",
-    link_pin_locked: "Too many wrong PINs. Try again in {min} min, or reset your PIN on the website with an SMS code.",
+    link_ask_pin: "Now send your password (4-6 digits). I delete your message right away.",
+    link_bad_pin: "The password is 4 to 6 digits. Try again, or /cancel.",
+    link_pin_wrong: "Wrong phone number or password. Try the password again, or /cancel.\n\nForgot it? Ask the platform owner to reset your password.",
+    link_pin_wrong_final: "Wrong phone number or password. Send /link to start again.",
+    link_pin_locked: "Too many wrong passwords. Try again in {min} min, or ask the platform owner to reset it.",
     link_blocked: "This account is blocked. Please contact the platform owner.",
     link_cancelled: "Cancelled.",
     wiz_contact_need_one: "Please give at least a phone number or a Telegram username so people can reach you.",
@@ -118,7 +118,7 @@ const DICT = {
 
   ru: {
     welcome: 'Добро пожаловать в SNG ONE.\n\n'
-      + "• /link - привязать аккаунт SNG ONE по номеру телефона и 4-значному PIN (только в личных сообщениях)\n"
+      + "• /link - привязать аккаунт SNG ONE по номеру телефона и паролю (только в личных сообщениях)\n"
       + '• /postload - разместить груз прямо здесь; он появится на сайте и будет разослан во все группы, где есть этот бот\n'
       + '• /mystatus - проверить привязку аккаунта\n'
       + '• /unlink - отвязать аккаунт\n'
@@ -127,8 +127,8 @@ const DICT = {
     language_prompt: 'Выберите язык:',
     language_set: 'Установлен русский язык.',
     group_connected: 'Подключено. Каждый новый груз на SNG ONE - размещённый на сайте или через /postload здесь - будет автоматически отправлен в этот чат.',
-    link_dm_only: "Чтобы ваш PIN остался в тайне, напишите мне в личные сообщения (нажмите на моё имя, затем «Написать»).",
-    link_usage: "Отправьте /link, затем номер телефона и 4-значный PIN.\nИли одним сообщением: /link +998901234567 1234\n\nЕщё нет аккаунта? Сначала зарегистрируйтесь на сайте по номеру телефона и вернитесь. (Регистрировались по e-mail? Используйте /linkemail your@email.com пароль.)",
+    link_dm_only: "Чтобы ваш пароль остался в тайне, напишите мне в личные сообщения (нажмите на моё имя, затем «Написать»).",
+    link_usage: "Отправьте /link, затем номер телефона и пароль (4–6 цифр).\nИли одним сообщением: /link +998901234567 482915\n\nЕщё нет аккаунта? Сначала создайте его на сайте по номеру телефона и вернитесь. (Регистрировались по e-mail? Используйте /linkemail your@email.com пароль.)",
     link_unreachable: 'Не удаётся подключиться к бирже прямо сейчас - попробуйте через минуту.',
     link_unverified: 'Ваш e-mail ещё не подтверждён. Откройте ссылку подтверждения из письма (проверьте «Спам»), затем снова /link.',
     link_no_account: "Для этого номера нет аккаунта SNG ONE. Сначала зарегистрируйтесь на сайте, затем снова /link.",
@@ -140,7 +140,7 @@ const DICT = {
     mystatus_linked: "Вы привязаны как {company} ({login}) - статус: {status}.",
     postload_dm_only: 'Напишите мне в личные сообщения и отправьте /postload там - при размещении задаётся несколько вопросов, в том числе контактные данные.',
     postload_not_linked: "Аккаунт ещё не привязан. Сначала отправьте /link.",
-    postload_session_error: "Сессия завершена (например, сменили PIN) - выполните /link ещё раз.",
+    postload_session_error: "Сессия завершена (например, сменили пароль) - выполните /link ещё раз.",
     postload_unreachable: 'Не удаётся подключиться к бирже прямо сейчас - попробуйте через минуту.',
     postload_not_approved: 'Сейчас ваш аккаунт не одобрен для размещения грузов.',
     generic_error: 'Что-то пошло не так - попробуйте ещё раз.',
@@ -212,11 +212,11 @@ const DICT = {
     link_share_phone: "📱 Поделиться номером",
     link_contact_not_yours: "Это не ваш номер. Введите номер телефона вашего аккаунта SNG ONE.",
     link_bad_phone: "Это не похоже на номер телефона. Отправьте его с кодом страны, например +998901234567.",
-    link_ask_pin: "Теперь отправьте ваш 4-значный PIN. Я сразу удалю это сообщение.",
-    link_bad_pin: "PIN состоит ровно из 4 цифр. Попробуйте ещё раз или /cancel.",
-    link_pin_wrong: "Неверный номер или PIN. Введите PIN ещё раз или /cancel.\n\nЕщё нет PIN? Войдите на сайте по телефону (SMS-код) и задайте его, затем снова /link.",
-    link_pin_wrong_final: "Неверный номер или PIN. Отправьте /link, чтобы начать заново.",
-    link_pin_locked: "Слишком много неверных PIN. Повторите через {min} мин. или сбросьте PIN на сайте через SMS-код.",
+    link_ask_pin: "Теперь отправьте ваш пароль (4–6 цифр). Я сразу удалю это сообщение.",
+    link_bad_pin: "Пароль состоит из 4–6 цифр. Попробуйте ещё раз или /cancel.",
+    link_pin_wrong: "Неверный номер или пароль. Введите пароль ещё раз или /cancel.\n\nЗабыли? Попросите владельца платформы сбросить пароль.",
+    link_pin_wrong_final: "Неверный номер или пароль. Отправьте /link, чтобы начать заново.",
+    link_pin_locked: "Слишком много неверных паролей. Повторите через {min} мин. или попросите владельца сбросить пароль.",
     link_blocked: "Этот аккаунт заблокирован. Свяжитесь с владельцем платформы.",
     link_cancelled: "Отменено.",
     wiz_contact_need_one: "Укажите хотя бы телефон или Telegram, чтобы с вами могли связаться.",
@@ -225,7 +225,7 @@ const DICT = {
 
   uz: {
     welcome: "SNG ONE'ga xush kelibsiz.\n\n"
-      + "• /link - SNG ONE hisobingizni telefon raqami va 4 xonali PIN-kod bilan ulash (faqat shaxsiy xabarda)\n"
+      + "• /link - SNG ONE hisobingizni telefon raqami va parol bilan ulash (faqat shaxsiy xabarda)\n"
       + '• /postload - shu yerda yuk joylash; u saytda paydo boʻladi va bot qoʻshilgan barcha guruhlarga yuboriladi\n'
       + '• /mystatus - ulanishni tekshirish\n'
       + '• /unlink - hisobni uzish\n'
@@ -234,8 +234,8 @@ const DICT = {
     language_prompt: 'Tilni tanlang:',
     language_set: "Til oʻzbekchaga oʻrnatildi.",
     group_connected: "Ulandi. SNG ONE'da joylangan har bir yangi yuk - saytdan boʻladimi yoki shu yerdagi /postload orqalimi - avtomatik ravishda shu chatga yuboriladi.",
-    link_dm_only: "PIN-kodingiz sir qolishi uchun menga shaxsiy xabar yozing (ismimni bosing, keyin «Xabar yozish»).",
-    link_usage: "/link yuboring, soʻng telefon raqamingiz va 4 xonali PIN-kodni kiriting.\nYoki bitta xabarda: /link +998901234567 1234\n\nHisobingiz yoʻqmi? Avval saytda telefon raqamingiz bilan roʻyxatdan oʻting, soʻng qaytib keling. (E-pochta bilan roʻyxatdan oʻtgansiz? /linkemail your@email.com parol buyrugʻidan foydalaning.)",
+    link_dm_only: "Parolingiz sir qolishi uchun menga shaxsiy xabar yozing (ismimni bosing, keyin «Xabar yozish»).",
+    link_usage: "/link yuboring, soʻng telefon raqamingiz va parolingizni (4–6 raqam) kiriting.\nYoki bitta xabarda: /link +998901234567 482915\n\nHisobingiz yoʻqmi? Avval saytda telefon raqamingiz bilan hisob yarating, soʻng qaytib keling. (E-pochta bilan roʻyxatdan oʻtgansiz? /linkemail your@email.com parol buyrugʻidan foydalaning.)",
     link_unreachable: 'Hozir birjaga ulanib boʻlmadi - birozdan soʻng qayta urinib koʻring.',
     link_unverified: 'E-pochtangiz hali tasdiqlanmagan. Yuborilgan xatdagi tasdiqlash havolasini oching (“Spam” ni ham tekshiring), soʻng yana /link yuboring.',
     link_no_account: "Bu raqam uchun SNG ONE hisobi yoʻq. Avval saytda roʻyxatdan oʻting, soʻng yana /link yuboring.",
@@ -247,7 +247,7 @@ const DICT = {
     mystatus_linked: "{company} ({login}) sifatida ulangansiz - holat: {status}.",
     postload_dm_only: 'Menga shaxsiy xabar yozib, u yerda /postload yuboring - joylashda bir nechta savol beriladi, jumladan aloqa maʼlumotlari.',
     postload_not_linked: "Hali ulanmagansiz. Avval /link yuboring.",
-    postload_session_error: "Seans tugadi (masalan, PIN-kod oʻzgartirilgan) - yana /link qiling.",
+    postload_session_error: "Seans tugadi (masalan, parol oʻzgartirilgan) - yana /link qiling.",
     postload_unreachable: 'Hozir birjaga ulanib boʻlmadi - birozdan soʻng qayta urinib koʻring.',
     postload_not_approved: 'Hozircha hisobingiz yuk joylashga tasdiqlanmagan.',
     generic_error: 'Nimadir xato ketdi - qayta urinib koʻring.',
@@ -319,11 +319,11 @@ const DICT = {
     link_share_phone: "📱 Raqamimni ulashish",
     link_contact_not_yours: "Bu sizning raqamingiz emas. SNG ONE hisobingizning telefon raqamini yozing.",
     link_bad_phone: "Bu telefon raqamiga oʻxshamaydi. Davlat kodi bilan yuboring, masalan +998901234567.",
-    link_ask_pin: "Endi 4 xonali PIN-kodingizni yuboring. Xabaringizni darhol oʻchirib qoʻyaman.",
-    link_bad_pin: "PIN-kod aynan 4 ta raqamdan iborat. Qayta urinib koʻring yoki /cancel.",
-    link_pin_wrong: "Telefon raqami yoki PIN-kod notoʻgʻri. PIN-kodni qayta kiriting yoki /cancel.\n\nHali PIN-kodingiz yoʻqmi? Saytga telefon orqali (SMS-kod) kirib, PIN-kod tanlang, soʻng yana /link yuboring.",
-    link_pin_wrong_final: "Telefon raqami yoki PIN-kod notoʻgʻri. Qaytadan boshlash uchun /link yuboring.",
-    link_pin_locked: "PIN-kod koʻp marta xato kiritildi. {min} daqiqadan soʻng urinib koʻring yoki saytda SMS-kod orqali PIN-kodni tiklang.",
+    link_ask_pin: "Endi parolingizni (4–6 raqam) yuboring. Xabaringizni darhol oʻchirib qoʻyaman.",
+    link_bad_pin: "Parol 4 tadan 6 tagacha raqamdan iborat. Qayta urinib koʻring yoki /cancel.",
+    link_pin_wrong: "Telefon raqami yoki parol notoʻgʻri. Parolni qayta kiriting yoki /cancel.\n\nUnutdingizmi? Platforma egasidan parolni tiklashni soʻrang.",
+    link_pin_wrong_final: "Telefon raqami yoki parol notoʻgʻri. Qaytadan boshlash uchun /link yuboring.",
+    link_pin_locked: "Parol koʻp marta xato kiritildi. {min} daqiqadan soʻng urinib koʻring yoki platforma egasidan parolni tiklashni soʻrang.",
     link_blocked: "Bu hisob bloklangan. Platforma egasi bilan bogʻlaning.",
     link_cancelled: "Bekor qilindi.",
     wiz_contact_need_one: "Siz bilan bogʻlanish uchun kamida telefon raqami yoki Telegram foydalanuvchi nomini kiriting.",

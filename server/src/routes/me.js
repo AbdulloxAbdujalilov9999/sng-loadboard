@@ -1,4 +1,4 @@
-import { pinBody, profileBody, signupBody } from '../lib/schemas.js';
+import { loginPhoneBody, pinBody, profileBody, signupBody } from '../lib/schemas.js';
 import { memberDto } from '../lib/dto.js';
 import { conflict, forbidden, validationError } from '../lib/errors.js';
 import { detail } from '../lib/validation.js';
@@ -45,12 +45,12 @@ export default async function meRoutes(app, { pool, config }) {
     }
     const row = await withTx(pool, async (db) => {
       const { rows: [created] } = await db.query(
-        `INSERT INTO members (email, firebase_uid, company, contact_name, phone, telegram, contact_email, status, pin_hash, pin_changed_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'approved', $8, CASE WHEN $8::text IS NULL THEN NULL ELSE now() END)
+        `INSERT INTO members (email, firebase_uid, company, contact_name, phone, telegram, contact_email, status, pin_hash, pin_changed_at, login_phone)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'approved', $8, CASE WHEN $8::text IS NULL THEN NULL ELSE now() END, $9)
          ON CONFLICT (email) DO NOTHING
          RETURNING *`,
         [req.user.email, req.user.uid, body.company || body.contactName, body.contactName, phone, body.telegram,
-          req.user.loginEmail ? '' : body.contactEmail, pinHash],
+          req.user.loginEmail ? '' : body.contactEmail, pinHash, bySms ? req.user.phone : null],
       );
       if (created) {
         await publish(db, { entity: 'members', op: 'insert', id: created.id });
@@ -63,8 +63,8 @@ export default async function meRoutes(app, { pool, config }) {
     return reply.code(201).send({ status: row.status, profile: memberDto(row) });
   });
 
-  // Set or change the 4-digit PIN. Allowed right after an SMS-code sign-in (that also covers "forgot my PIN"),
-  // or with the current PIN. Google / e-mail accounts do not use PINs.
+  // Set or change the PIN (4-6 digits). Allowed right after an SMS-code sign-in (that also covers "forgot my PIN"), with the
+  // current PIN, or from a signed-in Google / e-mail session of a member who already registered a sign-in phone.
   app.put('/api/me/pin', {
     preHandler: app.guards.approved,
     config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
@@ -72,14 +72,14 @@ export default async function meRoutes(app, { pool, config }) {
     if (!config.authSecret) throw forbidden('PIN sign-in is not enabled on this server', 'pin_disabled');
     const body = pinBody.parse(req.body);
     const provider = req.user.provider;
-    if (provider !== 'phone' && provider !== 'pin') throw forbidden('PINs are for phone sign-in only', 'pin_not_for_provider');
+    if (!req.member.login_phone || req.member.role === 'owner') throw forbidden('This account has no sign-in phone', 'pin_not_for_provider');
     if (isWeakPin(body.pin)) throw validationError([detail('pin', 'pin_weak')]);
     if (provider === 'pin') {
       if (!body.currentPin) throw validationError([detail('currentPin', 'required')]);
-      const ok = await verifyPin({ secret: config.authSecret, identity: req.user.email, pin: body.currentPin, stored: req.member.pin_hash });
+      const ok = await verifyPin({ secret: config.authSecret, identity: req.member.email, pin: body.currentPin, stored: req.member.pin_hash });
       if (!ok) throw validationError([detail('currentPin', 'pin_wrong')]);
     }
-    const hash = await hashPin({ secret: config.authSecret, identity: req.user.email, pin: body.pin });
+    const hash = await hashPin({ secret: config.authSecret, identity: req.member.email, pin: body.pin });
     const row = await withTx(pool, async (db) => {
       const { rows: [m] } = await db.query(
         `UPDATE members SET pin_hash = $2, pin_changed_at = now(), pin_fails = 0, pin_locked_until = NULL, updated_at = now()
@@ -91,6 +91,45 @@ export default async function meRoutes(app, { pool, config }) {
     // Changing the PIN ends every older PIN session (other devices, the Telegram bot); this device gets a fresh one.
     const fresh = provider === 'pin' ? await signSession({ secret: config.authSecret, identity: row.email, phone: req.user.phone, purpose: req.user.purpose }) : null;
     return { ok: true, hasPin: true, ...(fresh ? { token: fresh.token, expiresAt: fresh.expiresAt } : {}) };
+  });
+
+  // A Google / e-mail member adds a phone number + a 4-6 digit password (no SMS): from then on "phone + password" signs in to
+  // this same account, next to Google. The owner cannot do this (the owner's sign-in stays Google).
+  app.post('/api/me/login-phone', {
+    preHandler: app.guards.approved,
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+  }, async (req) => {
+    if (!config.authSecret) throw forbidden('PIN sign-in is not enabled on this server', 'pin_disabled');
+    const body = loginPhoneBody.parse(req.body);
+    if (req.member.role === 'owner' || (req.user.provider !== 'google.com' && req.user.provider !== 'password')) throw forbidden('Not available for this account', 'pin_not_for_provider');
+    if (isWeakPin(body.pin)) throw validationError([detail('pin', 'pin_weak')]);
+    const hash = await hashPin({ secret: config.authSecret, identity: req.member.email, pin: body.pin });
+    const row = await withTx(pool, async (db) => {
+      const { rows: [taken] } = await db.query('SELECT 1 FROM members WHERE login_phone = $1 AND id <> $2', [body.phone, req.member.id]);
+      if (taken) throw validationError([detail('phone', 'phone_taken')]);
+      const { rows: [m] } = await db.query(
+        `UPDATE members SET login_phone = $2, pin_hash = $3, pin_changed_at = now(), pin_fails = 0, pin_locked_until = NULL,
+                phone = CASE WHEN phone = '' THEN $2 ELSE phone END, updated_at = now()
+          WHERE id = $1 RETURNING *`, [req.member.id, body.phone, hash]);
+      await publish(db, { entity: 'me', email: m.email });
+      return m;
+    });
+    app.invalidateMember(row.email);
+    return { ok: true, profile: memberDto(row) };
+  });
+
+  app.delete('/api/me/login-phone', { preHandler: app.guards.approved }, async (req) => {
+    if (req.member.role === 'owner' || (req.user.provider !== 'google.com' && req.user.provider !== 'password')) throw forbidden('Not available for this account', 'pin_not_for_provider');
+    const row = await withTx(pool, async (db) => {
+      // Clearing the PIN also ends every PIN session (web + Telegram bot) that used it.
+      const { rows: [m] } = await db.query(
+        `UPDATE members SET login_phone = NULL, pin_hash = NULL, pin_changed_at = now(), pin_fails = 0, pin_locked_until = NULL, updated_at = now()
+          WHERE id = $1 RETURNING *`, [req.member.id]);
+      await publish(db, { entity: 'me', email: m.email });
+      return m;
+    });
+    app.invalidateMember(row.email);
+    return { ok: true, profile: memberDto(row) };
   });
 
   // Edit own profile. The company name is mirrored onto the member's live posts so lists stay consistent.

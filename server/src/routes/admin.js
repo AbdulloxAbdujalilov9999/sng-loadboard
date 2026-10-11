@@ -1,11 +1,13 @@
 import { adminMembersQuery, fxBody, idParam } from '../lib/schemas.js';
 import { memberDto } from '../lib/dto.js';
 import { notFound } from '../lib/errors.js';
+import crypto from 'node:crypto';
+import { hashPin, isWeakPin } from '../lib/pin.js';
 import { publish } from '../events.js';
 import { withTx } from '../db.js';
 
 // Owner-only moderation: approve / decline / revoke members, maintain display FX rates.
-export default async function adminRoutes(app, { pool }) {
+export default async function adminRoutes(app, { pool, config }) {
   const guard = { preHandler: app.guards.owner };
 
   app.get('/api/admin/members', guard, async (req) => {
@@ -47,6 +49,24 @@ export default async function adminRoutes(app, { pool }) {
 
   app.post('/api/admin/members/:id/approve', guard, async (req) => ({ profile: memberDto(await decide(req, 'approved')) }));
   app.post('/api/admin/members/:id/reject', guard, async (req) => ({ profile: memberDto(await decide(req, 'rejected')) }));
+
+  // "I forgot my password": there is no SMS, so the owner issues a new random 6-digit password, shown ONCE, and passes it to the
+  // member (phone / Telegram). It ends all their other sessions (web + Telegram bot); they should change it after signing in.
+  app.post('/api/admin/members/:id/reset-pin', guard, async (req) => {
+    const { id } = idParam.parse(req.params);
+    if (!config.authSecret) throw notFound('Password sign-in is not enabled');
+    const { rows: [m] } = await pool.query("SELECT id, email, login_phone FROM members WHERE id = $1 AND role = 'member'", [id]);
+    if (!m || !m.login_phone) throw notFound('This member has no phone sign-in');
+    let pin;
+    do { pin = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0'); } while (isWeakPin(pin));
+    const hash = await hashPin({ secret: config.authSecret, identity: m.email, pin });
+    await withTx(pool, async (db) => {
+      await db.query('UPDATE members SET pin_hash = $2, pin_changed_at = now(), pin_fails = 0, pin_locked_until = NULL, updated_at = now() WHERE id = $1', [id, hash]);
+      await publish(db, { entity: 'me', email: m.email });
+    });
+    app.invalidateMember(m.email);
+    return { pin, phone: m.login_phone };
+  });
 
   // Hard delete (e.g. spam). Their posts go with them; they may request access again afterwards.
   app.delete('/api/admin/members/:id', guard, async (req, reply) => {

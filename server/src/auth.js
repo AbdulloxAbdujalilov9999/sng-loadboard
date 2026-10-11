@@ -36,7 +36,9 @@ export function createFirebaseVerifier({ projectId, keySet }) {
     // someone could register the owner's address and become the owner.
     if (typeof payload.email !== 'string' || payload.email_verified !== true) throw new Error('email not verified');
     const email = payload.email.toLowerCase();
-    return { uid: payload.sub, email, loginEmail: email, phone: '', provider, name, picture };
+    // A Google / e-mail account that has linked a phone (verified by SMS) carries it in the token: that is how a member adds a sign-in phone.
+    const linked = typeof payload.phone_number === 'string' && /^\+\d{8,15}$/.test(payload.phone_number) ? payload.phone_number : '';
+    return { uid: payload.sub, email, loginEmail: email, phone: linked, provider, name, picture };
   };
 }
 
@@ -54,9 +56,9 @@ export function registerAuth(app, { config, pool, verifyToken: verifyExternal, h
     if (!isOwnToken(token)) return verifyExternal(token);
     if (!config.authSecret) throw new Error('PIN sign-in is not enabled');
     const s = await verifySession({ secret: config.authSecret, token });
-    const phone = s.phone;
-    if (!/^\+\d{8,15}$/.test(phone) || s.identity !== phoneIdentity(phone)) throw new Error('bad session token');
-    return { uid: `pin:${s.identity}`, email: s.identity, loginEmail: '', phone, provider: 'pin', name: '', picture: '', iat: s.iat, purpose: s.purpose };
+    if (!/^\+\d{8,15}$/.test(s.phone)) throw new Error('bad session token');
+    // The identity is whichever member owns that sign-in phone (a phone-only member, or a Google member who added one).
+    return { uid: `pin:${s.identity}`, email: s.identity, loginEmail: '', phone: s.phone, provider: 'pin', name: '', picture: '', iat: s.iat, purpose: s.purpose };
   };
   app.decorateRequest('user', null);
   app.decorateRequest('member', null);
@@ -108,7 +110,16 @@ export function registerAuth(app, { config, pool, verifyToken: verifyExternal, h
     return member ?? null;
   }
 
+  // A verified phone belongs to exactly one member. After an SMS sign-in, the member is whoever registered that number
+  // (their own phone identity, or the Google / e-mail account that linked it), so every way in leads to the same account.
+  const phoneOwner = new TtlCache({ ttlMs: config.memberCacheMs, max: 5000 });
+  hub?.observe((evt) => { if (evt.entity === 'me' || evt.entity === 'resync') phoneOwner.clear(); });
+
   async function loadMember(req) {
+    if (req.user.provider === 'phone') {
+      const identity = await phoneOwner.getOrLoad(req.user.phone, async () => (await pool.query('SELECT email FROM members WHERE login_phone = $1', [req.user.phone])).rows[0]?.email ?? '');
+      if (identity) req.user.email = identity;
+    }
     req.member = await memberCache.getOrLoad(req.user.email, () => resolveMember(req.user));
     if (req.user.provider === 'pin') {
       // A PIN session ends the moment the PIN is changed or removed (the token carries its issue time).

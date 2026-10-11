@@ -12,7 +12,7 @@ browser ──HTTPS──▶ Fastify (N workers) ──▶ PostgreSQL
 
 ## What it does
 
-- **Sign in your way**: **phone number first** (SMS code once, then phone + a 4-digit PIN), or Google, or email + password (with email confirmation, *forgot password* and *change password*). Uzbek is the default language.
+- **Sign in your way**: **phone number + a 4-6 digit password first** (always the default tab; no SMS), or Google, or email + password (with email confirmation, *forgot password* and *change password*). A Google / e-mail member can add a phone number + password in Settings and then sign in either way: it is the same account. Uzbek is the default language.
 - **Three languages** (English, Русский, O‘zbekcha) and **light / dark / auto** appearance, switchable from the sign-in screen, the header, and Account → Preferences.
 - **Open sign-up.** A name plus a phone number *or* a Telegram username is all it takes; new members can use the platform at once. The owner gets a live notification (and a Telegram message if their account is linked to the bot) for every new member, and can block, unblock or remove anyone on the Members page. Company and e-mail are optional and can be added in Settings.
 - **Loads**: post, edit, close; search by origin/destination **with deadhead radius**, equipment, dates, weight, rate, distance, free text; sort by any column; infinite scroll.
@@ -60,13 +60,11 @@ In the [Firebase console](https://console.firebase.google.com) → project `sng-
 | Method | Switch on | Notes |
 | --- | --- | --- |
 | Google | **Google** provider | already on |
-| Phone | **Phone** provider (and allow SMS to your countries under *Settings → SMS region policy*) | first sign-in and "forgot PIN" only; afterwards phone + PIN needs no SMS |
 | Email + password | **Email/Password** provider | people must confirm their email before the platform lets them in (otherwise anyone could register the owner's address) |
-| Phone (SMS code) | **Phone** provider | SMS is paid per message after a free quota and may need the pay-as-you-go (Blaze) plan. Under **Settings → SMS region policy** allow Uzbekistan, Russia, Kazakhstan… Add **test phone numbers** there to try it for free |
 
 Also under **Authentication → Settings → Authorized domains** add your site's domain (e.g. `your-app.onrender.com`), and under **Templates** you can edit the wording and sender name of the *Password reset* and *Email verification* messages (Firebase sends them in the visitor's language).
 
-**Phone + 4-digit PIN.** After the first SMS code a member chooses a PIN; from then on `POST /api/auth/pin/login` (phone + PIN) gives a session signed by this server (`AUTH_SECRET`, at least 16 characters; `deploy/update.sh` generates one). A 4-digit PIN is weak on its own, so: it is stored only as a salted scrypt hash, 5 wrong tries lock that phone for 15 minutes (the SMS code still works), the endpoint is rate-limited per IP, obvious PINs (0000, 1234 ...) are refused, changing the PIN ends all other PIN sessions, and the owner (a verified e-mail) can never sign in with a PIN. Without `AUTH_SECRET` the feature is simply off and phone sign-in stays SMS-only.
+**Phone + password (no SMS, no Firebase).** `POST /api/auth/phone/register` creates an account from a phone number, a name and a 4-6 digit password; `POST /api/auth/pin/login` signs in; the server issues its own session token (`AUTH_SECRET`, at least 16 characters; `deploy/update.sh` generates one). Because nothing proves the person owns the number, the safety comes from elsewhere: the password is stored only as a salted scrypt hash, 5 wrong tries lock that number for 15 minutes, sign-in and sign-up are rate-limited per IP, obvious passwords (0000, 1234, 111111, 12345 ...) are refused, changing the password ends all other sessions, and the owner (a verified e-mail) can never sign in with a password. **Forgot password:** the owner opens Members → *Reset password*, which creates a new random 6-digit password shown once, to pass on to the member. Without `AUTH_SECRET` the feature is off. The Firebase *Phone* provider is not used.
 
 How identities work: Google and email accounts are identified by their verified email; phone accounts by the phone number (stored internally as `p<digits>@phone.sng`, never shown). The owner is only ever matched on a verified email in `OWNER_EMAILS`.
 
@@ -147,7 +145,7 @@ SOAK_BASE=http://127.0.0.1:8080 SOAK_USERS=20000 npm run soak
 
 ## Telegram bot
 
-`bot/` is a separate process that links a member's account (`/link`: phone number + the 4-digit PIN; `/linkemail` keeps the older e-mail + password way), lets them `/postload` straight from a chat, and broadcasts every new load - from the web
+`bot/` is a separate process that links a member's account (`/link`: phone number + the password; `/linkemail` keeps the older e-mail + password way), lets them `/postload` straight from a chat, and broadcasts every new load - from the web
 app or from Telegram - to every group/channel the bot has been added to, the instant it is posted.
 It talks to this same API and database; nothing on the server needed to change. See
 [`bot/README.md`](bot/README.md) for setup (`npm run bot`) and how it works.
@@ -155,7 +153,7 @@ It talks to this same API and database; nothing on the server needed to change. 
 ## Tests
 
 ```bash
-npm test      # 142 tests. server: real embedded PostgreSQL - auth, approval, search, quotas, security, SSE, boot/cluster, i18n
+npm test      # 143 tests. server: real embedded PostgreSQL - auth, approval, search, quotas, security, SSE, boot/cluster, i18n
               # bot (28): crypto + formatting + translations, and integration tests against the real API, database and
               #           LISTEN/NOTIFY channel (only Telegram itself is faked)
 ```

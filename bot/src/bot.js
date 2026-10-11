@@ -65,7 +65,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     const args = ctx.message.text.replace(/^\/link(?:@\S+)?/, '').trim();
     if (!args) { await ctx.scene.enter('link'); return; }
     ctx.deleteMessage(ctx.message.message_id).catch(() => {}); // the PIN is in this message
-    const m = args.match(/^(.+?)\s+(\d{4})$/);
+    const m = args.match(/^(.+?)\s+(\d{4,6})$/);
     const phone = m && normalizePhone(m[1]);
     if (!phone) { await ctx.reply(t(ctx.lang, 'link_usage')); return; }
     const r = await performLink({ apiClient, store, tokens, from: ctx.from, phone, pin: m[2] });

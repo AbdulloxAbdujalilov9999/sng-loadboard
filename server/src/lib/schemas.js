@@ -24,7 +24,7 @@ const needsContact = (v, ctx, phoneKey = 'contactPhone', tgKey = 'contactTelegra
 };
 
 const orEmpty = (schema) => z.union([z.literal(''), schema]);
-const pin = z.string().regex(/^\d{4}$/, 'pin_format');
+const pin = z.string().regex(/^\d{4,6}$/, 'pin_format');
 
 // Signing up: a name and one way to be reached. Company is optional (added later in Settings; the name stands in until then).
 export const signupBody = z.object({
@@ -42,6 +42,17 @@ export const pinLoginBody = z.object({
   phone: z.string().trim().regex(/^\+\d{8,15}$/, 'phone'),
   pin,
   purpose: z.enum(['web', 'bot']).default('web'),
+}).strict();
+const e164 = z.string().trim().regex(/^\+\d{8,15}$/, 'phone');
+export const loginPhoneBody = z.object({ phone: e164, pin }).strict();
+// Phone sign-up without SMS: a number, a 4-6 digit password and the person's name; the number itself is the contact.
+export const phoneRegisterBody = z.object({
+  phone: e164,
+  pin,
+  contactName: trimmed(120),
+  company: optionalText(120),
+  telegram: orEmpty(telegram).default(''),
+  contactEmail: orEmpty(email).default(''),
 }).strict();
 export const phoneCheckBody = z.object({ phone: z.string().trim().regex(/^\+\d{8,15}$/, 'phone') }).strict();
 

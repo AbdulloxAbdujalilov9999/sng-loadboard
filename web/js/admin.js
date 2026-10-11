@@ -63,11 +63,12 @@ const Admin = (() => {
     const when = U.ageText(m.requestedAt);
     const blocked = m.status === 'rejected';
     const badge = blocked ? ['bg-slate-100 text-slate-500 border-slate-200', 'st_blocked'] : ['bg-emerald-50 text-emerald-700 border-emerald-200', 'st_active'];
+    const reset = m.loginPhone ? `<button type="button" data-act="resetpin" data-id="${m.id}" class="justify-center bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold py-1.5 px-3 rounded border border-amber-200 transition">${esc(t('btn_reset_pin'))}</button>` : '';
     const actions = blocked
       ? `<button type="button" data-act="approve" data-id="${m.id}" class="justify-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-1.5 px-3 rounded border border-emerald-200 transition">${esc(t('btn_unblock'))}</button>
-         <button type="button" data-act="remove" data-id="${m.id}" class="text-slate-400 hover:text-rose-600 px-2" title="${esc(t('btn_remove'))}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`
+         ${reset}<button type="button" data-act="remove" data-id="${m.id}" class="text-slate-400 hover:text-rose-600 px-2" title="${esc(t('btn_remove'))}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`
       : `<button type="button" data-act="reject" data-id="${m.id}" class="justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold py-1.5 px-3 rounded border border-rose-200 transition">${esc(t('btn_block'))}</button>
-         <button type="button" data-act="remove" data-id="${m.id}" class="text-slate-400 hover:text-rose-600 px-2" title="${esc(t('btn_remove'))}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`;
+         ${reset}<button type="button" data-act="remove" data-id="${m.id}" class="text-slate-400 hover:text-rose-600 px-2" title="${esc(t('btn_remove'))}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`;
     const name = m.company && m.company !== m.contactName ? `${m.company} <span class="font-normal text-slate-500">· ${esc(m.contactName)}</span>` : esc(m.contactName || m.company);
     const sameNumber = !m.email && String(m.phone || '').replace(/\D/g, '') === String(m.login).replace(/\D/g, ''); // phone sign-in: do not print the number twice
     const login = sameNumber ? '' : m.email ? `<a href="mailto:${esc(m.email)}" class="text-blue-600 hover:underline">${esc(m.email)}</a>` : `<a href="tel:${esc(m.login)}" class="text-blue-600 hover:underline">${esc(m.login)}</a>`;
@@ -104,6 +105,13 @@ const Admin = (() => {
         const ok = await U.confirmDialog({ title: t('confirm_block_title'), message: t('confirm_block', { company: label }), confirmText: t('btn_block') });
         if (!ok) return;
         await API.post(`/api/admin/members/${id}/reject`);
+      } else if (kind === 'resetpin') {
+        const ok = await U.confirmDialog({ title: t('btn_reset_pin'), message: t('confirm_reset_pin', { company: label }), confirmText: t('btn_reset_pin') });
+        if (!ok) return;
+        const r = await API.post(`/api/admin/members/${id}/reset-pin`);
+        // shown once: the owner passes it to the member (call / Telegram); the member can change it in Settings
+        await U.confirmDialog({ title: t('reset_pin_title'), message: t('reset_pin_msg', { phone: r.phone, pin: r.pin }), confirmText: 'OK', danger: false });
+        return;
       } else if (kind === 'remove') {
         const ok = await U.confirmDialog({ title: t('confirm_delete_member_title'), message: t('confirm_delete_member', { company: label }), confirmText: t('btn_remove') });
         if (!ok) return;

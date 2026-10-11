@@ -1,9 +1,9 @@
 // Who is signed in, and what may they see? Drives the gateway panes and hands approved members to App.
-// Sign-in methods: phone (SMS code once, then phone + 4-digit PIN), Google, e-mail + password (with confirmation and "forgot password").
+// Sign-in methods: phone number + a 4-6 digit password (no SMS), Google, e-mail + password (with confirmation and "forgot password").
 // Signing up needs only a name and a phone number or Telegram username; new members can use the platform at once.
 const Session = (() => {
   const { $ } = U;
-  const PANES = ['start', 'verify-email', 'complete-profile', 'set-pin', 'pending', 'rejected', 'error'];
+  const PANES = ['start', 'verify-email', 'complete-profile', 'pending', 'rejected', 'error'];
   const RESEND_SECONDS = 60;
   let provider = null;
   let cfg = null;
@@ -11,8 +11,6 @@ const Session = (() => {
   let emailMode = 'signin'; // or 'signup'
   let phoneNumber = '';
   let ready = false;
-  let resetPin = false;      // the person asked for a new PIN ("forgot PIN"): after the SMS code they MUST choose one
-  let pinPromptShown = false;
 
   // ---- phone + PIN sessions (issued by our own server; Firebase is only used for the one-time SMS code) ----
   const PinSession = {
@@ -52,7 +50,9 @@ const Session = (() => {
     ready = isReady;
     $('google-signin-btn').disabled = !ready;
     $('google-signin-btn-label').textContent = ready ? t('btn_google_continue') : t('auth_checking');
-    for (const id of ['email-submit-btn', 'reset-submit-btn', 'phone-send-btn', 'phone-verify-btn', 'pin-submit-btn']) $(id).disabled = !ready;
+    for (const id of ['email-submit-btn', 'reset-submit-btn', 'google-signin-btn']) $(id).disabled = !ready;
+    // phone + password does not use Firebase: it works as soon as the server answers
+    for (const id of ['phone-send-btn', 'pin-submit-btn', 'reg-submit-btn']) $(id).disabled = false;
   }
 
   const MESSAGES = {
@@ -132,15 +132,18 @@ const Session = (() => {
     startError('');
     try { cfg = await loadConfig(); } catch { showError(t('err_server_down')); return; }
     App.applyConfig(cfg);
+    // Phone + password does not need Firebase, so a returning member is let in (and a new one can sign up) even when Google's
+    // scripts are slow or blocked on their network.
+    const resumed = PinSession.active() ? refresh() : null;
     if (cfg.devAuth) { DevAuth.init(); provider = DevAuth; $('dev-signin').classList.remove('hidden'); } else { provider = await waitForFirebase(); }
-    if (!provider) { showError(t('err_auth_unavailable')); return; }
+    if (!provider) { startError(t('err_auth_unavailable')); await resumed; return; }
     provider.setLanguage?.(I18N.lang);
     provider.onChange(handleUser);
-    if (PinSession.active()) await refresh(); // signed in with phone + PIN earlier
+    await resumed;
   }
 
   function clearSecrets() {
-    for (const id of ['auth-password', 'auth-password2', 'auth-code']) $(id).value = '';
+    for (const id of ['auth-password', 'auth-password2', 'auth-pin']) $(id).value = '';
   }
 
   async function handleUser(user) {
@@ -186,9 +189,6 @@ const Session = (() => {
   function route() {
     Live.start(); // the live stream also tells a new member / a blocked member about changes at once
     if (me.status === 'approved') {
-      const wantsPin = cfg?.pinLogin && me.provider === 'phone' && me.profile && (resetPin || (!me.profile.hasPin && !pinPromptShown));
-      if (wantsPin) { showSetPin(); return; }
-      resetPin = false;
       $('auth-lockout-screen').classList.add('hidden');
       App.enter(me);
       return;
@@ -208,38 +208,20 @@ const Session = (() => {
   }
 
   function showSignup() {
-    const bySms = me.provider === 'phone';
-    const pinNeeded = Boolean(cfg?.pinLogin) && bySms;
     if ($('auth-pane-complete-profile').classList.contains('hidden')) {
-      ['phone', 'tg', 'contact-email', 'pin', 'pin2'].forEach((k) => { const el = $(`gate-request-${k}`); if (el) el.value = ''; });
+      ['phone', 'tg', 'contact-email'].forEach((k) => { const el = $(`gate-request-${k}`); if (el) el.value = ''; });
       $('gate-request-name').value = me.name || '';
       $('request-error').classList.add('hidden');
     }
     $('gate-request-email').value = me.login;
-    $('gate-phone-wrap').classList.toggle('hidden', bySms);           // they just proved this number: no need to type it again
-    if (bySms) $('gate-request-phone').value = me.login;
-    $('gate-tg-opt').classList.toggle('hidden', !bySms);              // Telegram is optional when a phone number is known
-    $('gate-contact-hint').classList.toggle('hidden', bySms);
-    $('gate-contact-email-wrap').classList.toggle('hidden', !bySms);   // Google / e-mail accounts already have an address
-    $('gate-pin-wrap').classList.toggle('hidden', !pinNeeded);
+    $('gate-contact-email-wrap').classList.add('hidden');   // Google / e-mail accounts already have an address
     showPane('complete-profile');
-  }
-
-  function showSetPin() {
-    pinPromptShown = true;
-    $('setpin-1').value = ''; $('setpin-2').value = '';
-    $('setpin-error').classList.add('hidden');
-    $('setpin-skip').classList.toggle('hidden', resetPin);
-    $('setpin-title').textContent = t(resetPin ? 'pin_reset_title' : 'pin_set_title');
-    showPane('set-pin');
-    $('setpin-1').focus();
   }
 
   async function signOut() {
     Live.stop();
     const hadPin = Boolean(PinSession.get());
     PinSession.clear();
-    resetPin = false; pinPromptShown = false;
     try { await provider?.signOut(); } catch { /* already signed out */ }
     if (hadPin) await handleUser(null); // a PIN session has no Firebase user whose sign-out would fire the listener
   }
@@ -257,7 +239,6 @@ const Session = (() => {
     });
     document.querySelectorAll('[data-method-pane]').forEach((p) => p.classList.toggle('hidden', p.dataset.methodPane !== method));
     startError('');
-    U.store.set('sng.authMethod', method);
   }
 
   // ---------------------------------------------------------------- e-mail + password
@@ -367,7 +348,7 @@ const Session = (() => {
     }
   }
 
-  // ---------------------------------------------------------------- phone (+ PIN)
+  // ---------------------------------------------------------------- phone + password (no SMS)
   /** "90 123 45 67", "998901234567", "+998 (90) 123-45-67", "00998..." -> "+998901234567" (or null). */
   function normalisePhone(raw) {
     let v = String(raw).trim().replace(/[\s()\-.]/g, '');
@@ -378,13 +359,13 @@ const Session = (() => {
     }
     return /^\+\d{8,15}$/.test(v) ? v : null;
   }
-  const phoneSteps = ['phone-form', 'phone-pin-form', 'phone-code-form'];
+  const phoneSteps = ['phone-form', 'phone-pin-form', 'phone-register-form'];
   function showPhoneStep(name) {
     phoneSteps.forEach((id) => $(id).classList.toggle('hidden', id !== name));
     startError('');
   }
 
-  /** Step 1: the number. Known numbers with a PIN go to the PIN step; everyone else gets an SMS code. */
+  /** Step 1: the number. A known number asks for its password; a new one offers to create the account. */
   async function continuePhone(e) {
     e?.preventDefault();
     const form = $('phone-form');
@@ -395,62 +376,34 @@ const Session = (() => {
     U.setBusy(form, true);
     try {
       phoneNumber = phone;
-      resetPin = false;
-      let hasPin = false;
-      if (cfg?.pinLogin) {
-        try { hasPin = (await API.request('POST', '/api/auth/phone/check', { body: { phone }, retry: false })).hasPin; } catch { hasPin = false; }
-      }
-      if (hasPin) {
+      let exists = false;
+      try { exists = (await API.request('POST', '/api/auth/phone/check', { body: { phone }, retry: false })).exists; } catch (err) { startError(err.message || t('err_network')); return; }
+      if (exists) {
         $('pin-target').textContent = phone;
+        const owner = cfg?.ownerContact || '';
+        $('pin-owner-contact').textContent = owner;
+        $('pin-owner-contact').href = owner ? `mailto:${owner}` : '#';
         $('auth-pin').value = '';
         showPhoneStep('phone-pin-form');
         $('auth-pin').focus();
       } else {
-        await sendCode();
+        $('reg-target').textContent = phone;
+        U.clearFormErrors($('phone-register-form'));
+        $('reg-error').classList.add('hidden');
+        showPhoneStep('phone-register-form');
+        $('reg-name').focus();
       }
     } finally { U.setBusy(form, false); }
   }
 
-  async function sendCode() {
-    const form = $('phone-form');
-    startError('');
-    try {
-      // The invisible reCAPTCHA can stall (blocked script, flaky network); never leave the person waiting forever.
-      await Promise.race([
-        provider.phoneStart(phoneNumber, 'phone-send-btn'),
-        new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error('captcha timeout'), { code: 'auth/captcha-check-failed' })), 30000)),
-      ]);
-      $('phone-code-target').textContent = phoneNumber;
-      showPhoneStep('phone-code-form');
-      $('auth-code').value = '';
-      $('auth-code').focus();
-      cooldown($('phone-resend-btn'), 'auth_resend_code');
-    } catch (err) {
-      provider.phoneReset?.();
-      showPhoneStep('phone-form');
-      startError(mapAuthError(err, 'phone'));
-    } finally { U.setBusy(form, false); }
-  }
-
-  async function verifyCode(e) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    U.clearFormErrors(form);
-    startError('');
-    const code = $('auth-code').value.trim();
-    if (!/^\d{6}$/.test(code)) { U.fieldError($('auth-code'), t('autherr_bad_code')); return; }
-    U.setBusy(form, true);
-    try { await provider.phoneConfirm(code); } catch (err) { startError(mapAuthError(err, 'phone')); } finally { U.setBusy(form, false); }
-  }
-
-  /** Step 2 (returning members): phone + 4-digit PIN, no SMS. */
+  /** Existing account: phone + password. */
   async function submitPin(e) {
     e.preventDefault();
     const form = e.currentTarget;
     U.clearFormErrors(form);
     startError('');
     const pin = $('auth-pin').value.trim();
-    if (!/^\d{4}$/.test(pin)) { U.fieldError($('auth-pin'), t('v_pin_format')); return; }
+    if (!/^\d{4,6}$/.test(pin)) { U.fieldError($('auth-pin'), t('v_pin_format')); return; }
     U.setBusy(form, true);
     try {
       const r = await API.request('POST', '/api/auth/pin/login', { body: { phone: phoneNumber, pin }, retry: false });
@@ -465,53 +418,60 @@ const Session = (() => {
     } finally { U.setBusy(form, false); }
   }
 
-  async function forgotPin() {
-    resetPin = true;
-    U.setBusy($('phone-pin-form'), true);
-    try { await sendCode(); } finally { U.setBusy($('phone-pin-form'), false); }
+  /** New number: name + password, and the account exists. */
+  async function submitRegister(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    U.clearFormErrors(form);
+    $('reg-error').classList.add('hidden');
+    const name = $('reg-name').value.trim();
+    let ok = true;
+    if (!name) { U.fieldError($('reg-name'), t('err_required')); ok = false; }
+    if (!checkPinPair($('reg-pin').value.trim(), $('reg-pin2').value.trim(), $('reg-pin'), $('reg-pin2'))) ok = false;
+    if (!ok) { form.querySelector('.field-invalid')?.focus(); return; }
+    U.setBusy(form, true);
+    try {
+      const r = await API.request('POST', '/api/auth/phone/register', { body: { phone: phoneNumber, pin: $('reg-pin').value.trim(), contactName: name, telegram: $('reg-tg').value.trim() }, retry: false });
+      PinSession.set({ token: r.token, expiresAt: r.expiresAt, phone: phoneNumber });
+      $('reg-pin').value = ''; $('reg-pin2').value = '';
+      await refresh();
+    } catch (err) {
+      if (err.code === 'validation_error') {
+        const fields = { contactName: 'reg-name', pin: 'reg-pin', telegram: 'reg-tg' };
+        for (const d of err.details || []) {
+          if (d.code === 'phone_taken') { // someone registered it a moment ago: go to the password step instead
+            await continuePhone(); return;
+          }
+          const el = $(fields[d.path]);
+          if (el) U.fieldError(el, U.detailText(d)); else { $('reg-error').textContent = U.detailText(d); $('reg-error').classList.remove('hidden'); }
+        }
+      } else { $('reg-error').textContent = err.status === 429 ? t('err_too_many_accounts') : (err.message || t('err_network')); $('reg-error').classList.remove('hidden'); }
+    } finally { U.setBusy(form, false); }
   }
 
   function changeNumber() {
-    provider?.phoneReset?.();
-    resetPin = false;
     showPhoneStep('phone-form');
     $('auth-phone').focus();
   }
 
-  // ---------------------------------------------------------------- PIN rules (the same ones the server enforces)
+  // ---------------------------------------------------------------- password rules (the same ones the server enforces)
   const WEAK_PINS = new Set(['0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777', '8888', '9999', '1234', '4321', '0123', '3210', '1212', '2580', '1122', '1010', '2000', '2024', '2025', '2026']);
+  function isWeakPin(p) {
+    const d = [...p].map(Number);
+    const run = d.every((x, i) => i === 0 || x - d[i - 1] === 1) || d.every((x, i) => i === 0 || d[i - 1] - x === 1);
+    return WEAK_PINS.has(p) || /^(\d)\1+$/.test(p) || run;
+  }
   function checkPinPair(a, b, aEl, bEl) {
     let ok = true;
-    if (!/^\d{4}$/.test(a)) { U.fieldError(aEl, t('v_pin_format')); ok = false; }
-    else if (WEAK_PINS.has(a)) { U.fieldError(aEl, t('v_pin_weak')); ok = false; }
+    if (!/^\d{4,6}$/.test(a)) { U.fieldError(aEl, t('v_pin_format')); ok = false; }
+    else if (isWeakPin(a)) { U.fieldError(aEl, t('v_pin_weak')); ok = false; }
     else if (a !== b) { U.fieldError(bEl, t('pin_mismatch')); ok = false; }
     return ok;
   }
 
-  async function submitSetPin(e) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    U.clearFormErrors(form);
-    $('setpin-error').classList.add('hidden');
-    if (!checkPinPair($('setpin-1').value.trim(), $('setpin-2').value.trim(), $('setpin-1'), $('setpin-2'))) return;
-    U.setBusy(form, true);
-    try {
-      const r = await API.put('/api/me/pin', { pin: $('setpin-1').value.trim() });
-      if (r?.token) PinSession.set({ ...(PinSession.get() || {}), token: r.token, expiresAt: r.expiresAt });
-      resetPin = false;
-      U.toast(t('toast_pin_saved'), 'success');
-      await refresh();
-    } catch (err) {
-      const d = err.details?.[0];
-      const el = $('setpin-error');
-      el.textContent = d ? U.detailText(d) : err.message;
-      el.classList.remove('hidden');
-    } finally { U.setBusy(form, false); }
-  }
-
   // ---------------------------------------------------------------- wiring
   function init() {
-    setMethod(U.store.get('sng.authMethod', 'phone'));
+    setMethod('phone'); // phone is always the first and automatically chosen way in
     document.querySelectorAll('#auth-methods [data-method]').forEach((b) => b.addEventListener('click', () => setMethod(b.dataset.method)));
 
     $('google-signin-btn').addEventListener('click', async () => {
@@ -547,17 +507,12 @@ const Session = (() => {
 
     $('phone-form').addEventListener('submit', continuePhone);
     $('phone-pin-form').addEventListener('submit', submitPin);
-    $('phone-code-form').addEventListener('submit', verifyCode);
-    $('phone-resend-btn').addEventListener('click', () => sendCode());
-    $('phone-change-btn').addEventListener('click', changeNumber);
+    $('phone-register-form').addEventListener('submit', submitRegister);
     $('pin-change-btn').addEventListener('click', changeNumber);
-    $('pin-forgot-btn').addEventListener('click', forgotPin);
+    $('reg-change-btn').addEventListener('click', changeNumber);
     $('auth-phone').value = '+998 ';
     $('auth-phone').addEventListener('input', () => { $('auth-phone').value = $('auth-phone').value.replace(/[^\d+\s()-]/g, ''); });
-    $('auth-code').addEventListener('input', () => { $('auth-code').value = $('auth-code').value.replace(/\D/g, '').slice(0, 6); });
-    for (const id of ['auth-pin', 'gate-request-pin', 'gate-request-pin2', 'setpin-1', 'setpin-2']) $(id).addEventListener('input', () => { $(id).value = $(id).value.replace(/\D/g, '').slice(0, 4); });
-    $('setpin-form').addEventListener('submit', submitSetPin);
-    $('setpin-skip').addEventListener('click', async () => { pinPromptShown = true; await refresh(); });
+    for (const id of ['auth-pin', 'reg-pin', 'reg-pin2']) $(id).addEventListener('input', () => { $(id).value = $(id).value.replace(/\D/g, '').slice(0, 6); });
 
     I18N.onChange((lang) => { provider?.setLanguage?.(lang); });
 
@@ -569,30 +524,19 @@ const Session = (() => {
       const form = e.currentTarget;
       U.clearFormErrors(form);
       $('request-error').classList.add('hidden');
-      const bySms = me?.provider === 'phone';
-      const body = { contactName: $('gate-request-name').value.trim(), telegram: $('gate-request-tg').value.trim() };
-      if (!bySms) body.phone = $('gate-request-phone').value.trim();
-      if (!$('gate-contact-email-wrap').classList.contains('hidden')) body.contactEmail = $('gate-request-contact-email').value.trim();
+      const body = { contactName: $('gate-request-name').value.trim(), telegram: $('gate-request-tg').value.trim(), phone: $('gate-request-phone').value.trim() };
       let ok = true;
       if (!body.contactName) { U.fieldError($('gate-request-name'), t('err_required')); ok = false; }
-      if (!bySms && !body.phone && !body.telegram) { U.fieldError($('gate-request-phone'), t('v_contact_required')); U.fieldError($('gate-request-tg'), t('v_contact_required')); ok = false; }
-      if (!$('gate-pin-wrap').classList.contains('hidden')) {
-        if (!checkPinPair($('gate-request-pin').value.trim(), $('gate-request-pin2').value.trim(), $('gate-request-pin'), $('gate-request-pin2'))) ok = false;
-        else body.pin = $('gate-request-pin').value.trim();
-      }
+      if (!body.phone && !body.telegram) { U.fieldError($('gate-request-phone'), t('v_contact_required')); U.fieldError($('gate-request-tg'), t('v_contact_required')); ok = false; }
       if (!ok) { form.querySelector('.field-invalid')?.focus(); return; }
       if (body.phone) { const p = normalisePhone(body.phone); if (p) body.phone = p; }
       U.setBusy(form, true);
       try {
         await API.post('/api/me/access-request', body);
-        if (body.pin) {
-          // the PIN is set: switch this device to a PIN session too, so the next visit needs no SMS code
-          pinPromptShown = true;
-        }
         await refresh();
       } catch (err) {
         if (err.code === 'validation_error') {
-          const fields = { phone: 'gate-request-phone', telegram: 'gate-request-tg', contactName: 'gate-request-name', contactEmail: 'gate-request-contact-email', pin: 'gate-request-pin' };
+          const fields = { phone: 'gate-request-phone', telegram: 'gate-request-tg', contactName: 'gate-request-name', contactEmail: 'gate-request-contact-email' };
           for (const d of err.details || []) { const input = fields[d.path]; if (input) U.fieldError($(input), U.detailText(d)); }
         } else if (err.status === 409) {
           await refresh();
@@ -611,12 +555,12 @@ const Session = (() => {
   function relabel() {
     $('google-signin-btn-label').textContent = ready ? t('btn_google_continue') : t('auth_checking');
     setEmailMode(emailMode);
-    if (!$('auth-pane-set-pin').classList.contains('hidden')) $('setpin-title').textContent = t(resetPin ? 'pin_reset_title' : 'pin_set_title');
   }
 
   return {
     init, start, refresh, signOut, mapAuthError, relabel,
     getToken,
+    normalisePhone, isWeakPin,
     pinSession: () => PinSession.get(),
     storePinToken: (token, expiresAt) => PinSession.set({ ...(PinSession.get() || {}), token, expiresAt }),
     authInfo: () => {

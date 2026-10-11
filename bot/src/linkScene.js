@@ -1,4 +1,4 @@
-// /link: connect this Telegram account to an SNG ONE member with the phone number and the 4-digit PIN the member chose
+// /link: connect this Telegram account to an SNG ONE member with the phone number and the 4-6 digit password the member chose
 // on the website. (/linkemail keeps the older e-mail + password way, see bot.js.) The PIN message is deleted at once,
 // and the server locks PIN sign-in for a phone number after 5 wrong tries, so the bot adds no new way to guess it.
 import { Scenes, Markup } from 'telegraf';
@@ -79,7 +79,7 @@ export function makeLinkScene({ apiClient, store, tokens }) {
     }
     if (state.step === 'pin') {
       ctx.deleteMessage(ctx.message.message_id).catch(() => {}); // scrub the PIN from the chat, whatever happens next
-      if (!/^\d{4}$/.test(text)) return ctx.reply(t(ctx.lang, 'link_bad_pin'));
+      if (!/^\d{4,6}$/.test(text)) return ctx.reply(t(ctx.lang, 'link_bad_pin'));
       const r = await performLink({ apiClient, store, tokens, from: ctx.from, phone: state.phone, pin: text });
       if (r.ok) return finish(ctx, t(ctx.lang, 'link_success', { company: escapeHtml(r.company) }));
       if (r.reason === 'wrong') {

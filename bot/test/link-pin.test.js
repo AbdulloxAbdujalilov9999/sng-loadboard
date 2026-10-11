@@ -9,11 +9,12 @@ import { normalizePhone, performLink, linkFailureText } from '../src/linkScene.j
 
 let env; let api;
 const PHONE = '+998901230001';
+const register = (phone, pin, over = {}) => env.anon().post('/api/auth/phone/register', { phone, pin, contactName: 'Tester', ...over });
 before(async () => {
   env = await startTestEnv();
   await env.app.listen({ port: 0, host: '127.0.0.1' });
   api = makeApiClient({ baseUrl: `http://127.0.0.1:${env.app.server.address().port}` });
-  assert.equal((await env.as(PHONE).post('/api/me/access-request', { contactName: 'Link Tester', company: 'Link Co', pin: '4729' })).status, 201);
+  assert.equal((await register(PHONE, '482915', { contactName: 'Link Tester', company: 'Link Co' })).status, 201);
 });
 after(async () => { await env.close(); });
 
@@ -24,6 +25,7 @@ const fakeStore = () => { const links = new Map(); return {
   updateRefreshToken: async (id, token) => { links.get(id).refreshToken = token; },
 }; };
 const tokensOf = () => ({ invalidate() {} });
+const login = (phone, pin) => env.anon().post('/api/auth/pin/login', { phone, pin });
 
 test('phone numbers are understood in the usual ways', () => {
   assert.equal(normalizePhone('+998 90 123 00 01'), '+998901230001');
@@ -37,7 +39,7 @@ test('phone numbers are understood in the usual ways', () => {
 
 test('/link: the right phone + PIN stores a session; the bot then acts as that member', async () => {
   const store = fakeStore();
-  const r = await performLink({ apiClient: api, store, tokens: tokensOf(), from: { id: 777, username: 'link_tester' }, phone: PHONE, pin: '4729' });
+  const r = await performLink({ apiClient: api, store, tokens: tokensOf(), from: { id: 777, username: 'link_tester' }, phone: PHONE, pin: "482915" });
   assert.equal(r.ok, true);
   assert.equal(r.company, 'Link Co');
   const saved = store.links.get(777);
@@ -57,25 +59,26 @@ test('/link: the right phone + PIN stores a session; the bot then acts as that m
 test('/link: wrong PIN and unknown number look the same; repeated misses lock it', async () => {
   const store = fakeStore();
   const link = (phone, pin) => performLink({ apiClient: api, store, tokens: tokensOf(), from: { id: 888 }, phone, pin });
-  assert.equal((await link('+998900000099', '4729')).reason, 'wrong', 'unknown number');
+  assert.equal((await link('+998900000099', '482915')).reason, 'wrong', 'unknown number');
   assert.equal((await link(PHONE, '1357')).reason, 'wrong');
   for (let i = 0; i < 4; i += 1) await link(PHONE, "1357"); // five misses in total
-  const locked = await link(PHONE, '4729'); // even the right PIN is refused while locked
+  const locked = await link(PHONE, '482915'); // even the right password is refused while locked
   assert.equal(locked.reason, 'locked');
   assert.ok(locked.min >= 1);
-  assert.match(linkFailureText('en', locked), /Too many wrong PINs/);
+  assert.match(linkFailureText('en', locked), /Too many wrong passwords/);
   assert.ok(!store.links.has(888), 'nothing was linked');
 });
 
 test('a changed PIN ends the old link; expired sessions ask to /link again', async () => {
   const phone = '+998901230002';
-  await env.as(phone).post('/api/me/access-request', { contactName: 'Second', pin: '5821' });
+  await register(phone, '582137', { contactName: 'Second' });
   const store = fakeStore();
-  assert.equal((await performLink({ apiClient: api, store, tokens: tokensOf(), from: { id: 999 }, phone, pin: '5821' })).ok, true);
+  assert.equal((await performLink({ apiClient: api, store, tokens: tokensOf(), from: { id: 999 }, phone, pin: '582137' })).ok, true);
   const manager = makeTokenManager({ store, firebaseAuth: null, apiClient: api });
   assert.ok(await manager.getIdToken(999));
   await new Promise((r) => setTimeout(r, 1100));
-  assert.equal((await env.as(phone).put('/api/me/pin', { pin: '6032' })).status, 200);
+  const changed = (await login(phone, '582137')).json.token;
+  assert.equal((await env.withToken(changed).put('/api/me/pin', { pin: '603248', currentPin: '582137' })).status, 200);
   manager.invalidate(999);
   await assert.rejects(api.getMe(await manager.getIdToken(999)), (e) => e.status === 401, 'the API refuses the old session');
 

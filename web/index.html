@@ -55,39 +55,49 @@
                     <button type="button" role="tab" data-method="email" class="auth-method flex items-center justify-center gap-1.5 py-2 rounded-md transition"><i data-lucide="mail" class="w-3.5 h-3.5"></i><span data-i18n="auth_tab_email">Email</span></button>
                 </div>
 
-                <!-- Phone: number -> PIN (returning) or SMS code (first time / forgot PIN) -->
+                <!-- Phone: number -> password (existing account) or create an account (new number). No SMS. -->
                 <div data-method-pane="phone" class="space-y-3">
                     <form id="phone-form" class="space-y-3" novalidate>
                         <div>
                             <label class="block font-semibold text-slate-700 mb-1" for="auth-phone" data-i18n="lbl_phone">Phone Number</label>
                             <input type="tel" id="auth-phone" autocomplete="tel" inputmode="tel" placeholder="+998 90 123 45 67" required class="w-full border border-slate-300 rounded p-2.5 text-base sm:text-sm focus:border-blue-500 focus:outline-none">
-                            <p class="text-[10px] text-slate-400 mt-1" data-i18n="auth_phone_hint2">Enter your number with the country code. New here? We send a one-time code by SMS, then you choose a 4-digit PIN. Next time you only need the PIN.</p>
+                            <p class="text-[10px] text-slate-400 mt-1" data-i18n="auth_phone_hint2">Enter your phone number. New here? We ask your name and a 4-6 digit password. Next time you only need the number and the password.</p>
                         </div>
                         <button type="submit" id="phone-send-btn" class="w-full bg-[#0066cc] hover:bg-blue-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs transition shadow" data-i18n="btn_continue">Continue</button>
                     </form>
                     <form id="phone-pin-form" class="hidden space-y-3" novalidate>
-                        <p class="text-[11px] text-slate-500"><span data-i18n="pin_enter_for">Enter the 4-digit PIN for</span> <strong id="pin-target" class="text-slate-800"></strong></p>
+                        <p class="text-[11px] text-slate-500"><span data-i18n="pin_enter_for">Enter your password for</span> <strong id="pin-target" class="text-slate-800"></strong></p>
                         <div>
-                            <label class="block font-semibold text-slate-700 mb-1" for="auth-pin" data-i18n="lbl_pin">PIN (4 digits)</label>
-                            <input type="password" id="auth-pin" autocomplete="current-password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required class="w-full border border-slate-300 rounded p-2.5 text-xl tracking-[0.6em] text-center font-mono focus:border-blue-500 focus:outline-none">
+                            <label class="block font-semibold text-slate-700 mb-1" for="auth-pin" data-i18n="lbl_pin">Password (4-6 digits)</label>
+                            <input type="password" id="auth-pin" autocomplete="current-password" inputmode="numeric" maxlength="6" pattern="[0-9]{4,6}" required class="w-full border border-slate-300 rounded p-2.5 text-xl tracking-[0.5em] text-center font-mono focus:border-blue-500 focus:outline-none">
                         </div>
                         <button type="submit" id="pin-submit-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs transition shadow" data-i18n="btn_signin">Sign in</button>
-                        <div class="flex justify-between text-[11px] font-semibold">
-                            <button type="button" id="pin-forgot-btn" class="text-blue-600 hover:underline" data-i18n="pin_forgot">Forgot PIN? Use SMS code</button>
-                            <button type="button" id="pin-change-btn" class="text-slate-500 hover:text-slate-700" data-i18n="auth_change_number">Change number</button>
-                        </div>
+                        <p class="text-[11px] text-slate-500"><span data-i18n="pin_forgot">Forgot your password? Ask the platform owner to reset it.</span> <a id="pin-owner-contact" href="#" class="text-blue-600 hover:underline break-all"></a></p>
+                        <button type="button" id="pin-change-btn" class="text-[11px] font-semibold text-slate-500 hover:text-slate-700" data-i18n="auth_change_number">Change number</button>
                     </form>
-                    <form id="phone-code-form" class="hidden space-y-3" novalidate>
-                        <p class="text-[11px] text-slate-500"><span data-i18n="auth_code_sent">We sent a 6-digit code to</span> <strong id="phone-code-target" class="text-slate-800"></strong></p>
+                    <form id="phone-register-form" class="hidden space-y-3" novalidate>
+                        <p class="text-[11px] text-slate-500"><span data-i18n="reg_new_number">New here. Create your account for</span> <strong id="reg-target" class="text-slate-800"></strong></p>
                         <div>
-                            <label class="block font-semibold text-slate-700 mb-1" for="auth-code" data-i18n="lbl_code">Code from SMS</label>
-                            <input type="text" id="auth-code" autocomplete="one-time-code" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required class="w-full border border-slate-300 rounded p-2.5 text-lg tracking-[0.4em] text-center font-mono focus:border-blue-500 focus:outline-none">
+                            <label class="block font-semibold text-slate-700 mb-1" for="reg-name" data-i18n="lbl_your_name">Your name</label>
+                            <input type="text" id="reg-name" maxlength="120" autocomplete="name" required class="w-full border border-slate-300 rounded p-2.5 text-base sm:text-sm focus:border-blue-500 focus:outline-none">
                         </div>
-                        <button type="submit" id="phone-verify-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs transition shadow" data-i18n="auth_verify_code">Verify and sign in</button>
-                        <div class="flex justify-between text-[11px] font-semibold">
-                            <button type="button" id="phone-resend-btn" class="text-blue-600 hover:underline disabled:text-slate-400 disabled:no-underline" data-i18n="auth_resend_code">Send code again</button>
-                            <button type="button" id="phone-change-btn" class="text-slate-500 hover:text-slate-700" data-i18n="auth_change_number">Change number</button>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="reg-pin" data-i18n="lbl_pin">Password (4-6 digits)</label>
+                                <input type="password" id="reg-pin" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="••••" class="w-full border border-slate-300 rounded p-2.5 text-lg tracking-[0.4em] text-center font-mono focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="reg-pin2" data-i18n="lbl_pin_repeat">Repeat password</label>
+                                <input type="password" id="reg-pin2" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="••••" class="w-full border border-slate-300 rounded p-2.5 text-lg tracking-[0.4em] text-center font-mono focus:border-blue-500 focus:outline-none">
+                            </div>
                         </div>
+                        <div>
+                            <div class="flex justify-between items-center mb-1"><label class="font-semibold text-slate-700" for="reg-tg" data-i18n="lbl_telegram">Telegram Handle</label><span class="text-[9px] text-slate-400 italic" data-i18n="lbl_optional">Optional</span></div>
+                            <input type="text" id="reg-tg" placeholder="@alisher_disp" autocapitalize="none" class="w-full border border-slate-300 rounded p-2.5 text-base sm:text-sm focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <p id="reg-error" role="alert" class="hidden text-rose-600 bg-rose-50 border border-rose-200 rounded p-2 text-[11px] font-semibold"></p>
+                        <button type="submit" id="reg-submit-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs transition shadow" data-i18n="btn_signup_submit2">Create account</button>
+                        <button type="button" id="reg-change-btn" class="text-[11px] font-semibold text-slate-500 hover:text-slate-700" data-i18n="auth_change_number">Change number</button>
                     </form>
                 </div>
 
@@ -190,44 +200,12 @@
                         <div class="flex justify-between items-center mb-1"><label class="font-semibold text-slate-700" for="gate-request-contact-email" data-i18n="lbl_contact_email">Contact email</label><span class="text-[9px] text-slate-400 italic" data-i18n="lbl_optional">Optional</span></div>
                         <input type="email" id="gate-request-contact-email" autocomplete="email" class="w-full border border-slate-300 rounded p-2.5 text-base sm:text-xs focus:border-blue-500 focus:outline-none">
                     </div>
-                    <div id="gate-pin-wrap" class="hidden space-y-2 border border-emerald-200 bg-emerald-50/60 rounded-lg p-3">
-                        <p class="text-[11px] font-bold text-emerald-800" data-i18n="pin_choose_title">Choose a 4-digit PIN</p>
-                        <p class="text-[10px] text-slate-500" data-i18n="pin_choose_sub">Next time you sign in with your phone number and this PIN, no SMS needed. The Telegram bot asks for it too.</p>
-                        <div class="grid grid-cols-2 gap-2">
-                            <input type="password" id="gate-request-pin" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••" aria-label="PIN" class="w-full border border-slate-300 rounded p-2.5 text-lg tracking-[0.5em] text-center font-mono focus:border-blue-500 focus:outline-none">
-                            <input type="password" id="gate-request-pin2" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••" aria-label="Repeat PIN" class="w-full border border-slate-300 rounded p-2.5 text-lg tracking-[0.5em] text-center font-mono focus:border-blue-500 focus:outline-none">
-                        </div>
-                    </div>
                     <p id="request-error" role="alert" class="hidden text-rose-600 bg-rose-50 border border-rose-200 rounded p-2 text-[11px] font-semibold"></p>
                     <button type="submit" id="request-submit-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs transition shadow flex items-center justify-center space-x-2">
                         <i data-lucide="check" class="w-4 h-4"></i>
                         <span data-i18n="btn_signup_submit2">Create account</span>
                     </button>
                     <button type="button" data-action="gate-signout" class="w-full text-slate-400 hover:text-slate-600 text-[11px] font-semibold" data-i18n="btn_other_account">Use a different account</button>
-                </form>
-            </div>
-
-            <!-- Set / reset the PIN of a phone account -->
-            <div id="auth-pane-set-pin" class="hidden p-6 space-y-4">
-                <div class="text-center">
-                    <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-2"><i data-lucide="key-round" class="w-6 h-6"></i></div>
-                    <h2 id="setpin-title" class="text-sm font-bold text-slate-800" data-i18n="pin_set_title">Create your 4-digit PIN</h2>
-                    <p class="text-slate-500 text-[11px] mt-1" data-i18n="pin_set_sub">Sign in next time with your phone number and this PIN, no SMS code needed. The Telegram bot asks for it too.</p>
-                </div>
-                <form id="setpin-form" class="space-y-3" novalidate>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <label class="block font-semibold text-slate-700 mb-1" for="setpin-1" data-i18n="lbl_pin_new">New PIN</label>
-                            <input type="password" id="setpin-1" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••" class="w-full border border-slate-300 rounded p-2.5 text-xl tracking-[0.5em] text-center font-mono focus:border-blue-500 focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block font-semibold text-slate-700 mb-1" for="setpin-2" data-i18n="lbl_pin_repeat">Repeat PIN</label>
-                            <input type="password" id="setpin-2" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••" class="w-full border border-slate-300 rounded p-2.5 text-xl tracking-[0.5em] text-center font-mono focus:border-blue-500 focus:outline-none">
-                        </div>
-                    </div>
-                    <p id="setpin-error" role="alert" class="hidden text-rose-600 bg-rose-50 border border-rose-200 rounded p-2 text-[11px] font-semibold"></p>
-                    <button type="submit" id="setpin-submit-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs transition shadow" data-i18n="btn_save_pin">Save PIN</button>
-                    <button type="button" id="setpin-skip" class="w-full text-slate-400 hover:text-slate-600 text-[11px] font-semibold" data-i18n="btn_skip_now">Skip for now</button>
                 </form>
             </div>
 
@@ -887,13 +865,29 @@
                         <button type="button" id="sec-set-password-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-4 py-2 rounded text-xs border border-slate-300" data-i18n="sec_set_password_btn">Email me a link to set a password</button>
                     </div>
                     <p id="sec-phone-only" class="hidden text-slate-600" data-i18n="sec_phone_only">You sign in with your phone number and an SMS code or PIN, so there is no password to manage.</p>
+                    <div id="phone-login-card" class="hidden space-y-2 border-t border-slate-100 pt-3">
+                        <p class="font-bold text-slate-700" data-i18n="phone_signin_title">Phone sign-in</p>
+                        <p class="text-[11px] text-slate-500" data-i18n="phone_signin_sub">Add your phone number and a 4-6 digit password. Then you can sign in with Google or with your phone number: it is the same account.</p>
+                        <form id="phone-login-form" class="space-y-2" novalidate>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="pl-phone" data-i18n="lbl_phone">Phone Number</label><input type="tel" id="pl-phone" autocomplete="tel" placeholder="+998 90 123 45 67" class="w-full border border-slate-300 rounded p-2 text-sm"></div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="pl-pin" data-i18n="lbl_pin">Password (4-6 digits)</label><input type="password" id="pl-pin" inputmode="numeric" maxlength="6" autocomplete="new-password" class="w-full border border-slate-300 rounded p-2 text-sm tracking-[0.4em] text-center font-mono"></div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="pl-pin2" data-i18n="lbl_pin_repeat">Repeat password</label><input type="password" id="pl-pin2" inputmode="numeric" maxlength="6" autocomplete="new-password" class="w-full border border-slate-300 rounded p-2 text-sm tracking-[0.4em] text-center font-mono"></div>
+                            </div>
+                            <button type="submit" class="bg-[#0066cc] hover:bg-blue-700 disabled:opacity-60 text-white font-bold px-4 py-2 rounded" data-i18n="btn_add_phone">Add phone sign-in</button>
+                        </form>
+                    </div>
+                    <div id="phone-login-on" class="hidden flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                        <p class="text-slate-700 font-semibold"><span data-i18n="phone_signin_on">Phone sign-in is on:</span> <span id="phone-login-number" class="font-mono"></span></p>
+                        <button type="button" id="phone-login-remove" class="text-rose-600 hover:underline font-semibold" data-i18n="btn_remove_phone_signin">Remove phone sign-in</button>
+                    </div>
                     <form id="pin-form" class="hidden space-y-2 border-t border-slate-100 pt-3" novalidate>
-                        <p class="font-bold text-slate-700" data-i18n="pin_change_title">Your 4-digit PIN</p>
+                        <p class="font-bold text-slate-700" data-i18n="pin_change_title">Your password (4-6 digits)</p>
                         <p class="text-[11px] text-slate-500" data-i18n="pin_change_sub">Used to sign in with your phone number and in the Telegram bot. Changing it signs out your other devices and the bot.</p>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            <div id="pin-current-wrap"><label class="block font-semibold text-slate-700 mb-1" for="pin-current" data-i18n="lbl_pin_current">Current PIN</label><input type="password" id="pin-current" inputmode="numeric" maxlength="4" autocomplete="current-password" class="w-full border border-slate-300 rounded p-2 text-sm tracking-[0.4em] text-center font-mono"></div>
-                            <div><label class="block font-semibold text-slate-700 mb-1" for="pin-new" data-i18n="lbl_pin_new">New PIN</label><input type="password" id="pin-new" inputmode="numeric" maxlength="4" autocomplete="new-password" class="w-full border border-slate-300 rounded p-2 text-sm tracking-[0.4em] text-center font-mono"></div>
-                            <div><label class="block font-semibold text-slate-700 mb-1" for="pin-new2" data-i18n="lbl_pin_repeat">Repeat PIN</label><input type="password" id="pin-new2" inputmode="numeric" maxlength="4" autocomplete="new-password" class="w-full border border-slate-300 rounded p-2 text-sm tracking-[0.4em] text-center font-mono"></div>
+                            <div id="pin-current-wrap"><label class="block font-semibold text-slate-700 mb-1" for="pin-current" data-i18n="lbl_pin_current">Current PIN</label><input type="password" id="pin-current" inputmode="numeric" maxlength="6" autocomplete="current-password" class="w-full border border-slate-300 rounded p-2 text-sm tracking-[0.4em] text-center font-mono"></div>
+                            <div><label class="block font-semibold text-slate-700 mb-1" for="pin-new" data-i18n="lbl_pin_new">New PIN</label><input type="password" id="pin-new" inputmode="numeric" maxlength="6" autocomplete="new-password" class="w-full border border-slate-300 rounded p-2 text-sm tracking-[0.4em] text-center font-mono"></div>
+                            <div><label class="block font-semibold text-slate-700 mb-1" for="pin-new2" data-i18n="lbl_pin_repeat">Repeat PIN</label><input type="password" id="pin-new2" inputmode="numeric" maxlength="6" autocomplete="new-password" class="w-full border border-slate-300 rounded p-2 text-sm tracking-[0.4em] text-center font-mono"></div>
                         </div>
                         <button type="submit" class="bg-[#0066cc] hover:bg-blue-700 disabled:opacity-60 text-white font-bold px-4 py-2 rounded" data-i18n="btn_save_pin">Save PIN</button>
                     </form>

@@ -89,12 +89,18 @@ const Account = (() => {
     $('sec-set-password').classList.toggle('hidden', info.hasPassword || !info.email);
     $('sec-phone-only').classList.toggle('hidden', !(info.phone && !info.email));
     const me = Session.me;
-    const canPin = Boolean(Session.config?.pinLogin) && (me?.provider === 'phone' || me?.provider === 'pin');
-    $('pin-form').classList.toggle('hidden', !canPin);
-    $('pin-current-wrap').classList.toggle('hidden', me?.provider !== 'pin'); // after an SMS code no current PIN is needed
+    const p = me?.profile;
+    const pinOn = Boolean(Session.config?.pinLogin);
+    const googleLike = Boolean(me) && !me.isOwner && (me.provider === 'google.com' || me.provider === 'password');
+    const hasLoginPhone = Boolean(p?.loginPhone);
+    // Google / e-mail members can add "phone + password" as a second way in; phone members change their password here.
+    $('phone-login-card').classList.toggle('hidden', !(pinOn && googleLike && !hasLoginPhone));
+    $('phone-login-on').classList.toggle('hidden', !(pinOn && googleLike && hasLoginPhone));
+    $('phone-login-number').textContent = p?.loginPhone || '';
+    $('pin-form').classList.toggle('hidden', !(pinOn && hasLoginPhone && !me.isOwner));
+    $('pin-current-wrap').classList.toggle('hidden', me?.provider !== 'pin'); // a Google session needs no current password
   }
 
-  const WEAK_PINS = new Set(['0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777', '8888', '9999', '1234', '4321', '0123', '3210', '1212', '2580', '1122', '1010', '2000', '2024', '2025', '2026']);
   async function changePin(e) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -102,20 +108,53 @@ const Account = (() => {
     const needCurrent = Session.me?.provider === 'pin';
     const cur = $('pin-current').value.trim(); const next = $('pin-new').value.trim();
     let ok = true;
-    if (needCurrent && !/^\d{4}$/.test(cur)) { U.fieldError($('pin-current'), t('v_pin_format')); ok = false; }
-    if (!/^\d{4}$/.test(next)) { U.fieldError($('pin-new'), t('v_pin_format')); ok = false; } else if (WEAK_PINS.has(next)) { U.fieldError($('pin-new'), t('v_pin_weak')); ok = false; } else if ($('pin-new2').value.trim() !== next) { U.fieldError($('pin-new2'), t('pin_mismatch')); ok = false; }
+    if (needCurrent && !/^\d{4,6}$/.test(cur)) { U.fieldError($('pin-current'), t('v_pin_format')); ok = false; }
+    if (!/^\d{4,6}$/.test(next)) { U.fieldError($('pin-new'), t('v_pin_format')); ok = false; } else if (Session.isWeakPin(next)) { U.fieldError($('pin-new'), t('v_pin_weak')); ok = false; } else if ($('pin-new2').value.trim() !== next) { U.fieldError($('pin-new2'), t('pin_mismatch')); ok = false; }
     if (!ok) { form.querySelector('.field-invalid')?.focus(); return; }
     U.setBusy(form, true);
     try {
       const r = await API.put('/api/me/pin', { pin: next, ...(needCurrent ? { currentPin: cur } : {}) });
       if (r?.token) Session.storePinToken(r.token, r.expiresAt);
       form.reset();
-      Session.me.profile.hasPin = true;
       U.toast(t('toast_pin_saved'), 'success');
     } catch (err) {
       const map = { pin: 'pin-new', currentPin: 'pin-current' };
       if (err.code === 'validation_error') for (const d of err.details || []) { const el = $(map[d.path]); if (el) U.fieldError(el, U.detailText(d)); } else U.toast(err.message, 'error');
     } finally { U.setBusy(form, false); }
+  }
+
+  async function addPhoneLogin(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    U.clearFormErrors(form);
+    const phone = Session.normalisePhone($('pl-phone').value);
+    const pin = $('pl-pin').value.trim();
+    let ok = true;
+    if (!phone) { U.fieldError($('pl-phone'), t('autherr_bad_phone')); ok = false; }
+    if (!/^\d{4,6}$/.test(pin)) { U.fieldError($('pl-pin'), t('v_pin_format')); ok = false; } else if (Session.isWeakPin(pin)) { U.fieldError($('pl-pin'), t('v_pin_weak')); ok = false; } else if ($('pl-pin2').value.trim() !== pin) { U.fieldError($('pl-pin2'), t('pin_mismatch')); ok = false; }
+    if (!ok) { form.querySelector('.field-invalid')?.focus(); return; }
+    U.setBusy(form, true);
+    try {
+      const { profile } = await API.post('/api/me/login-phone', { phone, pin });
+      Session.me.profile = profile;
+      form.reset();
+      populate();
+      U.toast(t('toast_phone_signin_added'), 'success');
+    } catch (err) {
+      const map = { phone: 'pl-phone', pin: 'pl-pin' };
+      if (err.code === 'validation_error') for (const d of err.details || []) { const el = $(map[d.path]); if (el) U.fieldError(el, U.detailText(d)); } else U.toast(err.message, 'error');
+    } finally { U.setBusy(form, false); }
+  }
+
+  async function removePhoneLogin() {
+    const ok = await U.confirmDialog({ title: t('btn_remove_phone_signin'), message: t('confirm_remove_phone_signin'), confirmText: t('btn_remove') });
+    if (!ok) return;
+    try {
+      const { profile } = await API.del('/api/me/login-phone').then((r) => r ?? {}).catch((err) => { throw err; });
+      if (profile) Session.me.profile = profile;
+      populate();
+      U.toast(t('toast_phone_signin_removed'), 'success');
+    } catch (err) { U.toast(err.message, 'error'); }
   }
 
   async function changePassword(e) {
@@ -151,6 +190,8 @@ const Account = (() => {
   function init() {
     $('password-form').addEventListener('submit', changePassword);
     $('pin-form').addEventListener('submit', changePin);
+    $('phone-login-form').addEventListener('submit', addPhoneLogin);
+    $('phone-login-remove').addEventListener('click', removePhoneLogin);
     $('sec-forgot-btn').addEventListener('click', (e) => emailReset(e.currentTarget));
     $('sec-set-password-btn').addEventListener('click', (e) => emailReset(e.currentTarget));
     $('profile-form').addEventListener('submit', save);
