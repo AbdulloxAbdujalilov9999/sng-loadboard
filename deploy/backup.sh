@@ -12,5 +12,5 @@ docker compose exec -T db pg_dump -U sng -Fc sng > "$file.tmp"
 mv "$file.tmp" "$file"
 echo "backup written: $file ($(du -h "$file" | cut -f1))"
 # keep the newest 14 nightly backups (pre-update ones are cleaned after 30 days)
-ls -1t "$DIR"/sng-*.dump 2>/dev/null | grep -v -- '-pre-update' | tail -n +15 | xargs -r rm -f
+{ ls -1t "$DIR"/sng-*.dump 2>/dev/null | grep -v -- '-pre-update' | tail -n +15 | xargs -r rm -f; } || true # nothing to prune is not an error
 find "$DIR" -name 'sng-*-pre-update.dump' -mtime +30 -delete
