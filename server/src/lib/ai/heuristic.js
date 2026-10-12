@@ -2,9 +2,10 @@
 // it is the "basic mode" used when no Gemini key is set, by the local dev server, and in tests. It produces the same
 // "raw" shape as the Gemini parser, so everything after it (city matching, review, posting) is identical.
 
+import { findPhones } from './phones.js';
+
 const FLAG = /\p{Regional_Indicator}{2}/u;
 const FLAG_G = /\p{Regional_Indicator}{2}/gu;
-const PHONE = /\+?\d[\d\s().-]{7,}\d/;
 const EQUIP_WORDS = [
   ['AC', /АВТОВОЗ|AVTOVOZ/i], ['R', /РЕФ|REF\b|REFRIG/i], ['V', /ФУРГОН|ИЗОТЕРМ|ISOTHERM|\bVAN\b/i],
   ['F', /БОРТ|ОТКРЫТ|ШАЛАНД|FLAT/i], ['T', /ТЕНТ|ШТОРА|TENT|ФУРА|FURA/i],
@@ -22,7 +23,9 @@ const stripFlags = (s) => s.replace(FLAG_G, '').trim();
 const place = (line) => ({ text: stripFlags(line), city: stripFlags(line), country: flagCountry(line), region: null, lat: null, lng: null });
 const blocksOf = (text) => String(text).split(/\n\s*\n+/);
 const linesOf = (block) => block.split('\n').map((l) => l.trim()).filter(Boolean);
-const phoneOf = (lines) => { const p = lines.map((l) => PHONE.exec(l)?.[0]).find(Boolean); return p ? p.replace(/[^\d+]/g, '') : null; };
+const phoneOf = (lines) => lines.map((l) => findPhones(l)[0]?.phone).find(Boolean) ?? null;
+// a line that is only a phone number (maybe with emoji around it): it is a contact, not a term of the deal
+const isPhoneLine = (l) => findPhones(l).length > 0 && !/[A-Za-zА-Яа-яЁё]/.test(findPhones(l).reduce((rest, p) => rest.replace(p.raw, ''), l));
 const equipmentOf = (lines) => {
   // Keep the order the sender wrote them in (the first one becomes the primary trailer type).
   const joined = lines.join('\n');
@@ -50,7 +53,7 @@ export function createHeuristicParser() {
         const placeLines = lines.filter((l) => FLAG.test(l));
         if (placeLines.length < 2) continue;
         const rest = lines.filter((l) => !FLAG.test(l));
-        const body = rest.filter((l) => !PHONE.test(l) || /[A-Za-zА-Яа-я]/.test(l.replace(PHONE, '')));
+        const body = rest.filter((l) => !isPhoneLine(l));
         const equipment = equipmentOf(body);
         const terms = body.filter((l) => TERMS.test(l));
         const commodityLine = body.find((l) => !TERMS.test(l) && !EQUIP_WORDS.some(([, re]) => re.test(l)));
@@ -98,7 +101,7 @@ export function createHeuristicParser() {
           hasAdr: /\bADR\b|ДОПОГ|ОПАСН/i.test(all),
           hasGps: /\bGPS\b|ГЛОНАСС/i.test(all),
           sideLoading: /БОКОВ|ВЕРХН|SIDE/i.test(all),
-          notes: rest.filter((l) => !(PHONE.test(l) && !/[A-Za-zА-Яа-я]/.test(l.replace(PHONE, ''))))        // not a bare phone line
+          notes: rest.filter((l) => !isPhoneLine(l))        // not a bare phone line
             .filter((l) => !EQUIP_WORDS.some(([, re]) => re.test(l)) && !(cap && l.includes(cap[0])) && !(vol && l.includes(vol[0]))).join(' · ').slice(0, 300),
           phone: phoneOf(rest),
           telegram: null, contactName: null,

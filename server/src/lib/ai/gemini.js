@@ -91,6 +91,13 @@ const PLACES_RULES = `PLACES (this matters most - get the town right):
 - lat/lng = your best estimate of the town's coordinates in decimal degrees (used only as a safety net). Use null if you are not sure.
 - Never leave a place out because you do not recognise the spelling: transliterate it and give your best guess for the country.`;
 
+const CONTACT_RULES = `CONTACT NUMBERS (very important - nearly every post has one; never leave it out):
+- The phone number is usually the LAST line of the post, often with emoji around it (🔥 📞 ☎️), and very often written WITHOUT a country code: a bare 9-digit Uzbek number such as 979242400. It can be spaced or punctuated in any way: "97 924 2400", "97924 24 00", "97-924-24-00", "(97) 924.24.00", even one digit at a time "9 7 9 2 4 2 4 0 0". All of these are phone numbers - read the digits.
+- Do NOT mistake other numbers for a phone: weights ("22 Т"), truck counts ("ТЕНТ 3"), prices, dates, volumes. A phone number has 9 digits (local Uzbek), 10-11 digits (Russia / Kazakhstan: 8 903 ..., +7 701 ...) or 12 digits (with a country code: +998 ..., +996 ...).
+- phone must be written in international form, digits only after a "+": a 9-digit number without a country code is Uzbek, so +998 plus the 9 digits (979242400 -> +998979242400, "97 924 2400" -> +998979242400); an 11-digit number starting with 8 or 7 -> +7 and the next 10 digits; a number that already has its country code keeps it.
+- If one number is written ONCE under or after several posts (a dispatcher giving the same contact for a group of loads), give that number to every post of the group that has none of its own.
+- telegram: an @handle or t.me/ link. contactName: only a person's name written next to the number.`;
+
 export function loadsPrompt({ today }) {
   return `You extract freight LOAD postings from messages pasted out of Telegram/WhatsApp groups used by truckers and dispatchers in Russia, Uzbekistan, Kazakhstan and other CIS countries. Today is ${today}.
 
@@ -106,13 +113,15 @@ A message usually contains SEVERAL loads separated by blank lines (sometimes onl
 
 ${PLACES_RULES}
 
+${CONTACT_RULES}
+
 OTHER FIELDS:
 - equipment: any of T (tent/curtain-sider: ТЕНТ, ШТОРА, тентованная), R (reefer: РЕФ, РЕФРИЖЕРАТОР, рефка), F (flatbed/open: БОРТ, ОТКРЫТАЯ, ШАЛАНДА), V (box/dry van/isotherm: ФУРГОН, ИЗОТЕРМ), AC (car carrier: АВТОВОЗ). ФУРА (semi-truck) alone means a standard full tent truck: use ["T"]. If several types are accepted (ТЕНТ РЕФ), list all, most important first.
 - fullOrPartial: "Partial" only if the text says part-load/LTL/догруз/попутный груз; otherwise "Full".
 - weightT: tonnes if stated (e.g. "20 т", "20тн"), else null. volumeM3: cubic metres if stated ("90 куб", "86 м3", "82 kub"), else null. pickupDate: YYYY-MM-DD if a loading date is stated (resolve "завтра"/"tomorrow" against today), "ready now" (ПОГРУЗКА ТАЙЁР/ГОТОВ) means today; otherwise null. rateUsd: price converted to a number ONLY if it is clearly in USD, otherwise null.
 - commodity: the cargo in the original wording ("ДСП МДФ"). If absent use "General cargo".
 - notes: every remaining term (payment, loading, advance, conditions) kept in the ORIGINAL wording, short, joined with " · " (e.g. "ОПЛАТА НАХТ · ПОГРУЗКА ТАЙЙОР · АВАНС БОР"). Do not translate slang and do not invent anything. Max 300 characters.
-- phone: digits with leading +, as written (e.g. +998918887695). telegram: @handle if present. contactName: only if a person's name is given.
+- phone, telegram, contactName: see CONTACT NUMBERS above.
 - Ignore greetings, ads, and text that is not a load. If the message contains no load, return {"loads": []}.`;
 }
 
@@ -125,6 +134,8 @@ A message usually contains SEVERAL truck posts separated by blank lines or by fl
 
 ${PLACES_RULES}
 
+${CONTACT_RULES}
+
 OTHER FIELDS:
 - location: where the truck IS or becomes free (a place object, see PLACES).
 - destinationText: where it wants to go, short, kept in the original wording ("Россия", "Москва / Казань", "любое направление"); null if not stated.
@@ -134,7 +145,7 @@ OTHER FIELDS:
 - minRateUsd: only if a price in USD is clearly stated, else null.
 - hasTir / hasAdr / hasGps / sideLoading: true only if the text mentions TIR (МДП, TIR carnet), ADR (опасные грузы), GPS, or side/top loading (боковая, верхняя загрузка); otherwise false.
 - notes: every remaining useful term in the ORIGINAL wording, short, joined with " · ". Do not invent anything. Max 300 characters.
-- phone: digits with leading +, as written. telegram: @handle if present. contactName: only if a person's name is given.
+- phone, telegram, contactName: see CONTACT NUMBERS above.
 - Ignore greetings, ads, and text that is not a truck post (a LOAD looking for a truck is NOT a truck post). If there is none, return {"trucks": []}.`;
 }
 

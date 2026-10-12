@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { distanceKm, fold, resolveCity } from '../lib/ai/cities.js';
 import { HttpError } from '../lib/errors.js';
+import { distinctPhones, normalizePhone } from '../lib/ai/phones.js';
 
 const EQUIP = ['T', 'R', 'F', 'V', 'AC'];
 const MAX_ITEMS = 50;
@@ -59,6 +60,15 @@ const trucksRaw = z.object({
     contactName: soft(z.string()),
   }).passthrough()).catch([]),
 }).passthrough();
+
+// The model sometimes leaves a post's number out. When the whole paste contains exactly ONE phone number (a dispatcher forwarding his own
+// loads), it is that person's number for every load that came without one. With several numbers nobody can say which belongs where, so
+// those loads stay empty (the review shows it and the member decides).
+function withPhones(drafts, text) {
+  const all = distinctPhones(text);
+  if (all.length !== 1) return drafts;
+  return drafts.map((d) => (d.contactPhone || d.contactTelegram ? d : { ...d, contactPhone: all[0] }));
+}
 
 const clip = (s, n) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 const isoDate = (s) => (/^\d{4}-\d{2}-\d{2}$/.test(s ?? '') && Number.isFinite(Date.parse(`${s}T00:00:00Z`)) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s ? s : null);
@@ -137,12 +147,12 @@ export default async function aiRoutes(app, { config, ai }) {
     req.log.info({ ai: ai.name, chars: text.length, kind: key }, 'ai parse'); // never log the pasted text itself
     const parsed = schema.safeParse(raw);
     if (!parsed.success) throw new HttpError(502, 'ai_bad_output', 'The AI answered in an unexpected format. Please try again.');
-    return { index, today, items: parsed.data[key] };
+    return { index, today, items: parsed.data[key], text };
   }
 
   // ------------------------------------------------------------------ loads
   app.post('/api/ai/parse-loads', { preHandler: app.guards.active }, async (req) => {
-    const { index, today, items } = await run(req, 'parseLoads', loadsRaw, 'loads');
+    const { index, today, items, text } = await run(req, 'parseLoads', loadsRaw, 'loads');
     const drafts = items.slice(0, MAX_ITEMS).map((r) => {
       const flags = [];
       const origin = resolvePlace(index, r.origin);
@@ -185,18 +195,18 @@ export default async function aiRoutes(app, { config, ai }) {
         rateUsd: rate ?? 0,
         commodity: clip(r.commodity, 200) || 'General cargo',
         notes: clip(noteParts.join(' · '), 500),
-        contactPhone: clip(r.phone, 40),
+        contactPhone: normalizePhone(r.phone),
         contactTelegram: clip(r.telegram, 40),
         contactName: clip(r.contactName, 120),
         flags,
       };
     });
-    return { loads: drafts, truncated: items.length > MAX_ITEMS };
+    return { loads: withPhones(drafts, text), truncated: items.length > MAX_ITEMS };
   });
 
   // ------------------------------------------------------------------ trucks
   app.post('/api/ai/parse-trucks', { preHandler: app.guards.active }, async (req) => {
-    const { index, today, items } = await run(req, 'parseTrucks', trucksRaw, 'trucks');
+    const { index, today, items, text } = await run(req, 'parseTrucks', trucksRaw, 'trucks');
     const drafts = items.slice(0, MAX_ITEMS).map((r) => {
       const flags = [];
       const loc = resolvePlace(index, r.location);
@@ -229,11 +239,11 @@ export default async function aiRoutes(app, { config, ai }) {
         minRateUsd: Number.isFinite(r.minRateUsd) && r.minRateUsd > 0 ? Math.round(r.minRateUsd * 100) / 100 : null,
         hasTir: Boolean(r.hasTir), hasAdr: Boolean(r.hasAdr), hasGps: Boolean(r.hasGps), sideLoading: Boolean(r.sideLoading),
         notes: clip(noteParts.join(' · '), 500),
-        contactPhone: clip(r.phone, 40),
+        contactPhone: normalizePhone(r.phone),
         contactTelegram: clip(r.telegram, 40),
         flags,
       };
     });
-    return { trucks: drafts, truncated: items.length > MAX_ITEMS };
+    return { trucks: withPhones(drafts, text), truncated: items.length > MAX_ITEMS };
   });
 }
