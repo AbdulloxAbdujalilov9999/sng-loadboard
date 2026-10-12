@@ -12,7 +12,7 @@ A separate process (`bot/`) that connects the loadboard to Telegram:
   (Russian or Uzbek, one load or many). The bot sends it to `POST /api/ai/parse-loads` (the same Gemini parser the website
   uses), shows every load with warnings for anything it had to guess, and posts them with one tap through `POST /api/loads/bulk`
   under the member's own account and quotas. Plain text typed inside `/link` or `/postload` still goes to those steps first,
-  and groups are never read. Every parsed load is its own message with ✏️ Edit / 🗑 Remove (fix the cities, truck type, weight,
+  and groups are never read. Posts forwarded in a burst (each Telegram message arrives separately) are collected for `PASTE_DEBOUNCE_MS` (default 2500 ms after the last one) and read as ONE paste: one AI call, one review, one Post button. Several reviews can be open at once. Every parsed load is its own message with ✏️ Edit / 🗑 Remove (fix the cities, truck type, weight,
   dates, rate, cargo, notes or contact before anything is posted); posting sends each load on as its own message with Edit /
   Renew / Delete buttons, and `/myloads` lists them all the same way (one message per load). The editor is `src/editor.js`.
   Code: `src/pasteFlow.js`; tuned with `AI_PASTE_MAX_PER_MIN` (default 20) and

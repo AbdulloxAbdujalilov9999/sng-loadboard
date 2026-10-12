@@ -80,14 +80,33 @@ const routeOf = (d) => `${d.originCity || d.originText || '?'} → ${d.destCity 
 
 export function makePasteFlow({ apiClient, tokens, config, log = console }) {
   const rateLimiter = makeRateLimiter(config.aiMaxPerMin);
-  // telegramUserId -> { nonce, drafts, member, createdAt, chatId, msgIds[], footerMsgId } - one open batch per person
+  // telegramUserId -> (batch -> { nonce, drafts, member, createdAt, chatId, msgIds[], footerMsgId }). A person can have several open
+  // reviews at once (the Post button of an earlier paste keeps working when they paste again); the oldest is dropped past MAX_OPEN.
   const pending = new Map();
   const ttlMs = config.pendingTtlMin * 60_000;
+  const MAX_OPEN = 5;
+  // Forwarding several posts at once sends one Telegram message each, a moment apart: they are collected for this long (after the
+  // last one) and read as ONE paste - one review, one Post button. 0 = no waiting (used by the tests).
+  const debounceMs = config.pasteDebounceMs ?? 0;
+  const MAX_COLLECT_MS = 8000;
+  const collecting = new Map(); // telegramUserId -> { texts, ctx, timer, since }
+  const MAX_PASTE_CHARS = 12000; // the API's own limit for one text
 
+  function addEntry(userId, entry) {
+    const m = pending.get(userId) ?? new Map();
+    pending.set(userId, m);
+    m.set(batchOf(entry.nonce), entry);
+    while (m.size > MAX_OPEN) m.delete(m.keys().next().value);
+  }
+  function dropEntry(userId, entry) {
+    const m = pending.get(userId);
+    m?.delete(batchOf(entry.nonce));
+    if (m && !m.size) pending.delete(userId);
+  }
   function entryFor(userId, batch) {
-    const entry = pending.get(userId);
-    if (!entry || batchOf(entry.nonce) !== batch) return null;
-    if (Date.now() - entry.createdAt > ttlMs) { pending.delete(userId); return null; }
+    const entry = pending.get(userId)?.get(batch);
+    if (!entry) return null;
+    if (Date.now() - entry.createdAt > ttlMs) { dropEntry(userId, entry); return null; }
     return entry;
   }
 
@@ -183,9 +202,28 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
   const handleUndo = (ctx, key) => setRemoved(ctx, key, false);
 
   // `textOverride` is the text after "/paste " when the member sends everything in one command.
-  async function handleText(ctx, textOverride) {
+  function handleText(ctx, textOverride) {
     if (ctx.chat.type !== 'private') return undefined; // never read group chatter, only this member's own DM
     const text = (textOverride ?? ctx.message.text).trim();
+    if (debounceMs <= 0) return readPaste(ctx, text);
+    const userId = ctx.from.id;
+    const c = collecting.get(userId) ?? { texts: [], since: Date.now(), timer: null };
+    collecting.set(userId, c);
+    c.texts.push(text);
+    c.ctx = ctx;
+    clearTimeout(c.timer);
+    const wait = Math.min(debounceMs, Math.max(0, MAX_COLLECT_MS - (Date.now() - c.since)));
+    c.timer = setTimeout(() => {
+      collecting.delete(userId);
+      readPaste(c.ctx, c.texts.join('\n\n').slice(0, MAX_PASTE_CHARS)).catch((err) => {
+        log.error?.(`paste failed: ${err.message}`);
+        c.ctx.reply(t(c.ctx.lang, 'generic_error')).catch(() => {});
+      });
+    }, wait);
+    return undefined;
+  }
+
+  async function readPaste(ctx, text) {
     if (text.length < MIN_PASTE_CHARS) return ctx.reply(t(ctx.lang, 'paste_too_short')); // not a load post: say how it works instead of staying silent
 
     let idToken, member;
@@ -217,7 +255,7 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
 
     const nonce = randomUUID();
     const entry = { nonce, drafts: loads.map((d) => ({ ...d })), member, createdAt: Date.now(), chatId: ctx.chat.id, msgIds: [], footerMsgId: null };
-    pending.set(ctx.from.id, entry);
+    addEntry(ctx.from.id, entry);
 
     const header = `${t(ctx.lang, 'paste_found_header', { count: loads.length })}${truncated ? `\n${t(ctx.lang, 'paste_truncated_note', { max: loads.length })}` : ''}\n${t(ctx.lang, 'paste_review_hint')}`;
     await ctx.telegram.editMessageText(ctx.chat.id, waitMsg.message_id, undefined, header).catch(() => {});
@@ -234,17 +272,15 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
   }
 
   function takePending(ctx, nonce) {
-    const entry = pending.get(ctx.from.id);
-    if (!entry || entry.nonce !== nonce) return null;
-    if (Date.now() - entry.createdAt > ttlMs) { pending.delete(ctx.from.id); return null; }
-    return entry;
+    const entry = entryFor(ctx.from.id, batchOf(nonce));
+    return entry && entry.nonce === nonce ? entry : null;
   }
 
   async function handleConfirm(ctx, nonce) {
     await ctx.answerCbQuery();
     const entry = takePending(ctx, nonce);
     if (!entry) return ctx.editMessageText(t(ctx.lang, 'paste_expired'));
-    pending.delete(ctx.from.id);
+    dropEntry(ctx.from.id, entry);
 
     const { drafts, member } = entry;
     const live = drafts.filter((d) => !d.removed);
@@ -281,7 +317,7 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
   async function handleCancel(ctx, nonce) {
     await ctx.answerCbQuery();
     const entry = takePending(ctx, nonce);
-    if (entry) { pending.delete(ctx.from.id); await clearButtons(ctx, entry); }
+    if (entry) { dropEntry(ctx.from.id, entry); await clearButtons(ctx, entry); }
     return ctx.editMessageText(t(ctx.lang, 'paste_cancelled'));
   }
 

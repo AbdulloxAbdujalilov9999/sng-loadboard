@@ -35,6 +35,8 @@ export function loadBotConfig(env = process.env) {
     // a parsed batch waits for its Post / Cancel buttons before it must be pasted again.
     aiMaxPerMin: Number(env.AI_PASTE_MAX_PER_MIN || 20),
     pendingTtlMin: Number(env.PASTE_PENDING_TTL_MIN || 15),
+    // Forwarded messages that arrive within this many ms of each other are read as one paste (one review, one Post button).
+    pasteDebounceMs: Number(env.PASTE_DEBOUNCE_MS ?? 2500),
   };
   const problems = [];
   // Links in broadcasts are clicked by people on the internet. An internal/localhost address would be a dead
