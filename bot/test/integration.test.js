@@ -3,12 +3,13 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startTestEnv, tokenFor, validLoad } from '../../server/test/helpers.js';
+import { createHeuristicParser } from '../../server/src/lib/ai/heuristic.js';
 import { makeApiClient, ApiError } from '../src/apiClient.js';
 import { makeBroadcaster } from '../src/broadcaster.js';
 
 let env; let base; let api; let cityA; let cityB;
 before(async () => {
-  env = await startTestEnv();
+  env = await startTestEnv({}, { ai: createHeuristicParser() });
   await env.app.listen({ port: 0, host: '127.0.0.1' });
   base = `http://127.0.0.1:${env.app.server.address().port}`;
   api = makeApiClient({ baseUrl: base });
@@ -116,4 +117,49 @@ test('the per-member write budget is not shared between bot users (they all come
     assert.equal((await post('a@test.com')).status, 429, 'a hits ITS limit');
     for (let i = 0; i < 3; i++) assert.equal((await post('b@test.com')).status, 201, 'b is unaffected by a');
   } finally { await limited.close(); }
+});
+
+test('AI paste in the main bot: paste a freight post -> review -> one tap posts it through the real API', async () => {
+  const { makePasteFlow } = await import('../src/pasteFlow.js');
+  const { NotLinkedError } = await import('../src/tokens.js');
+  const sent = []; const edits = [];
+  const ctxFor = (text, linked = true) => ({
+    from: { id: 4242 }, lang: 'en', chat: { id: 4242, type: 'private' }, message: { text },
+    reply: async (msg, extra) => { sent.push({ msg, extra }); return { message_id: sent.length }; },
+    editMessageText: async (msg) => { edits.push(msg); },
+    answerCbQuery: async () => {},
+    telegram: { editMessageText: async (_c, _m, _i, msg) => { edits.push(msg); } },
+    _linked: linked,
+  });
+  const tokens = { getIdToken: async () => tokenFor('poster@test.com') };
+  const flow = makePasteFlow({ apiClient: api, tokens, config: { aiMaxPerMin: 600, pendingTtlMin: 15, webBaseUrl: 'https://sng.example', webUrlIsPublic: true } });
+
+  // not linked -> told to /link, nothing parsed
+  const unlinked = makePasteFlow({ apiClient: api, tokens: { getIdToken: async () => { throw new NotLinkedError(); } }, config: { aiMaxPerMin: 600, pendingTtlMin: 15 } });
+  const c0 = ctxFor('ТОМСК ТОШКЕНТ ДСП МДФ ТЕНТ 20т');
+  await unlinked.handleText(c0);
+  assert.match(sent.at(-1).msg, /\/link/);
+
+  // linked: parse, review, confirm
+  const before = (await env.pool.query("SELECT count(*)::int AS n FROM loads WHERE status = 'active'")).rows[0].n;
+  const ctx = ctxFor('🇷🇺ТОМСК \n🇺🇿ТОШКЕНТ \nДСП МДФ \nТЕНТ ФУРА \nОПЛАТА НАХТ \n+998918887695');
+  await flow.handleText(ctx);
+  const review = sent.at(-1);
+  assert.ok(review.extra?.reply_markup, `no review keyboard: ${JSON.stringify([sent.map((x) => x.msg), edits])}`);
+  const confirmData = review.extra.reply_markup.inline_keyboard[0][0].callback_data;
+  assert.match(confirmData, /^paste:confirm:/);
+  assert.ok(sent.some((s) => /Tomsk, RU → Tashkent, UZ/.test(s.msg)), 'the draft is shown for review');
+  assert.equal((await env.pool.query("SELECT count(*)::int AS n FROM loads WHERE status = 'active'")).rows[0].n, before, 'nothing is posted before the tap');
+
+  await flow.handleConfirm(ctx, confirmData.split(':')[2]);
+  assert.match(edits.at(-1), /Posted 1 load/);
+  assert.equal((await env.pool.query("SELECT count(*)::int AS n FROM loads WHERE status = 'active'")).rows[0].n, before + 1);
+  await flow.handleConfirm(ctx, confirmData.split(':')[2]); // a second tap on the same button posts nothing more
+  assert.match(edits.at(-1), /expired/i);
+  assert.equal((await env.pool.query("SELECT count(*)::int AS n FROM loads WHERE status = 'active'")).rows[0].n, before + 1);
+
+  // never reads group chatter
+  const group = ctxFor('ТОМСК ТОШКЕНТ ДСП МДФ ТЕНТ 20т'); group.chat.type = 'supergroup';
+  const n = sent.length; await flow.handleText(group);
+  assert.equal(sent.length, n);
 });
