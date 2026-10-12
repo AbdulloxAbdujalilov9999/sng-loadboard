@@ -30,6 +30,8 @@ test('publishBotProfile sets Uzbek as the default and keeps going if one call fa
   assert.ok(calls.some((c) => c[0] === 'commands' && c[1] === 'default'), 'default menu is set');
   assert.equal(calls.find((c) => c[0] === 'short' && c[1] === 'default')[2], BOT_ABOUT.uz.short, 'default text is Uzbek');
   assert.ok(calls.some((c) => c[0] === 'commands' && c[1] === 'ru'), 'Russian menu is still set');
+  assert.ok(calls.some((c) => c[0] === 'commands' && c[1] === 'en'), 'the English menu is overwritten (with Uzbek), not left over from an older version');
+  assert.equal(calls.find((c) => c[0] === 'short' && c[1] === 'en')[2], BOT_ABOUT.uz.short);
   assert.equal(warnings.length, 1);
 });
 

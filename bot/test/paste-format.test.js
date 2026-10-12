@@ -63,7 +63,7 @@ test('escapeHtml handles null/undefined safely', () => {
 test('a rate of 0 is shown as "negotiable" in every language, never as $0', () => {
   assert.equal(money(0, 'en'), 'Negotiable');
   assert.equal(money(0, 'ru'), 'Договорная');
-  assert.equal(money(0, 'uz'), 'Kelishilgan');
+  assert.equal(money(0, 'uz'), 'Kelishiladi');
   assert.equal(money(1500, 'en'), '$1,500');
 });
 

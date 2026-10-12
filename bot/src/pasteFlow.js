@@ -30,7 +30,8 @@ function makeRateLimiter(perMinute) {
   };
 }
 
-const GUESSED_UZ = { weight: 'ogʻirlik', date: 'sana', rate: 'narx', origin_check: 'yuklash joyi', dest_check: 'yetkazish joyi' };
+// Only guesses that could mislead a reader. A missing rate already reads "Kelishiladi" on the board, so it is not repeated.
+const GUESSED_UZ = { weight: 'ogʻirlik', date: 'sana', origin_check: 'yuklash joyi', dest_check: 'yetkazish joyi' };
 
 // contactPhone/contactTelegram/contactName are REQUIRED by loadBody (server/src/lib/schemas.js: a
 // phone OR a Telegram username, either one). A pasted group post often has neither - exactly the
@@ -39,7 +40,7 @@ const GUESSED_UZ = { weight: 'ogʻirlik', date: 'sana', rate: 'narx', origin_che
 export function toLoadBody(draft, member) {
   // The note is shown to everyone on the board, and the board's own language is Uzbek.
   const guessed = (draft.flags ?? []).map((f) => GUESSED_UZ[f]).filter(Boolean);
-  const estimated = guessed.length ? ` · AI taxmini: ${guessed.join(', ')} - telefon orqali aniqlashtiring` : '';
+  const estimated = guessed.length ? ` · Taxminiy: ${guessed.join(', ')} — telefon orqali aniqlang` : '';
   const notes = `${draft.notes || ''}${estimated}`.trim().slice(0, 500);
   return {
     originCityId: draft.originCityId,

@@ -6,7 +6,9 @@ import { COMMAND_MENU, BOT_ABOUT } from './i18n.js';
 export async function publishBotProfile(telegram, log = console) {
   const cmds = (lang) => COMMAND_MENU[lang].map(([command, description]) => ({ command, description }));
   // [language_code, texts]: no code = the default everybody falls back to; "uz" is set explicitly too
-  const targets = [[undefined, 'uz'], ['uz', 'uz'], ['ru', 'ru']];
+  // "en" is set to Uzbek on purpose: phones in English must not see an English menu either (an older version of this bot
+  // had published one, and Telegram keeps a per-language menu until it is overwritten).
+  const targets = [[undefined, 'uz'], ['uz', 'uz'], ['en', 'uz'], ['ru', 'ru']];
   for (const [code, lang] of targets) {
     const extra = code ? { language_code: code } : {};
     try {

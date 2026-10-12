@@ -71,7 +71,7 @@ test('a load posted on the WEB reaches every group, through the real NOTIFY chan
     assert.ok(await waitFor(() => sent.length === 2), `both groups got it, got ${sent.length}`);
     const text = sent[0].text;
     assert.match(text, /Tomsk, RU → Tashkent, UZ/);
-    assert.match(text, /ОПЛАТА НАХТ · АВАНС БОР/, 'the notes field travels with the load');
+    assert.match(text, /• ОПЛАТА НАХТ\n• АВАНС БОР/, 'the notes field travels with the load, one fact per line');
     assert.match(text, /ДСП &lt;МДФ&gt;/, 'user text is HTML-escaped for Telegram');
     assert.ok(text.includes(`https://sng.example/?load=${posted.json.id}`));
     assert.deepEqual(sent.map((s) => s.chatId).sort(), [111, 222]);
@@ -162,4 +162,23 @@ test('AI paste in the main bot: paste a freight post -> review -> one tap posts 
   const group = ctxFor('ТОМСК ТОШКЕНТ ДСП МДФ ТЕНТ 20т'); group.chat.type = 'supergroup';
   const n = sent.length; await flow.handleText(group);
   assert.equal(sent.length, n);
+});
+
+test('/myloads edit + renew go through the real API: only the owner, only valid values', async () => {
+  const token = tokenFor('poster@test.com');
+  const made = await api.createLoad(token, {
+    originCityId: cityA, destCityId: cityB, equip: 'T', fp: 'Full', weightT: 20, pickupDate: new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
+    rateUsd: 0, commodity: 'Mebel', notes: '', contactName: 'Bek', contactPhone: '+998901234567', contactEmail: '', contactTelegram: '',
+  });
+  const edited = await api.updateLoad(token, made.id, { rateUsd: 1800, weightT: 21.5, notes: 'Avans bor' });
+  assert.equal(edited.rateUsd, 1800);
+  assert.equal(edited.weightT, 21.5);
+  assert.equal(edited.notes, 'Avans bor');
+  assert.equal(edited.commodity, 'Mebel', 'fields that were not sent stay as they are');
+  await assert.rejects(api.updateLoad(token, made.id, { weightT: 500 }), (e) => e instanceof ApiError && e.status === 400);
+  await assert.rejects(api.updateLoad(tokenFor('viewer@test.com'), made.id, { rateUsd: 1 }), (e) => e instanceof ApiError && e.status === 403, 'not your load');
+  const renewed = await api.renewLoad(token, made.id);
+  assert.equal(renewed.id, made.id);
+  await api.deleteLoad(token, made.id);
+  await assert.rejects(api.renewLoad(token, made.id), (e) => e instanceof ApiError && e.status === 404);
 });

@@ -34,7 +34,8 @@ test('appends a transparency note for every estimated field, so a guess is never
   const draft = { ...DRAFT, flags: ['weight', 'rate'], notes: 'ASAP' };
   const body = toLoadBody(draft, MEMBER);
   assert.match(body.notes, /^ASAP/);
-  assert.match(body.notes, /AI taxmini: ogʻirlik, narx - telefon orqali aniqlashtiring/, 'the note on the board is in Uzbek');
+  assert.match(body.notes, /Taxminiy: ogʻirlik — telefon orqali aniqlang/, 'the note on the board is in Uzbek');
+  assert.doesNotMatch(body.notes, /narx/, 'a missing rate is not repeated: the board already says Kelishiladi');
 });
 
 test('carries origin/dest/equip/weight/date/rate/commodity through unchanged', () => {

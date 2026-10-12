@@ -12,6 +12,7 @@ import { OWN_PREFIX } from './tokens.js';
 import { escapeHtml, joinLines } from './format.js';
 import { makeLangManager } from './lang.js';
 import { makePasteFlow } from './pasteFlow.js';
+import { makeMyLoads } from './myLoads.js';
 import { t, LANGS, LANG_NAMES } from './i18n.js';
 
 const BROADCAST_CHAT_TYPES = new Set(['group', 'supergroup', 'channel']);
@@ -22,12 +23,18 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   const bot = new Telegraf(config.botToken);
   const lang = makeLangManager({ store });
   const pasteFlow = makePasteFlow({ apiClient, tokens, config });
+  const myLoads = makeMyLoads({ apiClient, tokens });
 
   bot.use(session());
   bot.use(async (ctx, next) => { ctx.lang = await lang.getLang(ctx); return next(); });
 
   const stage = new Scenes.Stage([makePostLoadScene({ apiClient, config }), makeLinkScene({ apiClient, store, tokens })]);
   bot.use(stage.middleware());
+  // Any command other than /cancel ends a half-finished edit, so the next thing typed is never mistaken for its value.
+  bot.use((ctx, next) => {
+    if (ctx.session?.edit && ctx.message?.text?.startsWith('/') && !/^\/cancel\b/.test(ctx.message.text)) delete ctx.session.edit;
+    return next();
+  });
 
   // Keeps the bot's chat list (for broadcasting) in sync with reality: fires whenever the bot's own
   // membership in a chat changes, in either direction. The confirmation message uses the fixed
@@ -172,67 +179,20 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     await ctx.scene.enter('postload', { idToken, member: me.profile });
   });
 
-  // /myloads: everything I've posted, each with a Delete button - the same soft-close the web
-  // app's "Remove" button does (DELETE /api/loads/:id), which also pulls the load back out of every
-  // group/DM it was broadcast to (see broadcaster.js's 'delete' event handling).
-  bot.command('myloads', async (ctx) => {
-    if (ctx.chat.type !== 'private') { await ctx.reply(t(ctx.lang, 'myloads_dm_only')); return; }
-    let idToken;
-    try {
-      idToken = await tokens.getIdToken(ctx.from.id);
-    } catch (err) {
-      await ctx.reply(t(ctx.lang, err instanceof NotLinkedError ? 'postload_not_linked' : 'postload_session_error'));
-      return;
-    }
-    let items;
-    try {
-      ({ items } = await apiClient.listMine(idToken));
-    } catch {
-      await ctx.reply(t(ctx.lang, 'postload_unreachable'));
-      return;
-    }
-    if (!items.length) { await ctx.reply(t(ctx.lang, 'myloads_empty')); return; }
-    await ctx.reply(t(ctx.lang, 'myloads_header', { count: items.length }));
-    for (const l of items.slice(0, 20)) {
-      const rate = l.rateUsd === 0 ? t(ctx.lang, 'msg_negotiable') : `$${Number(l.rateUsd).toLocaleString('en-US')}`;
-      const line = `${escapeHtml(l.originCity)} → ${escapeHtml(l.destCity)} · ${l.pickupDate} · ${rate}`;
-      await ctx.reply(line, { parse_mode: 'HTML', ...Markup.inlineKeyboard([
-        [Markup.button.callback(t(ctx.lang, 'myloads_btn_delete'), `myloads:ask:${l.id}`)],
-      ]) });
-    }
-  });
-
-  bot.action(/^myloads:ask:(\d+)$/, async (ctx) => {
-    await ctx.answerCbQuery();
-    const id = ctx.match[1];
-    const line = ctx.callbackQuery.message.text;
-    await ctx.editMessageText(`${line}\n\n${t(ctx.lang, 'myloads_confirm')}`, { parse_mode: 'HTML', ...Markup.inlineKeyboard([
-      [Markup.button.callback(t(ctx.lang, 'myloads_btn_yes'), `myloads:del:${id}`), Markup.button.callback(t(ctx.lang, 'myloads_btn_no'), 'myloads:cancel')],
-    ]) });
-  });
-
-  bot.action('myloads:cancel', async (ctx) => {
+  // /myloads: everything I've posted as full cards with Edit / Renew / Delete buttons (myLoads.js). Delete is the same soft-close the
+  // web app's "Remove" button does, which also pulls the load back out of every group/DM it was broadcast to (broadcaster.js).
+  bot.command('myloads', (ctx) => myLoads.list(ctx));
+  bot.action(/^myloads:card:(\d+)$/, (ctx) => myLoads.showCard(ctx, ctx.match[1]));
+  bot.action(/^myloads:ask:(\d+)$/, (ctx) => myLoads.askDelete(ctx, ctx.match[1]));
+  bot.action(/^myloads:del:(\d+)$/, (ctx) => myLoads.confirmDelete(ctx, ctx.match[1]));
+  bot.action(/^myloads:renew:(\d+)$/, (ctx) => myLoads.renew(ctx, ctx.match[1]));
+  bot.action(/^myloads:edit:(\d+)$/, (ctx) => myLoads.editMenu(ctx, ctx.match[1]));
+  bot.action(/^myloads:f:(\d+):(\w+)$/, (ctx) => myLoads.pickField(ctx, ctx.match[1], ctx.match[2]));
+  bot.action('myloads:cancel', async (ctx) => { // buttons on older messages
     await ctx.answerCbQuery();
     await ctx.editMessageText(t(ctx.lang, 'myloads_cancelled'));
   });
-
-  bot.action(/^myloads:del:(\d+)$/, async (ctx) => {
-    await ctx.answerCbQuery();
-    const id = Number(ctx.match[1]);
-    let idToken;
-    try {
-      idToken = await tokens.getIdToken(ctx.from.id);
-    } catch (err) {
-      await ctx.editMessageText(t(ctx.lang, err instanceof NotLinkedError ? 'postload_not_linked' : 'postload_session_error'));
-      return;
-    }
-    try {
-      await apiClient.deleteLoad(idToken, id);
-      await ctx.editMessageText(t(ctx.lang, 'myloads_deleted'));
-    } catch {
-      await ctx.editMessageText(t(ctx.lang, 'myloads_delete_failed'));
-    }
-  });
+  bot.command('cancel', (ctx) => myLoads.cancel(ctx));
 
   // ---- AI paste-import: paste or forward a freight post in a DM and the bot reads it with AI ----
   // /paste on its own explains how; "/paste <the whole post>" does it in one message.
@@ -250,7 +210,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   bot.on('text', (ctx) => {
     if (ctx.chat.type !== 'private') return undefined;
     if (ctx.message.text.startsWith('/')) return ctx.reply(t(ctx.lang, 'unknown_command'));
-    return pasteFlow.handleText(ctx);
+    return myLoads.handleEditText(ctx).then((handled) => (handled ? undefined : pasteFlow.handleText(ctx)));
   });
 
   bot.catch((err, ctx) => {

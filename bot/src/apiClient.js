@@ -17,7 +17,9 @@ export function makeApiClient({ baseUrl }) {
   async function request(idToken, method, path, body) {
     const res = await fetch(`${baseUrl}${path}`, {
       method,
-      headers: { 'Content-Type': 'application/json', ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}) },
+      // Content-Type only when there is a body: Fastify answers 400 "Body cannot be empty" to a body-less DELETE that claims to be JSON
+      // (which made the bot's Delete button fail).
+      headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
@@ -43,11 +45,14 @@ export function makeApiClient({ baseUrl }) {
   // makes. Publishes a 'loads'/'delete' event, which broadcaster.js uses to pull the load's messages
   // back out of every group/DM it was sent to.
   const deleteLoad = (idToken, id) => request(idToken, 'DELETE', `/api/loads/${id}`);
+  // Edit (PATCH: only the fields sent change) and "still available" (renew). Both are owner-only on the server.
+  const updateLoad = (idToken, id, patch) => request(idToken, 'PATCH', `/api/loads/${id}`, patch);
+  const renewLoad = (idToken, id) => request(idToken, 'POST', `/api/loads/${id}/renew`, {});
 
   // Phone + 4-digit PIN sign-in (server/src/routes/pin.js): the same door the web app uses. Returns { token, expiresAt }.
   const pinLogin = (phone, pin) => request(null, 'POST', '/api/auth/pin/login', { phone, pin, purpose: 'bot' });
   // Trades a still-valid PIN session for a fresh one, so a linked member never has to /link again just because time passed.
   const refreshSession = (token) => request(token, 'POST', '/api/auth/refresh', {});
 
-  return { getMe, searchCities, createLoad, createLoadsBulk, parseLoads, listMine, deleteLoad, pinLogin, refreshSession };
+  return { getMe, searchCities, createLoad, createLoadsBulk, parseLoads, listMine, deleteLoad, updateLoad, renewLoad, pinLogin, refreshSession };
 }
