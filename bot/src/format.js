@@ -113,7 +113,7 @@ export function formatDraftBlock(draft, idx, lang = 'en') {
   lines.push(`🔧 ${t(lang, `eq_${draft.equip}`)} (${t(lang, draft.fp === 'Partial' ? 'wiz_fp_partial' : 'wiz_fp_full')})`
     + ` · ⚖️ ${Number(draft.weightT)} t${draft.volumeM3 ? ` · ${draft.volumeM3} m³` : ''}`);
   lines.push(`📦 ${escapeHtml(draft.commodity)}`);
-  lines.push(`📅 ${draft.pickupDate} · 💰 ${money(draft.rateUsd, lang)}`);
+  lines.push(`📅 ${draft.pickupDate}${draft.deliveryDate ? ` → ${draft.deliveryDate}` : ''} · 💰 ${money(draft.rateUsd, lang)}`);
   if (draft.notes) lines.push(`📝 ${escapeHtml(draft.notes)}`);
   const contact = [draft.contactName, draft.contactPhone, draft.contactTelegram].filter(Boolean).map(escapeHtml);
   if (contact.length) lines.push(`☎️ ${contact.join(' · ')}`);

@@ -11,10 +11,9 @@ import { randomUUID } from 'node:crypto';
 import { Markup } from 'telegraf';
 import { ApiError } from './apiClient.js';
 import { NotLinkedError } from './tokens.js';
-import { escapeHtml, formatDraftBlock, formatPostedLine, isDraftPostable } from './format.js';
+import { escapeHtml, formatDraftBlock, isDraftPostable } from './format.js';
 import { t } from './i18n.js';
 
-const MAX_TELEGRAM_MESSAGE = 3500; // stay well under Telegram's 4096-char limit with HTML entities
 const MIN_PASTE_CHARS = 8; // matches server/src/routes/ai.js's own minimum - shorter can't be a load
 
 // Spaces out AI calls to a fixed rate, independent of how many people paste at once - keeps this
@@ -50,6 +49,7 @@ export function toLoadBody(draft, member) {
     weightT: draft.weightT,
     volumeM3: draft.volumeM3 ?? undefined,
     pickupDate: draft.pickupDate,
+    deliveryDate: draft.deliveryDate || undefined,
     rateUsd: draft.rateUsd,
     commodity: draft.commodity,
     notes: notes || undefined,
@@ -62,24 +62,34 @@ export function toLoadBody(draft, member) {
 
 const hasContact = (draft, member) => Boolean(draft.contactPhone || draft.contactTelegram || member.phone || member.telegram);
 
-/** Splits one long message into chunks that stay under Telegram's length limit, joined on blank lines. */
-function chunkBlocks(blocks, max = MAX_TELEGRAM_MESSAGE) {
-  const chunks = [];
-  let cur = [];
-  let len = 0;
-  for (const b of blocks) {
-    if (cur.length && len + b.length + 2 > max) { chunks.push(cur.join('\n\n')); cur = []; len = 0; }
-    cur.push(b);
-    len += b.length + 2;
-  }
-  if (cur.length) chunks.push(cur.join('\n\n'));
-  return chunks;
+// What editing a field of a draft changes in the draft's own warnings: a field the member just fixed is no longer a guess.
+const FLAGS_CLEARED_BY = {
+  originCityId: ['origin', 'origin_check', 'same_city'], destCityId: ['dest', 'dest_check', 'same_city'],
+  weightT: ['weight'], pickupDate: ['date'], rateUsd: ['rate'],
+};
+
+export function applyDraftPatch(draft, patch) {
+  Object.assign(draft, patch);
+  const fixed = Object.keys(patch).flatMap((k) => FLAGS_CLEARED_BY[k] ?? []);
+  draft.flags = (draft.flags ?? []).filter((f) => !fixed.includes(f));
+  if (draft.originCityId && draft.originCityId === draft.destCityId && !draft.flags.includes('same_city')) draft.flags.push('same_city');
 }
+
+const batchOf = (nonce) => nonce.slice(0, 8);
+const routeOf = (d) => `${d.originCity || d.originText || '?'} → ${d.destCity || d.destText || '?'}`;
 
 export function makePasteFlow({ apiClient, tokens, config, log = console }) {
   const rateLimiter = makeRateLimiter(config.aiMaxPerMin);
-  const pending = new Map(); // telegramUserId -> { nonce, drafts, member, createdAt }
+  // telegramUserId -> { nonce, drafts, member, createdAt, chatId, msgIds[], footerMsgId } - one open batch per person
+  const pending = new Map();
   const ttlMs = config.pendingTtlMin * 60_000;
+
+  function entryFor(userId, batch) {
+    const entry = pending.get(userId);
+    if (!entry || batchOf(entry.nonce) !== batch) return null;
+    if (Date.now() - entry.createdAt > ttlMs) { pending.delete(userId); return null; }
+    return entry;
+  }
 
   async function requireLinkedApproved(ctx) {
     const idToken = await tokens.getIdToken(ctx.from.id); // throws NotLinkedError
@@ -91,6 +101,86 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     }
     return { idToken, member: me.profile };
   }
+
+  // ---- one message per draft, each with its own Edit / Remove buttons ----
+  function draftView(ctx, entry, idx) {
+    const draft = entry.drafts[idx];
+    const key = `${batchOf(entry.nonce)}.${idx}`;
+    if (draft.removed) {
+      return { text: t(ctx.lang, 'draft_removed', { route: escapeHtml(routeOf(draft)) }), keyboard: Markup.inlineKeyboard([[Markup.button.callback(t(ctx.lang, 'draft_btn_undo'), `pd:undo:${key}`)]]) };
+    }
+    return {
+      text: formatDraftBlock(draft, idx + 1, ctx.lang),
+      keyboard: Markup.inlineKeyboard([[
+        Markup.button.callback(t(ctx.lang, 'draft_btn_edit'), `ed:menu:D${key}`), Markup.button.callback(t(ctx.lang, 'draft_btn_remove'), `pd:rm:${key}`),
+      ]]),
+    };
+  }
+
+  const countPostable = (entry) => entry.drafts.filter((d) => !d.removed && isDraftPostable(d)).length;
+
+  function footerView(ctx, entry) {
+    const live = entry.drafts.filter((d) => !d.removed);
+    const postable = countPostable(entry);
+    const skipped = live.length - postable;
+    let text = t(ctx.lang, 'paste_ready_footer', { postable, total: live.length });
+    if (skipped > 0) text += t(ctx.lang, 'paste_skip_note', { count: skipped });
+    const nonce = entry.nonce;
+    const keyboard = postable > 0
+      ? Markup.inlineKeyboard([
+        [Markup.button.callback(t(ctx.lang, 'paste_btn_post', { count: postable }), `paste:confirm:${nonce}`)],
+        [Markup.button.callback(t(ctx.lang, 'paste_btn_cancel'), `paste:cancel:${nonce}`)],
+      ])
+      : Markup.inlineKeyboard([[Markup.button.callback(t(ctx.lang, 'paste_btn_cancel'), `paste:cancel:${nonce}`)]]);
+    return { text, keyboard };
+  }
+
+  // After any change the bottom message ("Ready to post N of M" + the Post button) shows the new counts.
+  async function refreshFooter(ctx, entry) {
+    if (!entry.footerMsgId) return;
+    const v = footerView(ctx, entry);
+    await ctx.telegram.editMessageText(entry.chatId, entry.footerMsgId, undefined, v.text, { parse_mode: 'HTML', ...v.keyboard }).catch(() => {});
+  }
+
+  // Once the batch is posted or cancelled the Edit / Remove buttons on its messages would act on nothing: take them away.
+  async function clearButtons(ctx, entry) {
+    for (const id of entry.msgIds) {
+      await ctx.telegram.editMessageReplyMarkup?.(entry.chatId, id, undefined, { inline_keyboard: [] }).catch(() => {});
+    }
+  }
+
+  /** How editor.js reads and changes a draft (target "D<batch>.<index>"). */
+  const draftAdapter = {
+    async load(ctx, ref) {
+      const entry = entryFor(ctx.from.id, ref.batch);
+      if (!entry || !entry.drafts[ref.idx]) {
+        const msg = t(ctx.lang, 'paste_expired');
+        if (ctx.callbackQuery) await ctx.editMessageText(msg).catch(() => {}); else await ctx.reply(msg);
+        return null;
+      }
+      return { entry, idx: ref.idx };
+    },
+    view: (ctx, { entry, idx }) => draftView(ctx, entry, idx),
+    async apply(ctx, _ref, item, patch, extra) {
+      applyDraftPatch(item.entry.drafts[item.idx], { ...patch, ...extra });
+      await refreshFooter(ctx, item.entry);
+      return item;
+    },
+  };
+
+  async function setRemoved(ctx, key, removed) {
+    await ctx.answerCbQuery().catch(() => {});
+    const [batch, i] = key.split('.');
+    const entry = entryFor(ctx.from.id, batch);
+    const idx = Number(i);
+    if (!entry || !entry.drafts[idx]) return ctx.editMessageText(t(ctx.lang, 'paste_expired')).catch(() => {});
+    entry.drafts[idx].removed = removed;
+    const v = draftView(ctx, entry, idx);
+    await ctx.editMessageText(v.text, { parse_mode: 'HTML', ...v.keyboard }).catch(() => {});
+    return refreshFooter(ctx, entry);
+  }
+  const handleRemove = (ctx, key) => setRemoved(ctx, key, true);
+  const handleUndo = (ctx, key) => setRemoved(ctx, key, false);
 
   // `textOverride` is the text after "/paste " when the member sends everything in one command.
   async function handleText(ctx, textOverride) {
@@ -125,26 +215,22 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
       return undefined;
     }
 
-    const postable = loads.filter(isDraftPostable).length;
     const nonce = randomUUID();
-    pending.set(ctx.from.id, { nonce, drafts: loads, member, createdAt: Date.now() });
+    const entry = { nonce, drafts: loads.map((d) => ({ ...d })), member, createdAt: Date.now(), chatId: ctx.chat.id, msgIds: [], footerMsgId: null };
+    pending.set(ctx.from.id, entry);
 
-    const blocks = loads.map((d, i) => formatDraftBlock(d, i + 1, ctx.lang));
-    const header = t(ctx.lang, 'paste_found_header', { count: loads.length }) + (truncated ? `\n${t(ctx.lang, 'paste_truncated_note', { max: loads.length })}` : '');
-    const chunks = chunkBlocks(blocks);
+    const header = `${t(ctx.lang, 'paste_found_header', { count: loads.length })}${truncated ? `\n${t(ctx.lang, 'paste_truncated_note', { max: loads.length })}` : ''}\n${t(ctx.lang, 'paste_review_hint')}`;
     await ctx.telegram.editMessageText(ctx.chat.id, waitMsg.message_id, undefined, header).catch(() => {});
-    for (const chunk of chunks) await ctx.reply(chunk, { parse_mode: 'HTML' });
-
-    const skipped = loads.length - postable;
-    let footer = t(ctx.lang, 'paste_ready_footer', { postable, total: loads.length });
-    if (skipped > 0) footer += t(ctx.lang, 'paste_skip_note', { count: skipped });
-    const keyboard = postable > 0
-      ? Markup.inlineKeyboard([
-          [Markup.button.callback(t(ctx.lang, 'paste_btn_post', { count: postable }), `paste:confirm:${nonce}`)],
-          [Markup.button.callback(t(ctx.lang, 'paste_btn_cancel'), `paste:cancel:${nonce}`)],
-        ])
-      : Markup.inlineKeyboard([[Markup.button.callback(t(ctx.lang, 'paste_btn_cancel'), `paste:cancel:${nonce}`)]]);
-    return ctx.reply(footer, { parse_mode: 'HTML', ...keyboard });
+    // Each load is its own message, so each can be edited or removed on its own.
+    for (let i = 0; i < entry.drafts.length; i += 1) {
+      const v = draftView(ctx, entry, i);
+      const sent = await ctx.reply(v.text, { parse_mode: 'HTML', ...v.keyboard });
+      entry.msgIds.push(sent?.message_id);
+    }
+    const f = footerView(ctx, entry);
+    const footer = await ctx.reply(f.text, { parse_mode: 'HTML', ...f.keyboard });
+    entry.footerMsgId = footer?.message_id;
+    return undefined;
   }
 
   function takePending(ctx, nonce) {
@@ -161,7 +247,8 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     pending.delete(ctx.from.id);
 
     const { drafts, member } = entry;
-    const postableDrafts = drafts.filter(isDraftPostable);
+    const live = drafts.filter((d) => !d.removed);
+    const postableDrafts = live.filter(isDraftPostable);
     if (!postableDrafts.length) return ctx.editMessageText(t(ctx.lang, 'paste_nothing_postable'));
     if (postableDrafts.some((d) => !hasContact(d, member))) return ctx.editMessageText(t(ctx.lang, 'paste_contact_missing'));
 
@@ -174,12 +261,12 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
 
     try {
       const { items } = await apiClient.createLoadsBulk(idToken, postableDrafts.map((d) => toLoadBody(d, member)));
-      const plural = ctx.lang === 'en' && items.length !== 1 ? 's' : '';
-      const lines = [t(ctx.lang, 'paste_posted_header', { count: items.length, plural })];
-      for (const row of items) lines.push(formatPostedLine(row, ctx.lang, config.webBaseUrl, config.webUrlIsPublic));
-      const skipped = drafts.length - postableDrafts.length;
+      await clearButtons(ctx, entry);
+      // No list here: every posted load arrives as its own message (with Edit / Renew / Delete) from the broadcaster, right behind this one.
+      const lines = [t(ctx.lang, 'paste_posted_summary', { count: items.length })];
+      const skipped = live.length - postableDrafts.length;
       if (skipped > 0) lines.push(t(ctx.lang, 'paste_skip_note', { count: skipped }).trim());
-      return ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML' });
+      return ctx.editMessageText(lines.join('\n\n'), { parse_mode: 'HTML' });
     } catch (err) {
       if (err instanceof ApiError && err.code === 'subscription_required') return ctx.editMessageText(t(ctx.lang, 'paste_subscription_required'));
       if (err instanceof ApiError) {
@@ -193,9 +280,10 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
 
   async function handleCancel(ctx, nonce) {
     await ctx.answerCbQuery();
-    if (takePending(ctx, nonce)) pending.delete(ctx.from.id);
+    const entry = takePending(ctx, nonce);
+    if (entry) { pending.delete(ctx.from.id); await clearButtons(ctx, entry); }
     return ctx.editMessageText(t(ctx.lang, 'paste_cancelled'));
   }
 
-  return { handleText, handleConfirm, handleCancel };
+  return { handleText, handleConfirm, handleCancel, handleRemove, handleUndo, draftAdapter };
 }

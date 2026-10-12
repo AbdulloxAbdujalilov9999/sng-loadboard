@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Telegram } from 'telegraf';
 import { makeBot } from '../src/bot.js';
-import { parseEditValue } from '../src/myLoads.js';
+import { parseEditValue } from '../src/editor.js';
 import { formatLoadMessage, formatNotes } from '../src/format.js';
 
 const NOW = new Date('2026-10-12T10:00:00Z'); // 15:00 in Tashkent
@@ -68,6 +68,13 @@ function setup() {
     updateLoad: async (_t, id, patch) => { calls.push(['update', id, patch]); if (patch.rateUsd === 999999) { const { ApiError } = await import('../src/apiClient.js'); throw new ApiError(400, 'validation_error', 'bad', [{ path: 'rateUsd', code: 'too_big' }]); } loads = loads.map((l) => (l.id === id ? { ...l, ...patch } : l)); return loads.find((l) => l.id === id); },
     renewLoad: async (_t, id) => { calls.push(['renew', id]); return loads.find((l) => l.id === id); },
     deleteLoad: async (_t, id) => { calls.push(['delete', id]); loads = loads.filter((l) => l.id !== id); },
+    searchCities: async (_t, q) => (/^tom/i.test(q) ? { items: [{ id: 5, label: 'Tomsk, RU' }, { id: 6, label: 'Tomsk Oblast, RU' }] } : { items: [] }),
+    getMe: async () => ({ profile: { id: 1, status: 'approved', company: 'Abdulloh', phone: '+998938747080', contactName: 'Abdulloh' } }),
+    parseLoads: async () => ({ truncated: false, loads: [
+      { originCityId: 1, originCity: 'Perm, RU', destCityId: 2, destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 22, volumeM3: 120, pickupDate: '2026-10-12', rateUsd: 0, commodity: 'Ламинат', notes: 'Срочно', contactPhone: '+998938747080', contactTelegram: '', contactName: '', flags: ['date'] },
+      { originCityId: null, originCity: '', originText: 'Питр', destCityId: 2, destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 20, volumeM3: null, pickupDate: '2026-10-13', rateUsd: 500, commodity: 'Тент', notes: '', contactPhone: '', contactTelegram: '', contactName: '', flags: ['origin'] },
+    ] }),
+    createLoadsBulk: async (_t, bodies) => { calls.push(['bulk', bodies]); return { items: bodies.map((b, i) => ({ id: 100 + i, originCity: 'x', destCity: 'y', pickupDate: b.pickupDate, rateUsd: b.rateUsd })) }; },
   };
   const config = { botToken: '123:test', broadcastLang: 'uz', joinChannel: '', joinGroup: '', aiMaxPerMin: 600, pendingTtlMin: 15, webBaseUrl: 'https://x', webUrlIsPublic: true };
   const store = { getLanguage: async () => null, setLanguage: async () => {}, getLinkByTelegramUserId: async () => null, removeLink: async () => false };
@@ -92,7 +99,7 @@ test('/myloads shows the whole load with Edit, Renew and Delete buttons', async 
   assert.match(card.text, /22 t · 120 m³/);
   assert.match(card.text, /Kelishiladi/);
   assert.match(card.text, /📞 \+998938747080/);
-  assert.deepEqual(buttons(card), ['myloads:edit:7', 'myloads:renew:7', 'myloads:ask:7']);
+  assert.deepEqual(buttons(card), ['ed:menu:L7', 'myloads:renew:7', 'myloads:ask:7']);
 });
 
 test('delete asks first and shows the whole load, then removes it', async () => {
@@ -103,7 +110,7 @@ test('delete asks first and shows the whole load, then removes it', async () => 
   assert.match(ask.text, /Bu yukni birjadan/);
   assert.deepEqual(buttons(ask), ['myloads:del:7', 'myloads:card:7']);
   await press('myloads:card:7');
-  assert.ok(buttons(last('editMessageText')).includes('myloads:edit:7'), '"No" brings the card back');
+  assert.ok(buttons(last('editMessageText')).includes('ed:menu:L7'), '"No" brings the card back');
   await press('myloads:del:7');
   assert.deepEqual(calls.at(-1), ['delete', 7]);
   assert.match(last('editMessageText').text, /Oʻchirildi: Perm, RU → Andijan, UZ/);
@@ -113,31 +120,34 @@ test('delete asks first and shows the whole load, then removes it', async () => 
 
 test('edit: pick a field, type the new value, see the updated card; /cancel and other commands drop the edit', async () => {
   const { say, press, last, calls, sent } = setup();
-  await press('myloads:edit:7');
-  assert.ok(sent.some((s) => s.method === 'editMessageText' && /Nimani oʻzgartiramiz/.test(s.text)));
-  await press('myloads:f:7:rate');
+  await press('ed:menu:L7');
+  const menu = sent.find((s) => s.method === 'editMessageText' && /Nimani oʻzgartiramiz/.test(s.text));
+  assert.ok(menu);
+  assert.equal((menu.reply_markup.inline_keyboard.flat().length), 15, 'every field of the platform\'s edit window + Back');
+  await press('ed:f:L7:rate');
   assert.match(last('sendMessage').text, /Yangi narxni/);
   await say('abc');
   assert.match(last('sendMessage').text, /qabul qilinmadi/);
   assert.equal(calls.length, 0, 'a bad value is never sent');
   await say('1500');
   assert.deepEqual(calls.at(-1), ['update', 7, { rateUsd: 1500 }]);
-  assert.match(last('sendMessage').text, /Saqlandi[\s\S]*\$1,500/);
+  assert.match(last('sendMessage').text, /Saqlandi/);
+  assert.match(last('editMessageText').text, /\$1,500/, 'the card the person pressed Edit on is updated in place');
   // the edit is over: plain text is a paste again, not a value
   const n = sent.length; await say('1600');
   assert.ok(!calls.some((c) => c[2]?.rateUsd === 1600));
   assert.ok(sent.length > n);
   // /cancel
-  await press('myloads:f:7:date');
+  await press('ed:f:L7:date');
   await say('/cancel');
   assert.match(last('sendMessage').text, /Bekor qilindi/);
   // another command also ends the edit
-  await press('myloads:f:7:weight');
+  await press('ed:f:L7:weight');
   await say('/mystatus');
   await say('25');
   assert.ok(!calls.some((c) => c[2]?.weightT === 25));
   // the server's own rejection is shown and the edit stays open
-  await press('myloads:f:7:rate');
+  await press('ed:f:L7:rate');
   await say('999999');
   assert.match(last('sendMessage').text, /rateUsd: too_big/);
   await say('800');
@@ -149,4 +159,75 @@ test('renew keeps the load and says so', async () => {
   await press('myloads:renew:7');
   assert.deepEqual(calls.at(-1), ['renew', 7]);
   assert.match(last('editMessageText').text, /Uzaytirildi/);
+});
+
+test('edit offers the truck type and full/partial as buttons, and finds cities by name', async () => {
+  const { say, press, last, calls, buttons, sent } = setup();
+  await press('ed:f:L7:equip');
+  assert.deepEqual(buttons(last('editMessageText')).filter((b) => b.startsWith('ed:set')), ['ed:set:L7:equip:T', 'ed:set:L7:equip:R', 'ed:set:L7:equip:F', 'ed:set:L7:equip:V', 'ed:set:L7:equip:AC']);
+  await press('ed:set:L7:equip:R');
+  assert.deepEqual(calls.at(-1), ['update', 7, { equip: 'R' }]);
+  await press('ed:set:L7:fp:Partial');
+  assert.deepEqual(calls.at(-1), ['update', 7, { fp: 'Partial' }]);
+  await press('ed:set:L7:equip:ZZ');
+  assert.notDeepEqual(calls.at(-1), ['update', 7, { equip: 'ZZ' }], 'only the offered values are accepted');
+
+  await press('ed:f:L7:origin');
+  await say('tomsk');
+  assert.deepEqual(buttons(last('sendMessage')).filter((b) => b.startsWith('ed:city')), ['ed:city:5', 'ed:city:6']);
+  await press('ed:city:5');
+  assert.deepEqual(calls.at(-1), ['update', 7, { originCityId: 5 }]);
+  await press('ed:f:L7:dest');
+  await say('nowhere');
+  assert.match(last('sendMessage').text, /Bunday shahar topilmadi/);
+
+  await press('ed:f:L7:volume'); await say('82');
+  assert.deepEqual(calls.at(-1), ['update', 7, { volumeM3: 82 }]);
+  await press('ed:f:L7:delivery'); await say('-');
+  assert.deepEqual(calls.at(-1), ['update', 7, { deliveryDate: null }]);
+  await press('ed:f:L7:name'); await say('Abdulloh Karimov');
+  assert.deepEqual(calls.at(-1), ['update', 7, { contactName: 'Abdulloh Karimov' }]);
+  assert.ok(sent.length > 0);
+});
+
+test('a pasted post: every load is its own message with Edit / Remove; fixes and removals show in the bottom message; posting sends only what is left', async () => {
+  const { say, press, calls, sent, buttons } = setup();
+  await say('/paste Perm Andijan Ламинат 22 тонн\nПитр Андижан Тент 20 т 500');
+  const texts = sent.filter((s) => s.method === 'sendMessage');
+  const drafts = texts.filter((s) => /^<b>#\d/.test(s.text));
+  assert.equal(drafts.length, 2, 'one message per load');
+  assert.deepEqual(buttons(drafts[0]).map((b) => b.split(':')[0] + ':' + b.split(':')[1]), ['ed:menu', 'pd:rm']);
+  const footer = texts.at(-1);
+  assert.match(footer.text, /1 ta|Joylashga tayyor/);
+  const footerCount = () => sent.filter((s) => s.method === 'editMessageText' && /Joylashga tayyor/.test(s.text)).at(-1)?.text ?? footer.text;
+  assert.match(footerCount(), /2 tadan 1 ta/, 'the second load has no city: 1 of 2 can be posted');
+
+  // fix the second load's city -> both can be posted
+  const key2 = buttons(drafts[1])[0].replace('ed:menu:', '');
+  await press(`ed:f:${key2}:origin`);
+  await say('tomsk');
+  await press('ed:city:5');
+  assert.match(footerCount(), /2 tadan 2 ta/, 'the bottom message follows the fix');
+  const fixed = sent.filter((s) => s.method === 'editMessageText' && /Tomsk, RU/.test(s.text) && !/Joylash/.test(s.text)).at(-1);
+  assert.ok(fixed, 'the load\'s own message shows the fix');
+
+  // edit the first load's rate, then remove the second
+  const key1 = buttons(drafts[0])[0].replace('ed:menu:', '');
+  await press(`ed:f:${key1}:rate`);
+  await say('900');
+  await press(`pd:rm:${key2.slice(1)}`);
+  assert.match(footerCount(), /1 tadan 1 ta/);
+  assert.ok(sent.some((s) => s.method === 'editMessageText' && /olib tashlandi/i.test(s.text)));
+
+  // post
+  const confirm = buttons(sent.filter((s) => s.method === 'editMessageText' && /Joylashga tayyor/.test(s.text)).at(-1)).find((b) => b.startsWith('paste:confirm'));
+  await press(confirm);
+  const bulk = calls.find((c) => c[0] === 'bulk');
+  assert.equal(bulk[1].length, 1, 'only the load that is still in the batch');
+  assert.equal(bulk[1][0].rateUsd, 900, 'with the fixed rate');
+  const summary = sent.filter((s) => s.method === 'editMessageText').at(-1).text;
+  assert.match(summary, /1 ta yuk joylandi/);
+  assert.doesNotMatch(summary, /Perm/, 'a short summary, not a list');
+  await press(`pd:rm:${key1.slice(1)}`);
+  assert.match(sent.filter((s) => s.method === 'editMessageText').at(-1).text, /eskirdi|expired/i, 'buttons of a finished batch do nothing');
 });

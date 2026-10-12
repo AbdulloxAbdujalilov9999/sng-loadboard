@@ -13,6 +13,7 @@ import { escapeHtml, joinLines } from './format.js';
 import { makeLangManager } from './lang.js';
 import { makePasteFlow } from './pasteFlow.js';
 import { makeMyLoads } from './myLoads.js';
+import { makeEditor } from './editor.js';
 import { t, LANGS, LANG_NAMES } from './i18n.js';
 
 const BROADCAST_CHAT_TYPES = new Set(['group', 'supergroup', 'channel']);
@@ -24,6 +25,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   const lang = makeLangManager({ store });
   const pasteFlow = makePasteFlow({ apiClient, tokens, config });
   const myLoads = makeMyLoads({ apiClient, tokens });
+  const editor = makeEditor({ apiClient, tokens, draftAdapter: pasteFlow.draftAdapter });
 
   bot.use(session());
   bot.use(async (ctx, next) => { ctx.lang = await lang.getLang(ctx); return next(); });
@@ -186,13 +188,22 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   bot.action(/^myloads:ask:(\d+)$/, (ctx) => myLoads.askDelete(ctx, ctx.match[1]));
   bot.action(/^myloads:del:(\d+)$/, (ctx) => myLoads.confirmDelete(ctx, ctx.match[1]));
   bot.action(/^myloads:renew:(\d+)$/, (ctx) => myLoads.renew(ctx, ctx.match[1]));
-  bot.action(/^myloads:edit:(\d+)$/, (ctx) => myLoads.editMenu(ctx, ctx.match[1]));
-  bot.action(/^myloads:f:(\d+):(\w+)$/, (ctx) => myLoads.pickField(ctx, ctx.match[1], ctx.match[2]));
+  // editing - the same buttons under a posted load and under a draft that is still being reviewed (target L<id> / D<batch>.<n>)
+  bot.action(/^ed:menu:([LD][\w.]+)$/, (ctx) => editor.menu(ctx, ctx.match[1]));
+  bot.action(/^ed:back:([LD][\w.]+)$/, (ctx) => editor.back(ctx, ctx.match[1]));
+  bot.action(/^ed:f:([LD][\w.]+):(\w+)$/, (ctx) => editor.pick(ctx, ctx.match[1], ctx.match[2]));
+  bot.action(/^ed:set:([LD][\w.]+):(\w+):(\w+)$/, (ctx) => editor.choose(ctx, ctx.match[1], ctx.match[2], ctx.match[3]));
+  bot.action(/^ed:city:(\d+)$/, (ctx) => editor.city(ctx, ctx.match[1]));
+  bot.action('ed:cancel', (ctx) => editor.cancel(ctx));
+  bot.action(/^myloads:edit:(\d+)$/, (ctx) => editor.menu(ctx, `L${ctx.match[1]}`)); // buttons on older messages
+  bot.action(/^myloads:f:(\d+):(\w+)$/, (ctx) => editor.pick(ctx, `L${ctx.match[1]}`, ctx.match[2]));
+  bot.action(/^pd:rm:([\w.]+)$/, (ctx) => pasteFlow.handleRemove(ctx, ctx.match[1]));
+  bot.action(/^pd:undo:([\w.]+)$/, (ctx) => pasteFlow.handleUndo(ctx, ctx.match[1]));
   bot.action('myloads:cancel', async (ctx) => { // buttons on older messages
     await ctx.answerCbQuery();
     await ctx.editMessageText(t(ctx.lang, 'myloads_cancelled'));
   });
-  bot.command('cancel', (ctx) => myLoads.cancel(ctx));
+  bot.command('cancel', (ctx) => editor.cancel(ctx));
 
   // ---- AI paste-import: paste or forward a freight post in a DM and the bot reads it with AI ----
   // /paste on its own explains how; "/paste <the whole post>" does it in one message.
@@ -210,7 +221,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   bot.on('text', (ctx) => {
     if (ctx.chat.type !== 'private') return undefined;
     if (ctx.message.text.startsWith('/')) return ctx.reply(t(ctx.lang, 'unknown_command'));
-    return myLoads.handleEditText(ctx).then((handled) => (handled ? undefined : pasteFlow.handleText(ctx)));
+    return editor.handleText(ctx).then((handled) => (handled ? undefined : pasteFlow.handleText(ctx)));
   });
 
   bot.catch((err, ctx) => {

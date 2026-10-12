@@ -7,6 +7,7 @@
 // `publish()` call in server/src/events.js.
 import pg from 'pg';
 import { formatLoadMessage, escapeHtml, joinLines } from './format.js';
+import { loadKeyboard } from './editor.js';
 import { t } from './i18n.js';
 
 const CHANNEL = 'sng_events';
@@ -26,10 +27,10 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
 
   // Telegram caps a bot at ~20 messages a minute per group. Past that it answers 429 with how long to wait;
   // we wait exactly that long and try again (a member posting 40 loads in one go must not lose broadcasts).
-  async function sendWithRetry(chatId, text) {
+  async function sendWithRetry(chatId, text, extra = {}) {
     for (let attempt = 0; ; attempt += 1) {
       try {
-        return await bot.telegram.sendMessage(chatId, text, { parse_mode: 'HTML' });
+        return await bot.telegram.sendMessage(chatId, text, { parse_mode: 'HTML', ...extra });
       } catch (err) {
         if (err?.response?.error_code !== 429 || attempt >= 4) throw err;
         const waitS = Number(err.response.parameters?.retry_after ?? 5);
@@ -68,7 +69,9 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     const chatId = await store.getTelegramUserIdByMemberId(ownerMemberId);
     if (!chatId) return;
     try {
-      const sent = await sendWithRetry(chatId, text);
+      // Each load the poster gets in their own chat carries its own Edit / Renew / Delete buttons (editor.js, myLoads.js).
+      const lang = (await store.getLanguage?.(chatId)) ?? config.broadcastLang;
+      const sent = await sendWithRetry(chatId, text, loadKeyboard(lang, loadId));
       if (sent?.message_id != null) {
         await store.saveSentMessage({ loadId, chatId, messageId: sent.message_id })
           .catch((err) => log.warn?.(`tracking message for load ${loadId} in ${chatId} failed: ${err.message}`));

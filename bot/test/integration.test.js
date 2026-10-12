@@ -148,11 +148,14 @@ test('AI paste in the main bot: paste a freight post -> review -> one tap posts 
   assert.ok(review.extra?.reply_markup, `no review keyboard: ${JSON.stringify([sent.map((x) => x.msg), edits])}`);
   const confirmData = review.extra.reply_markup.inline_keyboard[0][0].callback_data;
   assert.match(confirmData, /^paste:confirm:/);
-  assert.ok(sent.some((s) => /Tomsk, RU → Tashkent, UZ/.test(s.msg)), 'the draft is shown for review');
+  const draftMsg = sent.find((s) => /Tomsk, RU → Tashkent, UZ/.test(s.msg));
+  assert.ok(draftMsg, 'the draft is shown for review');
+  assert.deepEqual(draftMsg.extra.reply_markup.inline_keyboard[0].map((b) => b.callback_data.split(':')[0] + ':' + b.callback_data.split(':')[1]), ['ed:menu', 'pd:rm'], 'each load has its own Edit and Remove buttons');
   assert.equal((await env.pool.query("SELECT count(*)::int AS n FROM loads WHERE status = 'active'")).rows[0].n, before, 'nothing is posted before the tap');
 
   await flow.handleConfirm(ctx, confirmData.split(':')[2]);
-  assert.match(edits.at(-1), /Posted 1 load/);
+  assert.match(edits.at(-1), /1 load\(s\) posted/);
+  assert.doesNotMatch(edits.at(-1), /→/, 'the confirmation is a short summary, not a list of loads');
   assert.equal((await env.pool.query("SELECT count(*)::int AS n FROM loads WHERE status = 'active'")).rows[0].n, before + 1);
   await flow.handleConfirm(ctx, confirmData.split(':')[2]); // a second tap on the same button posts nothing more
   assert.match(edits.at(-1), /expired/i);
@@ -181,4 +184,28 @@ test('/myloads edit + renew go through the real API: only the owner, only valid 
   assert.equal(renewed.id, made.id);
   await api.deleteLoad(token, made.id);
   await assert.rejects(api.renewLoad(token, made.id), (e) => e instanceof ApiError && e.status === 404);
+});
+
+test('the copy of a load the poster gets in their own chat carries Edit / Renew / Delete; group copies stay plain', async () => {
+  const sent = [];
+  const bot = { telegram: { sendMessage: async (chatId, text, extra) => { sent.push({ chatId, text, extra }); return { message_id: sent.length }; } } };
+  const store = {
+    listActiveChatIds: async () => [111], markChatRemoved: async () => {}, getTelegramUserIdByMemberId: async () => 999,
+    saveSentMessage: async () => {}, listSentMessages: async () => [], deleteSentMessages: async () => {}, getLanguage: async () => 'uz',
+  };
+  const broadcaster = makeBroadcaster({
+    config: { databaseUrl: env.config.databaseUrl, broadcastSpacingMs: 0, broadcastLang: 'uz', webBaseUrl: 'https://sng.example', webUrlIsPublic: true },
+    pool: env.pool, store, bot, log: { warn() {}, error() {} }, sleep: async () => {},
+  });
+  await broadcaster.start();
+  try {
+    const posted = await env.as('poster@test.com').post('/api/loads', validLoad(cityA, cityB));
+    assert.ok(await waitFor(() => sent.length === 2));
+    const group = sent.find((s) => s.chatId === 111);
+    const own = sent.find((s) => s.chatId === 999);
+    assert.equal(group.extra.reply_markup, undefined, 'nobody else gets buttons');
+    const data = own.extra.reply_markup.inline_keyboard.flat().map((b) => b.callback_data);
+    assert.deepEqual(data, [`ed:menu:L${posted.json.id}`, `myloads:renew:${posted.json.id}`, `myloads:ask:${posted.json.id}`]);
+    assert.match(own.extra.reply_markup.inline_keyboard[0][0].text, /Tahrirlash/);
+  } finally { await broadcaster.stop(); }
 });
