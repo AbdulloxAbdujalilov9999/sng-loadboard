@@ -14,6 +14,7 @@ import { makeLangManager } from './lang.js';
 import { makePasteFlow } from './pasteFlow.js';
 import { makeMyLoads } from './myLoads.js';
 import { makeEditor } from './editor.js';
+import { MENU_TEXTS, mainKeyboard, menuAction } from './menu.js';
 import { t, LANGS, LANG_NAMES } from './i18n.js';
 
 const BROADCAST_CHAT_TYPES = new Set(['group', 'supergroup', 'channel']);
@@ -29,6 +30,13 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
 
   bot.use(session());
   bot.use(async (ctx, next) => { ctx.lang = await lang.getLang(ctx); return next(); });
+
+  // A tap on a menu button while a dialogue is open (the step-by-step posting, linking, an edit) ends that dialogue: the button text
+  // must never be taken as the answer to its question.
+  bot.use((ctx, next) => {
+    if (menuAction(ctx.message?.text) && ctx.session) { ctx.session.__scenes = {}; delete ctx.session.edit; }
+    return next();
+  });
 
   const stage = new Scenes.Stage([makePostLoadScene({ apiClient, config }), makeLinkScene({ apiClient, store, tokens })]);
   bot.use(stage.middleware());
@@ -58,23 +66,57 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   // format.js's joinLines.
   const welcomeText = (lang) => {
     const join = joinLines(config, lang);
-    const text = `${t(lang, 'welcome')}\n\n${t(lang, 'welcome_paste')}`;
+    const text = t(lang, 'welcome');
     return join ? `${text}\n\n${join}` : text;
   };
-  bot.start((ctx) => ctx.reply(welcomeText(ctx.lang)));
-  bot.help((ctx) => ctx.reply(welcomeText(ctx.lang)));
+  const isPrivate = (ctx) => ctx.chat?.type === 'private';
+  // The menu keyboard comes with the welcome message (and stays at the bottom of the chat from then on).
+  const sendWelcome = (ctx) => ctx.reply(welcomeText(ctx.lang), isPrivate(ctx) ? mainKeyboard(ctx.lang) : {});
+  bot.start(sendWelcome);
+  bot.help(sendWelcome);
 
-  bot.command('language', async (ctx) => {
-    await ctx.reply(t(ctx.lang, 'language_prompt'), Markup.inlineKeyboard(
-      LANGS.map((code) => [Markup.button.callback(LANG_NAMES[code], `lang:${code}`)]),
-    ));
-  });
+  const openLanguage = (ctx) => ctx.reply(t(ctx.lang, 'language_prompt'), Markup.inlineKeyboard(
+    LANGS.map((code) => [Markup.button.callback(LANG_NAMES[code], `lang:${code}`)]),
+  ));
+  bot.command('language', openLanguage);
   bot.action(/^lang:(en|ru|uz)$/, async (ctx) => {
     await ctx.answerCbQuery();
     const code = ctx.match[1];
     await lang.setLang(ctx.from.id, code);
     await ctx.editMessageText(t(code, 'language_set'));
+    if (ctx.chat?.type === 'private') await ctx.reply(t(code, 'menu_ready'), mainKeyboard(code)); // the buttons follow the new language
   });
+
+  // "My account": the link status with the buttons that change it (connect / disconnect), instead of /link, /mystatus and /unlink.
+  async function openAccount(ctx) {
+    if (!isPrivate(ctx)) { await ctx.reply(t(ctx.lang, 'link_dm_only')); return; }
+    const link = await store.getLinkByTelegramUserId(ctx.from.id);
+    if (!link) {
+      await ctx.reply(t(ctx.lang, 'account_none'), Markup.inlineKeyboard([
+        [Markup.button.callback(t(ctx.lang, 'acct_btn_link'), 'acct:link')],
+        [Markup.button.callback(t(ctx.lang, 'acct_btn_linkemail'), 'acct:linkemail')],
+      ]));
+      return;
+    }
+    await ctx.reply(t(ctx.lang, 'account_linked', {
+      company: escapeHtml(link.company), login: escapeHtml(loginOf(link.email)), status: t(ctx.lang, `status_${link.member_status}`),
+    }), { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback(t(ctx.lang, 'acct_btn_unlink'), 'acct:unlink')]]) });
+  }
+  bot.action('acct:link', async (ctx) => { await ctx.answerCbQuery(); if (isPrivate(ctx)) await ctx.scene.enter('link'); });
+  bot.action('acct:linkemail', async (ctx) => { await ctx.answerCbQuery(); await ctx.reply(t(ctx.lang, 'link_email_usage')); });
+  bot.action('acct:unlink', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.editMessageText(t(ctx.lang, 'acct_unlink_ask'), Markup.inlineKeyboard([[
+      Markup.button.callback(t(ctx.lang, 'acct_btn_yes'), 'acct:unlinkyes'), Markup.button.callback(t(ctx.lang, 'acct_btn_no'), 'acct:keep'),
+    ]]));
+  });
+  bot.action('acct:unlinkyes', async (ctx) => {
+    await ctx.answerCbQuery();
+    const removed = await store.removeLink(ctx.from.id);
+    tokens.invalidate(ctx.from.id);
+    await ctx.editMessageText(t(ctx.lang, removed ? 'unlink_done' : 'unlink_none'));
+  });
+  bot.action('acct:keep', async (ctx) => { await ctx.answerCbQuery(); await ctx.editMessageText(t(ctx.lang, 'acct_kept')); });
 
   // /link: phone number + 4-digit PIN (the ones from the website). Without arguments the bot asks for them one by one;
   // "/link +998901234567 1234" does it in one message.
@@ -87,7 +129,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     const phone = m && normalizePhone(m[1]);
     if (!phone) { await ctx.reply(t(ctx.lang, 'link_usage')); return; }
     const r = await performLink({ apiClient, store, tokens, from: ctx.from, phone, pin: m[2] });
-    if (r.ok) await ctx.reply(t(ctx.lang, 'link_success', { company: escapeHtml(r.company) }), { parse_mode: 'HTML' });
+    if (r.ok) await ctx.reply(t(ctx.lang, 'link_success', { company: escapeHtml(r.company) }), { parse_mode: 'HTML', ...mainKeyboard(ctx.lang) });
     else await ctx.reply(linkFailureText(ctx.lang, r));
   });
 
@@ -132,7 +174,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
       memberId: me.profile.id, telegramUserId: ctx.from.id, telegramUsername: ctx.from.username || '', refreshToken: signIn.refreshToken,
     });
     tokens.invalidate(ctx.from.id);
-    await ctx.reply(t(ctx.lang, 'link_success', { company: escapeHtml(me.profile.company) }), { parse_mode: 'HTML' });
+    await ctx.reply(t(ctx.lang, 'link_success', { company: escapeHtml(me.profile.company) }), { parse_mode: 'HTML', ...mainKeyboard(ctx.lang) });
   });
 
   bot.command('unlink', async (ctx) => {
@@ -149,7 +191,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     }), { parse_mode: 'HTML' });
   });
 
-  bot.command('postload', async (ctx) => {
+  const startPostload = async (ctx) => {
     if (ctx.chat.type !== 'private') {
       await ctx.reply(t(ctx.lang, 'postload_dm_only'));
       return;
@@ -179,7 +221,8 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
       return;
     }
     await ctx.scene.enter('postload', { idToken, member: me.profile });
-  });
+  };
+  bot.command('postload', startPostload);
 
   // /myloads: everything I've posted as full cards with Edit / Renew / Delete buttons (myLoads.js). Delete is the same soft-close the
   // web app's "Remove" button does, which also pulls the load back out of every group/DM it was broadcast to (broadcaster.js).
@@ -213,6 +256,16 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     if (!text) { await ctx.reply(t(ctx.lang, 'paste_howto')); return undefined; }
     return pasteFlow.handleText(ctx, text);
   });
+  // The bottom menu: every button is one of the commands above, without typing it.
+  const MENU_HANDLERS = {
+    ai: (ctx) => ctx.reply(t(ctx.lang, 'paste_howto')),
+    post: startPostload,
+    myloads: (ctx) => myLoads.list(ctx),
+    account: openAccount,
+    language: openLanguage,
+    help: sendWelcome,
+  };
+  bot.hears(MENU_TEXTS, (ctx) => (isPrivate(ctx) ? MENU_HANDLERS[menuAction(ctx.message.text)](ctx) : undefined));
   bot.action(/^paste:confirm:([0-9a-f-]+)$/, (ctx) => pasteFlow.handleConfirm(ctx, ctx.match[1]));
   bot.action(/^paste:cancel:([0-9a-f-]+)$/, (ctx) => pasteFlow.handleCancel(ctx, ctx.match[1]));
   // Any plain text in a DM that is not a command and not inside a scene (/link, /postload answers go to the scene

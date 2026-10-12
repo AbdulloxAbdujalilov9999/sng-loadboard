@@ -1,6 +1,7 @@
 // /link: connect this Telegram account to an SNG ONE member with the phone number and the 4-6 digit password the member chose
 // on the website. (/linkemail keeps the older e-mail + password way, see bot.js.) The PIN message is deleted at once,
 // and the server locks PIN sign-in for a phone number after 5 wrong tries, so the bot adds no new way to guess it.
+import { mainKeyboard } from './menu.js';
 import { Scenes, Markup } from 'telegraf';
 import { ApiError } from './apiClient.js';
 import { escapeHtml } from './format.js';
@@ -50,13 +51,13 @@ export function makeLinkScene({ apiClient, store, tokens }) {
     await ctx.reply(t(ctx.lang, 'link_ask_phone'), Markup.keyboard([[Markup.button.contactRequest(t(ctx.lang, 'link_share_phone'))]]).oneTime().resize());
   });
 
-  const finish = (ctx, message) => ctx.reply(message, { parse_mode: 'HTML', ...Markup.removeKeyboard() }).then(() => ctx.scene.leave());
+  const finish = (ctx, message) => ctx.reply(message, { parse_mode: 'HTML', ...mainKeyboard(ctx.lang) }).then(() => ctx.scene.leave());
   scene.command('cancel', (ctx) => finish(ctx, t(ctx.lang, 'link_cancelled')));
 
   async function askPin(ctx, phone) {
     ctx.scene.state.phone = phone;
     ctx.scene.state.step = 'pin';
-    await ctx.reply(t(ctx.lang, 'link_ask_pin'), Markup.removeKeyboard());
+    await ctx.reply(t(ctx.lang, 'link_ask_pin'), mainKeyboard(ctx.lang));
   }
 
   // "Share my number" button: only the person's OWN Telegram number is accepted.

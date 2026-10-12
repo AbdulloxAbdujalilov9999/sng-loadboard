@@ -138,7 +138,7 @@ test('AI paste in the main bot: paste a freight post -> review -> one tap posts 
   const unlinked = makePasteFlow({ apiClient: api, tokens: { getIdToken: async () => { throw new NotLinkedError(); } }, config: { aiMaxPerMin: 600, pendingTtlMin: 15 } });
   const c0 = ctxFor('ТОМСК ТОШКЕНТ ДСП МДФ ТЕНТ 20т');
   await unlinked.handleText(c0);
-  assert.match(sent.at(-1).msg, /\/link/);
+  assert.match(sent.at(-1).msg, /My account/);
 
   // linked: parse, review, confirm
   const before = (await env.pool.query("SELECT count(*)::int AS n FROM loads WHERE status = 'active'")).rows[0].n;

@@ -70,7 +70,7 @@ test('plain pasted text works without any command; groups are never read; unknow
 test('every old command still answers; Russian phones get Russian', async () => {
   const { say, texts } = setup();
   await say('/start'); assert.match(texts().at(-1), /SNG ONE/);
-  assert.match(texts().at(-1), /\/paste|joylang/);
+  assert.match(texts().at(-1), /AI bilan joylash/);
   assert.match(texts().at(-1), /@sngOne_yuklar/, 'the channel and group are offered');
   await say('/mystatus'); assert.equal(texts().length, 2);
   await say('/language'); assert.equal(texts().length, 3);

@@ -77,7 +77,8 @@ function setup() {
     createLoadsBulk: async (_t, bodies) => { calls.push(['bulk', bodies]); return { items: bodies.map((b, i) => ({ id: 100 + i, originCity: 'x', destCity: 'y', pickupDate: b.pickupDate, rateUsd: b.rateUsd })) }; },
   };
   const config = { botToken: '123:test', broadcastLang: 'uz', joinChannel: '', joinGroup: '', aiMaxPerMin: 600, pendingTtlMin: 15, webBaseUrl: 'https://x', webUrlIsPublic: true };
-  const store = { getLanguage: async () => null, setLanguage: async () => {}, getLinkByTelegramUserId: async () => null, removeLink: async () => false };
+  const state = { link: null, removed: 0, lang: null };
+  const store = { getLanguage: async () => state.lang, setLanguage: async (_id, l) => { state.lang = l; }, getLinkByTelegramUserId: async () => state.link, removeLink: async () => { state.removed += 1; return true; } };
   const bot = makeBot({ config, firebaseAuth: {}, apiClient, tokens: { getIdToken: async () => 'tok', invalidate() {} }, store });
   bot.botInfo = { id: 123, is_bot: true, first_name: 'sng', username: 'sng_test_bot' };
   record = (method, payload) => { sent.push({ method, ...payload }); return { message_id: sent.length, chat: { id: 77 }, date: 0, text: payload.text }; };
@@ -87,7 +88,8 @@ function setup() {
   const press = (data) => bot.handleUpdate({ update_id: ++n, callback_query: { id: String(n), from, chat_instance: 'x', data, message: { message_id: 50, date: 0, chat: { id: 77, type: 'private' }, text: 'card' } } });
   const last = (method) => sent.filter((s) => s.method === method).at(-1);
   const buttons = (s) => (s?.reply_markup?.inline_keyboard ?? []).flat().map((b) => b.callback_data);
-  return { say, press, last, calls, sent, buttons };
+  const keyboardOf = (m) => (m?.reply_markup?.keyboard ?? []).map((row) => row.map((b) => b.text ?? b));
+  return { say, press, last, calls, sent, buttons, state, keyboardOf };
 }
 
 test('/myloads shows the whole load with Edit, Renew and Delete buttons', async () => {
@@ -230,4 +232,56 @@ test('a pasted post: every load is its own message with Edit / Remove; fixes and
   assert.doesNotMatch(summary, /Perm/, 'a short summary, not a list');
   await press(`pd:rm:${key1.slice(1)}`);
   assert.match(sent.filter((s) => s.method === 'editMessageText').at(-1).text, /eskirdi|expired/i, 'buttons of a finished batch do nothing');
+});
+
+test('the bottom menu: /start brings it, every button does what its command did, in the person\'s language', async () => {
+  const { say, last, keyboardOf, sent, state, press, buttons } = setup();
+  await say('/start');
+  const welcome = last('sendMessage');
+  assert.deepEqual(keyboardOf(welcome), [['📋 AI bilan joylash', '✍️ Bosqichma-bosqich'], ['📦 Mening yuklarim', '👤 Hisobim'], ['🌐 Til', 'ℹ️ Yordam']]);
+  assert.equal(welcome.reply_markup.is_persistent, true, 'it stays at the bottom of the chat');
+  assert.doesNotMatch(welcome.text, /\/link|\/postload|\/myloads/, 'the welcome talks about buttons, not commands');
+
+  await say('📦 Mening yuklarim');
+  assert.match(last('sendMessage').text, /Perm, RU → Andijan, UZ/, 'My loads lists the load cards');
+  await say('📋 AI bilan joylash');
+  assert.match(last('sendMessage').text, /Yuk postini shu yerga joylang/);
+  await say('ℹ️ Yordam');
+  assert.match(last('sendMessage').text, /Pastdagi tugmalardan foydalaning/);
+
+  // My account: not linked -> connect buttons; linked -> status + disconnect, with a confirmation
+  await say('👤 Hisobim');
+  assert.deepEqual(buttons(last('sendMessage')), ['acct:link', 'acct:linkemail']);
+  state.link = { company: 'Abdulloh', email: 'p998938747080@phone.sng', member_status: 'approved' };
+  await say('👤 Hisobim');
+  assert.match(last('sendMessage').text, /Abdulloh[\s\S]*\+998938747080/);
+  assert.deepEqual(buttons(last('sendMessage')), ['acct:unlink']);
+  await press('acct:unlink');
+  assert.deepEqual(buttons(last('editMessageText')), ['acct:unlinkyes', 'acct:keep']);
+  await press('acct:keep');
+  assert.equal(state.removed, 0, 'nothing is disconnected until the person says yes');
+  await press('acct:unlinkyes');
+  assert.equal(state.removed, 1);
+
+  // language: the labels change with it
+  await say('🌐 Til');
+  await press('lang:ru');
+  assert.deepEqual(keyboardOf(last('sendMessage')), [['📋 Через AI', '✍️ По шагам'], ['📦 Мои грузы', '👤 Мой аккаунт'], ['🌐 Язык', 'ℹ️ Помощь']]);
+  await say('📦 Мои грузы'); // the Russian label works too
+  assert.match(sent.filter((s) => s.method === 'sendMessage').at(-1).text, /Perm, RU/);
+});
+
+test('a menu button ends a dialogue that is open: it is never taken as the answer to its question', async () => {
+  const { say, press, last, calls } = setup();
+  await say('✍️ Bosqichma-bosqich'); // starts the step-by-step posting: asks for the pickup city
+  assert.match(last('sendMessage').text, /QAYERDAN/);
+  await say('📦 Mening yuklarim');
+  assert.match(last('sendMessage').text, /Perm, RU → Andijan, UZ/, 'the wizard did not swallow the tap');
+  await say('1500'); // no dialogue is open any more: this is just text
+  assert.ok(!last('sendMessage').text.includes('QAYERGA'), 'the posting dialogue is closed');
+
+  await press('ed:f:L7:rate');
+  await say('🌐 Til');
+  await say('900');
+  assert.ok(!calls.some((c) => c[0] === 'update'), 'a half-open edit is dropped when a menu button is tapped');
 });
