@@ -13,6 +13,7 @@ export async function publishBotProfile(telegram, log = console) {
       await telegram.setMyCommands(cmds(lang), extra);
       await telegram.setMyShortDescription(BOT_ABOUT[lang].short, code);
       await telegram.setMyDescription(BOT_ABOUT[lang].long, code);
+      log.info?.(`bot menu + start text published (${code ?? 'default'}: ${lang})`);
     } catch (err) {
       log.warn?.(`could not update the bot menu (${code ?? 'default'}): ${err.message}`);
     }
