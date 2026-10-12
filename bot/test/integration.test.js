@@ -153,11 +153,19 @@ test('AI paste in the main bot: paste a freight post -> review -> one tap posts 
   assert.deepEqual(draftMsg.extra.reply_markup.inline_keyboard[0].map((b) => b.callback_data.split(':')[0] + ':' + b.callback_data.split(':')[1]), ['ed:menu', 'pd:rm'], 'each load has its own Edit and Remove buttons');
   assert.equal((await env.pool.query("SELECT count(*)::int AS n FROM loads WHERE status = 'active'")).rows[0].n, before, 'nothing is posted before the tap');
 
-  await flow.handleConfirm(ctx, confirmData.split(':')[2]);
+  const nonce = confirmData.split(':')[2];
+  await flow.handleConfirm(ctx, nonce);
+  // the pasted post carries somebody else's phone number: the bot asks whose contact the load shows BEFORE publishing
+  const question = sent.at(-1);
+  assert.match(question.msg, /someone else's contact[\s\S]*\+998918887695/);
+  assert.deepEqual(question.extra.reply_markup.inline_keyboard.flat().map((b) => b.callback_data), [`paste:contact:${nonce}:mine`, `paste:contact:${nonce}:keep`, `paste:contact:${nonce}:back`]);
+  assert.equal((await env.pool.query("SELECT count(*)::int AS n FROM loads WHERE status = 'active'")).rows[0].n, before, 'still nothing posted');
+  await flow.handleContactChoice(ctx, nonce, 'keep');
+  assert.equal((await env.pool.query("SELECT contact_phone FROM loads WHERE commodity LIKE '%МДФ%' ORDER BY id DESC LIMIT 1")).rows[0].contact_phone, '+998918887695', 'the post\'s own contact is on the load');
   assert.match(edits.at(-1), /1 load\(s\) posted/);
   assert.doesNotMatch(edits.at(-1), /→/, 'the confirmation is a short summary, not a list of loads');
   assert.equal((await env.pool.query("SELECT count(*)::int AS n FROM loads WHERE status = 'active'")).rows[0].n, before + 1);
-  await flow.handleConfirm(ctx, confirmData.split(':')[2]); // a second tap on the same button posts nothing more
+  await flow.handleConfirm(ctx, nonce); // a second tap on the same button posts nothing more
   assert.match(edits.at(-1), /expired/i);
   assert.equal((await env.pool.query("SELECT count(*)::int AS n FROM loads WHERE status = 'active'")).rows[0].n, before + 1);
 
@@ -210,7 +218,7 @@ test('the copy of a load the poster gets in their own chat carries Edit / Renew 
   } finally { await broadcaster.stop(); }
 });
 
-test('50 loads posted at once all reach every group (merged into a few messages) and the poster (one each), at Telegram-safe pace', async () => {
+test('50 loads posted at once all reach every group and the poster - each as its own message, at Telegram-safe pace', async () => {
   const sent = []; const waits = [];
   const bot = { telegram: { sendMessage: async (chatId, text) => { sent.push({ chatId, text }); return { message_id: sent.length }; } } };
   const store = {
@@ -219,7 +227,7 @@ test('50 loads posted at once all reach every group (merged into a few messages)
   };
   const broadcaster = makeBroadcaster({
     config: { databaseUrl: env.config.databaseUrl, broadcastSpacingMs: 0, broadcastGroupGapMs: 3100, broadcastOwnerGapMs: 1100, broadcastLang: 'uz', webBaseUrl: 'https://sng.example', webUrlIsPublic: true },
-    pool: env.pool, store, bot, log: { warn() {}, error() {} }, sleep: async (ms) => { waits.push(ms); await new Promise((r) => setTimeout(r, 25)); }, // a short real pause, so the to-do list can fill up like it does with the real 3-second gaps
+    pool: env.pool, store, bot, log: { warn() {}, error() {} }, sleep: async (ms) => { waits.push(ms); await new Promise((r) => setTimeout(r, 5)); },
   });
   await broadcaster.start();
   try {
@@ -231,7 +239,8 @@ test('50 loads posted at once all reach every group (merged into a few messages)
       const mine = sent.filter((s) => s.chatId === chat);
       const all = mine.map((s) => s.text).join('\n');
       for (let i = 0; i < 50; i += 1) assert.ok(all.includes(`Paced ${i}`), `group ${chat} is missing load ${i}`);
-      assert.ok(mine.length <= 20, `group ${chat} got ${mine.length} messages for 50 loads: merged, not 50 separate ones`);
+      assert.equal(mine.length, 50, `group ${chat}: one message per load`);
+      assert.ok(mine.every((m) => (m.text.match(/🚚/g) ?? []).length === 1), 'never two loads in one message');
       assert.ok(mine.every((m) => m.text.length <= 4096), 'no message is over Telegram\'s limit');
     }
     assert.equal(sent.filter((s) => s.chatId === 999).length, 50, 'the poster still gets one message per load (each has its own buttons)');

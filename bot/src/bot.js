@@ -267,6 +267,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   };
   bot.hears(MENU_TEXTS, (ctx) => (isPrivate(ctx) ? MENU_HANDLERS[menuAction(ctx.message.text)](ctx) : undefined));
   bot.action(/^paste:confirm:([0-9a-f-]+)$/, (ctx) => pasteFlow.handleConfirm(ctx, ctx.match[1]));
+  bot.action(/^paste:contact:([0-9a-f-]+):(mine|keep|back)$/, (ctx) => pasteFlow.handleContactChoice(ctx, ctx.match[1], ctx.match[2]));
   bot.action(/^paste:cancel:([0-9a-f-]+)$/, (ctx) => pasteFlow.handleCancel(ctx, ctx.match[1]));
   // Any plain text in a DM that is not a command and not inside a scene (/link, /postload answers go to the scene
   // first) is treated as a pasted freight post. Registered LAST so every command and the active scene get first refusal.

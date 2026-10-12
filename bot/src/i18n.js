@@ -10,6 +10,11 @@ export const LANG_NAMES = { en: 'English', ru: 'Русский', uz: 'Oʻzbekcha
 
 const DICT = {
   en: {
+    paste_contact_ask: "☎️ These posts carry someone else's contact:\n{list}\n\nYours: {mine}\n\nWhose contact should the loads show?",
+    paste_contact_count: "{n} load(s)",
+    paste_contact_btn_mine: "👤 Replace with mine",
+    paste_contact_btn_keep: "📞 Keep the one in the post",
+    paste_contact_back: "Nothing was posted - the review is still open, tap Post when you are ready.",
     paste_chunk_failed: "⚠️ {n} part(s) of the text could not be read just now (AI busy or limit). Paste those posts again.",
     bulk_failed_header: "❌ {n} load(s) were refused by the board (fix them with ✏️, then tap Post again):",
     bulk_reason_pickup_past: "pickup date is in the past",
@@ -250,6 +255,11 @@ const DICT = {
   },
 
   ru: {
+    paste_contact_ask: "☎️ В этих постах контакт другого человека:\n{list}\n\nВаш: {mine}\n\nЧей контакт показывать в грузах?",
+    paste_contact_count: "грузов: {n}",
+    paste_contact_btn_mine: "👤 Заменить на мой",
+    paste_contact_btn_keep: "📞 Оставить как в посте",
+    paste_contact_back: "Ничего не опубликовано - список открыт, нажмите «Опубликовать», когда будете готовы.",
     paste_chunk_failed: "⚠️ Не удалось прочитать частей текста: {n} (AI занят или лимит). Вставьте эти посты ещё раз.",
     bulk_failed_header: "❌ Биржа не приняла грузов: {n} (исправьте через ✏️ и снова нажмите «Опубликовать»):",
     bulk_reason_pickup_past: "дата погрузки уже прошла",
@@ -490,6 +500,11 @@ const DICT = {
   },
 
   uz: {
+    paste_contact_ask: "☎️ Bu postlarda boshqa odamning kontakti bor:\n{list}\n\nSizniki: {mine}\n\nYuklarda kimning kontakti koʻrsatilsin?",
+    paste_contact_count: "{n} ta yuk",
+    paste_contact_btn_mine: "👤 Meniki bilan almashtirish",
+    paste_contact_btn_keep: "📞 Postdagidek qoldirish",
+    paste_contact_back: "Hech narsa joylanmadi - roʻyxat ochiq, tayyor boʻlsangiz «Joylash» ni bosing.",
     paste_chunk_failed: "⚠️ Matnning {n} qismini hozir oʻqib boʻlmadi (AI band yoki limit). Shu postlarni qayta joylang.",
     bulk_failed_header: "❌ Birja {n} ta yukni qabul qilmadi (✏️ orqali tuzating, keyin yana «Joylash» ni bosing):",
     bulk_reason_pickup_past: "yuklash sanasi oʻtib ketgan",

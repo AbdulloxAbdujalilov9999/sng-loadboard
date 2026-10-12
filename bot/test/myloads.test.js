@@ -57,7 +57,7 @@ let record = () => {};
 Telegram.prototype.callApi = async function fake(method, payload) { return record(method, payload); };
 process.on('exit', () => { Telegram.prototype.callApi = realCallApi; });
 
-function setup({ debounce = 0, count = 0, flood = 0, bulk = null, parse = null } = {}) {
+function setup({ debounce = 0, count = 0, flood = 0, bulk = null, parse = null, foreignPhone = null, blankEvery = 0 } = {}) {
   const sent = []; const calls = []; const parsed = [];
   let loads = [{
     id: 7, originCity: 'Perm, RU', destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 22, volumeM3: 120, pickupDate: '2026-10-12', deliveryDate: null,
@@ -70,7 +70,7 @@ function setup({ debounce = 0, count = 0, flood = 0, bulk = null, parse = null }
     deleteLoad: async (_t, id) => { calls.push(['delete', id]); loads = loads.filter((l) => l.id !== id); },
     searchCities: async (_t, q) => (/^tom/i.test(q) ? { items: [{ id: 5, label: 'Tomsk, RU' }, { id: 6, label: 'Tomsk Oblast, RU' }] } : { items: [] }),
     getMe: async () => ({ profile: { id: 1, status: 'approved', company: 'Abdulloh', phone: '+998938747080', contactName: 'Abdulloh' } }),
-    parseLoads: async (_t, text) => { parsed.push(text); if (parse) await parse(text, parsed.length); if (count) return { truncated: false, loads: Array.from({ length: count }, (_, i) => ({ originCityId: 1, originCity: 'Perm, RU', destCityId: 2, destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 20, volumeM3: null, pickupDate: '2026-10-12', rateUsd: 100 + i, commodity: `Yuk ${i + 1}`, notes: '', contactPhone: '+998938747080', contactTelegram: '', contactName: '', flags: [] })) }; return ({ truncated: false, loads: [
+    parseLoads: async (_t, text) => { parsed.push(text); if (parse) await parse(text, parsed.length); if (count) return { truncated: false, loads: Array.from({ length: count }, (_, i) => ({ originCityId: 1, originCity: 'Perm, RU', destCityId: 2, destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 20, volumeM3: null, pickupDate: '2026-10-12', rateUsd: 100 + i, commodity: `Yuk ${i + 1}`, notes: '', contactPhone: blankEvery && i % blankEvery === 0 ? '' : (foreignPhone ?? '+998938747080'), contactTelegram: '', contactName: blankEvery && i % blankEvery === 0 ? '' : (foreignPhone ? 'Karim' : ''), flags: [] })) }; return ({ truncated: false, loads: [
       { originCityId: 1, originCity: 'Perm, RU', destCityId: 2, destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 22, volumeM3: 120, pickupDate: '2026-10-12', rateUsd: 0, commodity: 'Ламинат', notes: 'Срочно', contactPhone: '+998938747080', contactTelegram: '', contactName: '', flags: ['date'] },
       { originCityId: null, originCity: '', originText: 'Питр', destCityId: 2, destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 20, volumeM3: null, pickupDate: '2026-10-13', rateUsd: 500, commodity: 'Тент', notes: '', contactPhone: '', contactTelegram: '', contactName: '', flags: ['origin'] },
     ] }); },
@@ -440,4 +440,62 @@ test('a big paste is read in parallel pieces; a piece that fails does not lose t
   assert.ok(sent.some((s) => s.method === 'editMessageText' && /1 qismini hozir oʻqib boʻlmadi/.test(s.text)), 'tells which part was not read');
   assert.ok(sent.filter((s) => s.method === 'sendMessage' && /^<b>#\d+/.test(s.text)).length >= 2, 'the other pieces still produced loads');
   assert.equal(parsed.join('').replace(/\s/g, '').length >= big.replace(/\s/g, '').length * 0.98, true, 'no post was cut away');
+});
+
+test('a post with SOMEONE ELSE\'s contact: the bot asks whose contact the loads show, before publishing', async () => {
+  const { say, press, sent, calls, buttons } = setup({ count: 4, foreignPhone: '+998901112233', blankEvery: 4 }); // load #1 came without a contact
+  await say('Forwarded from Karim: Perm Andijan Ламинат');
+  const post = () => sent.filter((s) => s.method === 'sendMessage' && buttons(s).some((b) => b.startsWith('paste:confirm'))).at(-1);
+  await press(buttons(post())[0]);
+  assert.equal(calls.filter((c) => c[0] === 'bulk').length, 0, 'nothing is published yet');
+  const ask = sent.filter((s) => s.method === 'sendMessage').at(-1);
+  assert.match(ask.text, /boshqa odamning kontakti[\s\S]*Karim · \+998901112233 - 3 ta yuk[\s\S]*Sizniki: \+998938747080/);
+  const [mine, keep, back] = buttons(ask);
+  assert.match(mine, /:mine$/); assert.match(keep, /:keep$/); assert.match(back, /:back$/);
+
+  await press(back);
+  assert.equal(calls.filter((c) => c[0] === 'bulk').length, 0);
+  assert.match(sent.filter((s) => s.method === 'editMessageText').at(-1).text, /Hech narsa joylanmadi/);
+
+  // "keep": every load shows the post's contact - also the load that came without one
+  await press(buttons(post())[0]);
+  await press(buttons(sent.filter((s) => s.method === 'sendMessage').at(-1))[1]);
+  const kept = calls.find((c) => c[0] === 'bulk')[1];
+  assert.equal(kept.length, 4);
+  assert.deepEqual([...new Set(kept.map((b) => b.contactPhone))], ['+998901112233'], 'all four carry the sender\'s number, including the one that had none');
+  assert.ok(kept.every((b) => b.contactName === 'Karim'));
+  assert.match(sent.filter((s) => s.method === 'editMessageText').at(-1).text, /4 ta yuk joylandi/);
+  assert.ok(!buttons({ reply_markup: sent.filter((s) => s.method === 'editMessageText' && /joylandi/.test(s.text)).at(-1).reply_markup }).length, 'the Post button is gone from the bottom message too');
+});
+
+test('"replace with mine": every load shows the member\'s own contact', async () => {
+  const { say, press, sent, calls, buttons } = setup({ count: 3, foreignPhone: '+998901112233' });
+  await say('Forwarded: Perm Andijan Ламинат');
+  const post = sent.filter((s) => s.method === 'sendMessage' && buttons(s).some((b) => b.startsWith('paste:confirm'))).at(-1);
+  await press(buttons(post)[0]);
+  await press(buttons(sent.filter((s) => s.method === 'sendMessage').at(-1))[0]);
+  const bodies = calls.find((c) => c[0] === 'bulk')[1];
+  assert.deepEqual([...new Set(bodies.map((b) => b.contactPhone))], ['+998938747080']);
+  assert.ok(bodies.every((b) => b.contactName === 'Abdulloh'));
+});
+
+test('no question when the post carries no foreign contact (the member\'s own number, or none at all)', async () => {
+  const { say, press, sent, calls, buttons } = setup({ count: 3 });
+  await say('Perm Andijan Ламинат');
+  const post = sent.filter((s) => s.method === 'sendMessage' && buttons(s).some((b) => b.startsWith('paste:confirm'))).at(-1);
+  await press(buttons(post)[0]);
+  assert.equal(calls.filter((c) => c[0] === 'bulk').length, 1, 'published straight away');
+});
+
+test('foreignContacts / toLoadBody modes', async () => {
+  const { foreignContacts, toLoadBody, commonContact } = await import('../src/pasteFlow.js');
+  const member = { phone: '+998 93 874 70 80', telegram: '@Mine', company: 'Abdulloh', contactName: 'Abdulloh' };
+  const d = (over) => ({ originCityId: 1, destCityId: 2, equip: 'T', fp: 'Full', weightT: 1, pickupDate: '2099-01-01', rateUsd: 0, commodity: 'x', flags: [], contactPhone: '', contactTelegram: '', contactName: '', ...over });
+  assert.deepEqual(foreignContacts([d({ contactPhone: '998938747080' }), d({ contactTelegram: 'mine' })], member), [], 'the member\'s own number / username, however it is written, is not foreign');
+  assert.equal(foreignContacts([d({ contactPhone: '+998901112233' }), d({ contactPhone: '+998901112233' }), d({ contactTelegram: '@other' })], member).length, 2);
+  assert.equal(toLoadBody(d({ contactPhone: '+998901112233' }), member, { contactMode: 'mine' }).contactPhone, '+998938747080'.replace('+998938747080', member.phone));
+  const keep = toLoadBody(d({}), member, { contactMode: 'keep', common: commonContact([d({ contactPhone: '+998901112233', contactName: 'Karim' })]) });
+  assert.equal(keep.contactPhone, '+998901112233');
+  assert.equal(keep.contactName, 'Karim');
+  assert.equal(toLoadBody(d({ contactPhone: '+998901112233' }), member, { contactMode: 'keep' }).contactTelegram, '', 'the member\'s Telegram is never mixed into someone else\'s number');
 });

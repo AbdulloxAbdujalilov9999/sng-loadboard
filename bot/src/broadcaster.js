@@ -62,10 +62,10 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
 
   // ---- one worker per chat -------------------------------------------------------------------------------------------------
   // Every chat has its own to-do list and its own worker, so a slow or flooded group never holds up the others or the poster's DM.
-  // A group takes about 20 messages a minute, so when many loads are waiting for it (someone posted 50 at once) up to
-  // DIGEST_MAX_LOADS of them go out as ONE message instead of 5 - the group gets everything in a fraction of the time and without
-  // flooding. The poster's own chat always gets one message per load (each carries its own Edit / Renew / Delete buttons).
-  const DIGEST_MIN_QUEUED = 3;
+  // EVERY load is its own message, in every chat. A group takes about 20 messages a minute, so 50 loads need about 2.5 minutes to land
+  // there; they are paced to that and none is dropped. (Merging a burst into a few big messages is possible - BOT_BROADCAST_DIGEST=1 - but
+  // it is OFF: members want one message per load.)
+  const DIGEST_MIN_QUEUED = config.broadcastDigest ? 3 : Infinity;
   const DIGEST_MAX_LOADS = 5;
   const DIGEST_MAX_CHARS = 3600; // Telegram's limit is 4096
   const DIGEST_SEPARATOR = '\n\n━━━━━━━━━━\n\n';

@@ -38,7 +38,14 @@ const GUESSED_UZ = { weight: 'ogʻirlik', date: 'sana', origin_check: 'yuklash j
 // phone OR a Telegram username, either one). A pasted group post often has neither - exactly the
 // gap the web app's AI-import screen fills with the posting member's own profile ("default contact
 // info"). We do the same here with the linked member's profile.
-export function toLoadBody(draft, member) {
+//
+// `contactMode` is the member's answer to "whose contact goes on these loads?" when the pasted post carries someone else's:
+//   'mine' - every load shows the member's own contact;
+//   'keep' - every load keeps the contact written in the post; a load without one gets the contact the other loads of the same
+//            paste carry (`common`), so the person who wrote the post is reachable on all of them. The member's profile is only
+//            used when nobody put a contact in the post.
+// Without an answer (nothing foreign in the post) a missing contact falls back to the member's, as before.
+export function toLoadBody(draft, member, { contactMode, common } = {}) {
   // The note is shown to everyone on the board, and the board's own language is Uzbek.
   const guessed = (draft.flags ?? []).map((f) => GUESSED_UZ[f]).filter(Boolean);
   const estimated = guessed.length ? ` · Taxminiy: ${guessed.join(', ')} — telefon orqali aniqlang` : '';
@@ -59,11 +66,57 @@ export function toLoadBody(draft, member) {
     rateUsd: draft.rateUsd,
     commodity: draft.commodity,
     notes: notes || undefined,
-    contactName: draft.contactName || member.contactName || member.company || '-',
-    contactPhone: draft.contactPhone || member.phone || '',
+    ...contactFields(draft, member, contactMode, common),
     contactEmail: member.contactEmail || '',
+  };
+}
+
+function contactFields(draft, member, mode, common) {
+  const mineName = member.contactName || member.company || '';
+  const own = Boolean(draft.contactPhone || draft.contactTelegram);
+  if (mode === 'mine' && (member.phone || member.telegram)) {
+    return { contactName: mineName || draft.contactName || '-', contactPhone: member.phone || '', contactTelegram: member.telegram || '' };
+  }
+  if (mode === 'keep') {
+    const src = own ? draft : (common ?? (member.phone || member.telegram ? { contactName: mineName, contactPhone: member.phone, contactTelegram: member.telegram } : draft));
+    return { contactName: draft.contactName || src.contactName || mineName || '-', contactPhone: src.contactPhone || '', contactTelegram: src.contactTelegram || '' };
+  }
+  return {
+    contactName: draft.contactName || mineName || '-',
+    contactPhone: draft.contactPhone || member.phone || '',
     contactTelegram: draft.contactTelegram || member.telegram || '',
   };
+}
+
+// ---- whose contact? ----
+const digits = (v) => String(v ?? '').replace(/\D/g, '');
+const handle = (v) => String(v ?? '').replace(/^@/, '').toLowerCase();
+/** The contacts written in the pasted posts that are not the member's own, with how many loads carry each. */
+export function foreignContacts(drafts, member) {
+  const found = new Map();
+  for (const d of drafts) {
+    if (!d.contactPhone && !d.contactTelegram) continue;
+    const samePhone = !d.contactPhone || (member.phone && digits(d.contactPhone) === digits(member.phone));
+    const sameTg = !d.contactTelegram || (member.telegram && handle(d.contactTelegram) === handle(member.telegram));
+    if (samePhone && sameTg) continue;
+    const key = `${digits(d.contactPhone)}|${handle(d.contactTelegram)}`;
+    const cur = found.get(key) ?? { contactName: d.contactName || '', contactPhone: d.contactPhone || '', contactTelegram: d.contactTelegram || '', count: 0 };
+    cur.count += 1;
+    found.set(key, cur);
+  }
+  return [...found.values()].sort((a, b) => b.count - a.count);
+}
+/** The contact most of the loads in this paste carry - given to the loads that came without one when the member keeps the post's contact. */
+export function commonContact(drafts) {
+  const count = new Map();
+  for (const d of drafts) {
+    if (!d.contactPhone && !d.contactTelegram) continue;
+    const key = `${digits(d.contactPhone)}|${handle(d.contactTelegram)}`;
+    const cur = count.get(key) ?? { contactName: d.contactName || '', contactPhone: d.contactPhone || '', contactTelegram: d.contactTelegram || '', n: 0 };
+    cur.n += 1;
+    count.set(key, cur);
+  }
+  return [...count.values()].sort((a, b) => b.n - a.n)[0] ?? null;
 }
 
 const hasContact = (draft, member) => Boolean(draft.contactPhone || draft.contactTelegram || member.phone || member.telegram);
@@ -336,6 +389,7 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
       addEntry(ctx.from.id, entry);
     }
     entry.member = member;
+    entry.contactChoice = null; // new posts may carry a new contact: ask again at Post
     const room = Math.max(0, MAX_BATCH - entry.drafts.length);
     const incoming = loads.slice(0, room);
     const overflow = loads.length - incoming.length;
@@ -385,6 +439,44 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     return text === key ? (d.message || d.code) : text;
   }).join(', ');
 
+  // The post carries somebody else's contact (a forwarded post): before anything is published, ask whose contact the loads show.
+  async function askContact(ctx, entry, foreign) {
+    const mine = [entry.member.phone, entry.member.telegram].filter(Boolean).join(' · ') || '-';
+    const list = foreign.slice(0, 5).map((c) => `• ${escapeHtml([c.contactName, c.contactPhone, c.contactTelegram].filter(Boolean).join(' · '))} - ${t(ctx.lang, 'paste_contact_count', { n: c.count })}`).join('\n');
+    const nonce = entry.nonce;
+    return ctx.reply(t(ctx.lang, 'paste_contact_ask', { list, mine: escapeHtml(mine) }), {
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback(t(ctx.lang, 'paste_contact_btn_mine'), `paste:contact:${nonce}:mine`)],
+        [Markup.button.callback(t(ctx.lang, 'paste_contact_btn_keep'), `paste:contact:${nonce}:keep`)],
+        [Markup.button.callback(t(ctx.lang, 'paste_btn_cancel'), `paste:contact:${nonce}:back`)],
+      ]),
+    });
+  }
+
+  async function handleContactChoice(ctx, nonce, choice) {
+    await ctx.answerCbQuery();
+    const entry = takePending(ctx, nonce);
+    if (!entry) return ctx.editMessageText(t(ctx.lang, 'paste_expired'));
+    if (choice === 'back') return ctx.editMessageText(t(ctx.lang, 'paste_contact_back'));
+    if (choice !== 'mine' && choice !== 'keep') return undefined;
+    entry.contactChoice = choice;
+    if (entry.posting) return undefined;
+    entry.posting = true;
+    try { return await postBatch(ctx, entry); } finally { entry.posting = false; }
+  }
+
+  // The answer goes on the message that was tapped; when that was the contact question (not the Post message at the bottom), the
+  // bottom message shows it too - otherwise its Post button would stay there, looking untouched.
+  async function showResult(ctx, entry, text, keyboard) {
+    const tapped = ctx.callbackQuery?.message?.message_id;
+    if (tapped && entry.footerMsgId && tapped !== entry.footerMsgId) {
+      await ctx.editMessageText(text.split('\n')[0] || text, { parse_mode: 'HTML' }).catch(() => {});
+      return ctx.telegram.editMessageText(entry.chatId, entry.footerMsgId, undefined, text, { parse_mode: 'HTML', ...(keyboard ?? {}) }).catch(() => {});
+    }
+    return ctx.editMessageText(text, { parse_mode: 'HTML', ...(keyboard ?? {}) });
+  }
+
   async function handleConfirm(ctx, nonce) {
     await ctx.answerCbQuery();
     const entry = takePending(ctx, nonce);
@@ -401,6 +493,8 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     const live = drafts.filter((d) => !d.removed && !d.posted);
     let postable = live.filter(isDraftPostable);
     if (!postable.length) return ctx.editMessageText(t(ctx.lang, 'paste_nothing_postable'));
+    const foreign = entry.contactChoice ? [] : foreignContacts(postable, member);
+    if (foreign.length) return askContact(ctx, entry, foreign);
     if (postable.some((d) => !hasContact(d, member))) return ctx.editMessageText(t(ctx.lang, 'paste_contact_missing'));
 
     let idToken;
@@ -415,7 +509,8 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     try {
       for (let round = 0; round < 3 && postable.length; round += 1) {
         try {
-          const { items } = await apiClient.createLoadsBulk(idToken, postable.map((d) => toLoadBody(d, member)));
+          const common = entry.contactChoice === 'keep' ? commonContact(live) : null;
+          const { items } = await apiClient.createLoadsBulk(idToken, postable.map((d) => toLoadBody(d, member, { contactMode: entry.contactChoice, common })));
           postable.forEach((d) => { d.posted = true; });
           postedCount += items.length;
           postable = [];
@@ -444,12 +539,12 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
       lines.push(t(ctx.lang, 'bulk_failed_header', { n: refused.length }));
       for (const { draft, why } of refused) lines.push(`• #${drafts.indexOf(draft) + 1} ${escapeHtml(routeOf(draft))} - ${escapeHtml(why)}`);
       const f = footerView(ctx, entry);
-      return ctx.editMessageText(`${lines.join('\n')}\n${f.text}`, { parse_mode: 'HTML', ...f.keyboard });
+      return showResult(ctx, entry, `${lines.join('\n')}\n${f.text}`, f.keyboard);
     }
     dropEntry(ctx.from.id, entry);
     const skipped = live.length - postedCount;
     if (skipped > 0) lines.push(t(ctx.lang, 'paste_skip_note', { count: skipped }).trim());
-    return ctx.editMessageText(lines.join('\n\n'), { parse_mode: 'HTML' });
+    return showResult(ctx, entry, lines.join('\n\n'), null);
   }
 
   async function handleCancel(ctx, nonce) {
@@ -459,5 +554,5 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     return ctx.editMessageText(t(ctx.lang, 'paste_cancelled'));
   }
 
-  return { handleText, handleConfirm, handleCancel, handleRemove, handleUndo, draftAdapter };
+  return { handleText, handleConfirm, handleContactChoice, handleCancel, handleRemove, handleUndo, draftAdapter };
 }

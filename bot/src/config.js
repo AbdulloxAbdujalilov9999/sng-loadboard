@@ -25,6 +25,8 @@ export function loadBotConfig(env = process.env) {
     broadcastSpacingMs: Number(env.BOT_BROADCAST_SPACING_MS || 60),
     // Minimum gap between two messages to the SAME chat: a group/channel takes ~20 a minute, a private chat ~1 a second. Without it a
     // 50-load post would be cut off by Telegram's flood limit part-way through.
+    // Off: one message per load everywhere. On: when 3+ loads wait for a group, up to 5 go out as one message (faster, but not what members want).
+    broadcastDigest: ['1', 'true', 'yes'].includes(String(env.BOT_BROADCAST_DIGEST ?? '').toLowerCase()),
     broadcastGroupGapMs: Number(env.BOT_BROADCAST_GROUP_GAP_MS ?? 3100),
     broadcastOwnerGapMs: Number(env.BOT_BROADCAST_OWNER_GAP_MS ?? 1100),
     // Groups mix members of different languages, so broadcasts use one fixed language for everyone
