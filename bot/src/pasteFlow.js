@@ -30,12 +30,16 @@ function makeRateLimiter(perMinute) {
   };
 }
 
+const GUESSED_UZ = { weight: 'ogʻirlik', date: 'sana', rate: 'narx', origin_check: 'yuklash joyi', dest_check: 'yetkazish joyi' };
+
 // contactPhone/contactTelegram/contactName are REQUIRED by loadBody (server/src/lib/schemas.js: a
 // phone OR a Telegram username, either one). A pasted group post often has neither - exactly the
 // gap the web app's AI-import screen fills with the posting member's own profile ("default contact
 // info"). We do the same here with the linked member's profile.
 export function toLoadBody(draft, member) {
-  const estimated = draft.flags?.length ? ` · auto-import: ${draft.flags.join(', ')} estimated - confirm by phone` : '';
+  // The note is shown to everyone on the board, and the board's own language is Uzbek.
+  const guessed = (draft.flags ?? []).map((f) => GUESSED_UZ[f]).filter(Boolean);
+  const estimated = guessed.length ? ` · AI taxmini: ${guessed.join(', ')} - telefon orqali aniqlashtiring` : '';
   const notes = `${draft.notes || ''}${estimated}`.trim().slice(0, 500);
   return {
     originCityId: draft.originCityId,
@@ -87,10 +91,11 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     return { idToken, member: me.profile };
   }
 
-  async function handleText(ctx) {
-    if (ctx.chat.type !== 'private') return; // never read group chatter, only this member's own DM
-    const text = ctx.message.text.trim();
-    if (text.length < MIN_PASTE_CHARS) return; // too short to be a load post - say nothing, avoid noise
+  // `textOverride` is the text after "/paste " when the member sends everything in one command.
+  async function handleText(ctx, textOverride) {
+    if (ctx.chat.type !== 'private') return undefined; // never read group chatter, only this member's own DM
+    const text = (textOverride ?? ctx.message.text).trim();
+    if (text.length < MIN_PASTE_CHARS) return ctx.reply(t(ctx.lang, 'paste_too_short')); // not a load post: say how it works instead of staying silent
 
     let idToken, member;
     try {

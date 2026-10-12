@@ -34,7 +34,7 @@ test('appends a transparency note for every estimated field, so a guess is never
   const draft = { ...DRAFT, flags: ['weight', 'rate'], notes: 'ASAP' };
   const body = toLoadBody(draft, MEMBER);
   assert.match(body.notes, /^ASAP/);
-  assert.match(body.notes, /auto-import: weight, rate estimated - confirm by phone/);
+  assert.match(body.notes, /AI taxmini: ogʻirlik, narx - telefon orqali aniqlashtiring/, 'the note on the board is in Uzbek');
 });
 
 test('carries origin/dest/equip/weight/date/rate/commodity through unchanged', () => {
