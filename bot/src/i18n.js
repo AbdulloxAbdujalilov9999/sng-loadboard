@@ -10,6 +10,16 @@ export const LANG_NAMES = { en: 'English', ru: 'Русский', uz: 'Oʻzbekcha
 
 const DICT = {
   en: {
+    paste_chunk_failed: "⚠️ {n} part(s) of the text could not be read just now (AI busy or limit). Paste those posts again.",
+    bulk_failed_header: "❌ {n} load(s) were refused by the board (fix them with ✏️, then tap Post again):",
+    bulk_reason_pickup_past: "pickup date is in the past",
+    bulk_reason_pickup_far: "pickup date is too far ahead",
+    bulk_reason_delivery_before_pickup: "delivery is before pickup",
+    bulk_reason_pick_city: "city not recognised",
+    bulk_reason_dest_same_as_origin: "pickup and delivery cities are the same",
+    bulk_reason_contact_required: "no phone or Telegram",
+    bulk_reason_required: "a required field is empty",
+    bulk_reason_invalid: "a value is not valid",
     paste_ai_limit: "⏳ The hourly AI limit is used up ({n} reads an hour). It works again in about {min} min. In a hurry? Use «✍️ Step by step» to post by hand.",
     paste_added_header: "➕ {added} more load(s) added to the same review. Total: {total}.",
     paste_batch_full: "One review holds up to {max} loads - {n} were not added. Post these first, then send the rest.",
@@ -240,6 +250,16 @@ const DICT = {
   },
 
   ru: {
+    paste_chunk_failed: "⚠️ Не удалось прочитать частей текста: {n} (AI занят или лимит). Вставьте эти посты ещё раз.",
+    bulk_failed_header: "❌ Биржа не приняла грузов: {n} (исправьте через ✏️ и снова нажмите «Опубликовать»):",
+    bulk_reason_pickup_past: "дата погрузки уже прошла",
+    bulk_reason_pickup_far: "дата погрузки слишком далеко",
+    bulk_reason_delivery_before_pickup: "доставка раньше погрузки",
+    bulk_reason_pick_city: "город не распознан",
+    bulk_reason_dest_same_as_origin: "города погрузки и выгрузки совпадают",
+    bulk_reason_contact_required: "нет телефона или Telegram",
+    bulk_reason_required: "обязательное поле пусто",
+    bulk_reason_invalid: "недопустимое значение",
     paste_ai_limit: "⏳ Часовой лимит AI исчерпан ({n} чтений в час). Снова заработает примерно через {min} мин. Срочно? Опубликуйте вручную через «✍️ По шагам».",
     paste_added_header: "➕ Добавлено грузов: {added} - в тот же список. Всего: {total}.",
     paste_batch_full: "В одном списке до {max} грузов - не добавлено: {n}. Сначала опубликуйте эти, затем отправьте остальные.",
@@ -470,6 +490,16 @@ const DICT = {
   },
 
   uz: {
+    paste_chunk_failed: "⚠️ Matnning {n} qismini hozir oʻqib boʻlmadi (AI band yoki limit). Shu postlarni qayta joylang.",
+    bulk_failed_header: "❌ Birja {n} ta yukni qabul qilmadi (✏️ orqali tuzating, keyin yana «Joylash» ni bosing):",
+    bulk_reason_pickup_past: "yuklash sanasi oʻtib ketgan",
+    bulk_reason_pickup_far: "yuklash sanasi juda uzoq",
+    bulk_reason_delivery_before_pickup: "yetkazish sanasi yuklashdan oldin",
+    bulk_reason_pick_city: "shahar aniqlanmadi",
+    bulk_reason_dest_same_as_origin: "yuklash va yetkazish shaharlari bir xil",
+    bulk_reason_contact_required: "telefon yoki Telegram yoʻq",
+    bulk_reason_required: "majburiy maydon boʻsh",
+    bulk_reason_invalid: "qiymat notoʻgʻri",
     paste_ai_limit: "⏳ Soatlik AI limiti tugadi (soatiga {n} ta oʻqish). Taxminan {min} daqiqadan keyin yana ishlaydi. Shoshilinch boʻlsa — «✍️ Bosqichma-bosqich» orqali qoʻlda joylang.",
     paste_added_header: "➕ Shu roʻyxatga yana {added} ta yuk qoʻshildi. Jami: {total}.",
     paste_batch_full: "Bir roʻyxatda {max} tagacha yuk boʻladi - {n} tasi qoʻshilmadi. Avval shularni joylang, qolganini keyin yuboring.",

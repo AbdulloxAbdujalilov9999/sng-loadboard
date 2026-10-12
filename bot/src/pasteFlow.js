@@ -18,13 +18,15 @@ const MIN_PASTE_CHARS = 8; // matches server/src/routes/ai.js's own minimum - sh
 
 // Spaces out AI calls to a fixed rate, independent of how many people paste at once - keeps this
 // process well under the server's per-member hourly AI budget and Gemini's own rate limits.
-function makeRateLimiter(perMinute) {
-  const minGapMs = 60_000 / Math.max(1, perMinute);
-  let next = 0;
+function makeRateLimiter(perMinute, burst = 6) {
+  // A bucket that holds `burst` reads: a big paste cut into pieces starts them together, while a steady stream is still held to
+  // `perMinute` (the server has its own hourly budget per member).
+  const gapMs = 60_000 / Math.max(1, perMinute);
+  let virtual = 0;
   return async function throttle() {
     const now = Date.now();
-    const wait = Math.max(0, next - now);
-    next = Math.max(now, next) + minGapMs;
+    virtual = Math.max(virtual, now - burst * gapMs) + gapMs;
+    const wait = virtual - now;
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   };
 }
@@ -41,6 +43,10 @@ export function toLoadBody(draft, member) {
   const guessed = (draft.flags ?? []).map((f) => GUESSED_UZ[f]).filter(Boolean);
   const estimated = guessed.length ? ` · Taxminiy: ${guessed.join(', ')} — telefon orqali aniqlang` : '';
   const notes = `${draft.notes || ''}${estimated}`.trim().slice(0, 500);
+  // The board refuses a pickup date from before yesterday - and one such load would stop the whole batch. A post that says "ready"
+  // with an old date is meant for today.
+  const utcDay = (offsetDays) => new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
+  const pickupDate = draft.pickupDate && draft.pickupDate < utcDay(-1) ? utcDay(0) : draft.pickupDate;
   return {
     originCityId: draft.originCityId,
     destCityId: draft.destCityId,
@@ -48,8 +54,8 @@ export function toLoadBody(draft, member) {
     fp: draft.fp,
     weightT: draft.weightT,
     volumeM3: draft.volumeM3 ?? undefined,
-    pickupDate: draft.pickupDate,
-    deliveryDate: draft.deliveryDate || undefined,
+    pickupDate,
+    deliveryDate: draft.deliveryDate && draft.deliveryDate >= pickupDate ? draft.deliveryDate : undefined,
     rateUsd: draft.rateUsd,
     commodity: draft.commodity,
     notes: notes || undefined,
@@ -164,10 +170,10 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     };
   }
 
-  const countPostable = (entry) => entry.drafts.filter((d) => !d.removed && isDraftPostable(d)).length;
+  const countPostable = (entry) => entry.drafts.filter((d) => !d.removed && !d.posted && isDraftPostable(d)).length;
 
   function footerView(ctx, entry) {
-    const live = entry.drafts.filter((d) => !d.removed);
+    const live = entry.drafts.filter((d) => !d.removed && !d.posted);
     const postable = countPostable(entry);
     const skipped = live.length - postable;
     let text = t(ctx.lang, 'paste_ready_footer', { postable, total: live.length });
@@ -190,9 +196,10 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
   }
 
   // Once the batch is posted or cancelled the Edit / Remove buttons on its messages would act on nothing: take them away.
-  async function clearButtons(ctx, entry) {
-    for (const id of entry.msgIds) {
-      await withRetry(() => ctx.telegram.editMessageReplyMarkup?.(entry.chatId, id, undefined, { inline_keyboard: [] })).catch(() => {});
+  async function clearButtons(ctx, entry, only = () => true) {
+    for (let i = 0; i < entry.msgIds.length; i += 1) {
+      if (!entry.msgIds[i] || !only(entry.drafts[i])) continue;
+      await withRetry(() => ctx.telegram.editMessageReplyMarkup?.(entry.chatId, entry.msgIds[i], undefined, { inline_keyboard: [] })).catch(() => {});
       if (draftGapMs > 0) await sleep(Math.round(draftGapMs / 3));
     }
   }
@@ -229,6 +236,41 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
   }
   const handleRemove = (ctx, key) => setRemoved(ctx, key, true);
   const handleUndo = (ctx, key) => setRemoved(ctx, key, false);
+
+  // A big paste (many forwarded posts) is cut at blank lines into pieces of about CHUNK_CHARS and the pieces are read at the same time:
+  // 50 loads take about as long as 12 would, instead of one long wait for a single huge answer.
+  const CHUNK_CHARS = 2500;
+  const PARALLEL_READS = 3;
+  function splitIntoChunks(text) {
+    if (text.length <= CHUNK_CHARS * 1.4) return [text];
+    const pieces = text.split(/\n\s*\n/).flatMap((block) => (block.length <= CHUNK_CHARS ? [block] : block.match(new RegExp(`[\\s\\S]{1,${CHUNK_CHARS}}(?:\\n|$)`, 'g')) ?? [block]));
+    const chunks = [];
+    let cur = '';
+    for (const piece of pieces) {
+      if (cur && cur.length + piece.length + 2 > CHUNK_CHARS) { chunks.push(cur); cur = ''; }
+      cur = cur ? `${cur}\n\n${piece}` : piece;
+    }
+    if (cur) chunks.push(cur);
+    return chunks;
+  }
+  async function parseAll(idToken, text) {
+    const chunks = splitIntoChunks(text);
+    const results = new Array(chunks.length);
+    let next = 0;
+    async function worker() {
+      while (next < chunks.length) {
+        const i = next; next += 1;
+        try { await rateLimiter(); results[i] = { ok: await apiClient.parseLoads(idToken, chunks[i]) }; } catch (err) { results[i] = { err }; }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(PARALLEL_READS, chunks.length) }, worker));
+    const good = results.filter((r) => r.ok);
+    if (!good.length) throw results[0].err;
+    return {
+      loads: good.flatMap((r) => r.ok.loads), truncated: good.some((r) => r.ok.truncated),
+      unread: results.length - good.length, // pieces the AI could not read (busy / limit): the rest still goes on
+    };
+  }
 
   // `textOverride` is the text after "/paste " when the member sends everything in one command.
   function handleText(ctx, textOverride) {
@@ -267,10 +309,9 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     }
 
     const waitMsg = await ctx.reply(t(ctx.lang, 'paste_parsing'));
-    let loads, truncated;
+    let loads, truncated, unread;
     try {
-      await rateLimiter();
-      ({ loads, truncated } = await apiClient.parseLoads(idToken, text));
+      ({ loads, truncated, unread } = await parseAll(idToken, text));
     } catch (err) {
       const key = err instanceof ApiError
         ? ({ ai_unavailable: 'paste_ai_unavailable', ai_busy: 'paste_ai_busy', ai_limit: 'paste_ai_limit', quota_exceeded: 'paste_ai_busy', ai_bad_output: 'paste_bad_output' }[err.code] ?? 'paste_unreachable')
@@ -303,6 +344,7 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
 
     const notes = [];
     if (truncated) notes.push(t(ctx.lang, 'paste_truncated_note', { max: loads.length }));
+    if (unread) notes.push(t(ctx.lang, 'paste_chunk_failed', { n: unread }));
     if (overflow > 0) notes.push(t(ctx.lang, 'paste_batch_full', { max: MAX_BATCH, n: overflow }));
     const title = fresh ? t(ctx.lang, 'paste_found_header', { count: incoming.length }) : t(ctx.lang, 'paste_added_header', { added: incoming.length, total: entry.drafts.length });
     const slow = incoming.length > 10 ? `\n${t(ctx.lang, 'paste_showing')}` : '';
@@ -328,17 +370,38 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     return entry && entry.nonce === nonce ? entry : null;
   }
 
+  // Which drafts the API refused: details look like { path: "loads.3.pickupDate", code: "pickup_past" }.
+  const failingIndexes = (err) => {
+    const idx = new Map();
+    for (const d of err?.details ?? []) {
+      const m = /^loads\.(\d+)(?:\.|$)/.exec(d.path ?? '');
+      if (m) idx.set(Number(m[1]), [...(idx.get(Number(m[1])) ?? []), d]);
+    }
+    return idx;
+  };
+  const reasonOf = (ctx, details) => details.map((d) => {
+    const key = `bulk_reason_${d.code}`;
+    const text = t(ctx.lang, key);
+    return text === key ? (d.message || d.code) : text;
+  }).join(', ');
+
   async function handleConfirm(ctx, nonce) {
     await ctx.answerCbQuery();
     const entry = takePending(ctx, nonce);
     if (!entry) return ctx.editMessageText(t(ctx.lang, 'paste_expired'));
-    dropEntry(ctx.from.id, entry);
+    if (entry.posting) return undefined; // a second tap while the first is still posting
+    entry.posting = true;
+    try { return await postBatch(ctx, entry); } finally { entry.posting = false; }
+  }
 
+  // Posts everything that is ready. One refused load never stops the others: the board is told again without it, and the refused ones
+  // stay in the review (with their reason) to be fixed and posted. The review is only closed once nothing is left to fix.
+  async function postBatch(ctx, entry) {
     const { drafts, member } = entry;
-    const live = drafts.filter((d) => !d.removed);
-    const postableDrafts = live.filter(isDraftPostable);
-    if (!postableDrafts.length) return ctx.editMessageText(t(ctx.lang, 'paste_nothing_postable'));
-    if (postableDrafts.some((d) => !hasContact(d, member))) return ctx.editMessageText(t(ctx.lang, 'paste_contact_missing'));
+    const live = drafts.filter((d) => !d.removed && !d.posted);
+    let postable = live.filter(isDraftPostable);
+    if (!postable.length) return ctx.editMessageText(t(ctx.lang, 'paste_nothing_postable'));
+    if (postable.some((d) => !hasContact(d, member))) return ctx.editMessageText(t(ctx.lang, 'paste_contact_missing'));
 
     let idToken;
     try {
@@ -347,29 +410,52 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
       return ctx.editMessageText(t(ctx.lang, 'paste_session_error'));
     }
 
+    const refused = []; // { draft, why }
+    let postedCount = 0;
     try {
-      const { items } = await apiClient.createLoadsBulk(idToken, postableDrafts.map((d) => toLoadBody(d, member)));
-      await clearButtons(ctx, entry);
-      // No list here: every posted load arrives as its own message (with Edit / Renew / Delete) from the broadcaster, right behind this one.
-      const lines = [t(ctx.lang, 'paste_posted_summary', { count: items.length })];
-      const skipped = live.length - postableDrafts.length;
-      if (skipped > 0) lines.push(t(ctx.lang, 'paste_skip_note', { count: skipped }).trim());
-      return ctx.editMessageText(lines.join('\n\n'), { parse_mode: 'HTML' });
+      for (let round = 0; round < 3 && postable.length; round += 1) {
+        try {
+          const { items } = await apiClient.createLoadsBulk(idToken, postable.map((d) => toLoadBody(d, member)));
+          postable.forEach((d) => { d.posted = true; });
+          postedCount += items.length;
+          postable = [];
+        } catch (err) {
+          const bad = err instanceof ApiError && err.status === 400 ? failingIndexes(err) : new Map();
+          if (!bad.size) throw err;
+          for (const [i, details] of bad) if (postable[i]) refused.push({ draft: postable[i], why: reasonOf(ctx, details) });
+          postable = postable.filter((_, i) => !bad.has(i));
+        }
+      }
     } catch (err) {
       if (err instanceof ApiError && err.code === 'subscription_required') return ctx.editMessageText(t(ctx.lang, 'paste_subscription_required'));
       if (err instanceof ApiError) {
         const detail = err.details?.length ? `\n${err.details.map((d) => `• ${d.path}: ${d.code}`).join('\n')}` : '';
-        return ctx.editMessageText(t(ctx.lang, 'paste_post_failed', { message: escapeHtml(err.message) + escapeHtml(detail) }));
+        return ctx.editMessageText(t(ctx.lang, 'paste_post_failed', { message: escapeHtml(err.message) + escapeHtml(detail) })); // the review stays: try again
       }
       log.error?.(`paste bulk post failed: ${err.message}`);
       return ctx.editMessageText(t(ctx.lang, 'paste_post_failed_generic'));
     }
+
+    // The buttons of what is posted come off in the background (50 edits take a few seconds); the answer does not wait for them.
+    clearButtons(ctx, entry, (d) => d?.posted).catch(() => {});
+    const lines = [];
+    if (postedCount) lines.push(t(ctx.lang, 'paste_posted_summary', { count: postedCount })); // every load follows as its own message from the broadcaster
+    if (refused.length) {
+      lines.push(t(ctx.lang, 'bulk_failed_header', { n: refused.length }));
+      for (const { draft, why } of refused) lines.push(`• #${drafts.indexOf(draft) + 1} ${escapeHtml(routeOf(draft))} - ${escapeHtml(why)}`);
+      const f = footerView(ctx, entry);
+      return ctx.editMessageText(`${lines.join('\n')}\n${f.text}`, { parse_mode: 'HTML', ...f.keyboard });
+    }
+    dropEntry(ctx.from.id, entry);
+    const skipped = live.length - postedCount;
+    if (skipped > 0) lines.push(t(ctx.lang, 'paste_skip_note', { count: skipped }).trim());
+    return ctx.editMessageText(lines.join('\n\n'), { parse_mode: 'HTML' });
   }
 
   async function handleCancel(ctx, nonce) {
     await ctx.answerCbQuery();
     const entry = takePending(ctx, nonce);
-    if (entry) { dropEntry(ctx.from.id, entry); await clearButtons(ctx, entry); }
+    if (entry) { dropEntry(ctx.from.id, entry); clearButtons(ctx, entry).catch(() => {}); }
     return ctx.editMessageText(t(ctx.lang, 'paste_cancelled'));
   }
 

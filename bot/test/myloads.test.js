@@ -57,7 +57,7 @@ let record = () => {};
 Telegram.prototype.callApi = async function fake(method, payload) { return record(method, payload); };
 process.on('exit', () => { Telegram.prototype.callApi = realCallApi; });
 
-function setup({ debounce = 0, count = 0, flood = 0 } = {}) {
+function setup({ debounce = 0, count = 0, flood = 0, bulk = null, parse = null } = {}) {
   const sent = []; const calls = []; const parsed = [];
   let loads = [{
     id: 7, originCity: 'Perm, RU', destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 22, volumeM3: 120, pickupDate: '2026-10-12', deliveryDate: null,
@@ -70,11 +70,11 @@ function setup({ debounce = 0, count = 0, flood = 0 } = {}) {
     deleteLoad: async (_t, id) => { calls.push(['delete', id]); loads = loads.filter((l) => l.id !== id); },
     searchCities: async (_t, q) => (/^tom/i.test(q) ? { items: [{ id: 5, label: 'Tomsk, RU' }, { id: 6, label: 'Tomsk Oblast, RU' }] } : { items: [] }),
     getMe: async () => ({ profile: { id: 1, status: 'approved', company: 'Abdulloh', phone: '+998938747080', contactName: 'Abdulloh' } }),
-    parseLoads: async (_t, text) => { parsed.push(text); if (count) return { truncated: false, loads: Array.from({ length: count }, (_, i) => ({ originCityId: 1, originCity: 'Perm, RU', destCityId: 2, destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 20, volumeM3: null, pickupDate: '2026-10-12', rateUsd: 100 + i, commodity: `Yuk ${i + 1}`, notes: '', contactPhone: '+998938747080', contactTelegram: '', contactName: '', flags: [] })) }; return ({ truncated: false, loads: [
+    parseLoads: async (_t, text) => { parsed.push(text); if (parse) await parse(text, parsed.length); if (count) return { truncated: false, loads: Array.from({ length: count }, (_, i) => ({ originCityId: 1, originCity: 'Perm, RU', destCityId: 2, destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 20, volumeM3: null, pickupDate: '2026-10-12', rateUsd: 100 + i, commodity: `Yuk ${i + 1}`, notes: '', contactPhone: '+998938747080', contactTelegram: '', contactName: '', flags: [] })) }; return ({ truncated: false, loads: [
       { originCityId: 1, originCity: 'Perm, RU', destCityId: 2, destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 22, volumeM3: 120, pickupDate: '2026-10-12', rateUsd: 0, commodity: 'Ламинат', notes: 'Срочно', contactPhone: '+998938747080', contactTelegram: '', contactName: '', flags: ['date'] },
       { originCityId: null, originCity: '', originText: 'Питр', destCityId: 2, destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 20, volumeM3: null, pickupDate: '2026-10-13', rateUsd: 500, commodity: 'Тент', notes: '', contactPhone: '', contactTelegram: '', contactName: '', flags: ['origin'] },
     ] }); },
-    createLoadsBulk: async (_t, bodies) => { calls.push(['bulk', bodies]); return { items: bodies.map((b, i) => ({ id: 100 + i, originCity: 'x', destCity: 'y', pickupDate: b.pickupDate, rateUsd: b.rateUsd })) }; },
+    createLoadsBulk: async (_t, bodies) => { calls.push(['bulk', bodies]); if (bulk) await bulk(bodies, calls.filter((c) => c[0] === 'bulk').length); return { items: bodies.map((b, i) => ({ id: 100 + i, originCity: 'x', destCity: 'y', pickupDate: b.pickupDate, rateUsd: b.rateUsd })) }; },
   };
   const config = { botToken: '123:test', broadcastLang: 'uz', joinChannel: '', joinGroup: '', aiMaxPerMin: 600, pendingTtlMin: 15, pasteDebounceMs: debounce, draftGapMs: 0, sleep: async () => {}, webBaseUrl: 'https://x', webUrlIsPublic: true };
   const state = { link: null, removed: 0, lang: null };
@@ -378,3 +378,66 @@ function setupFailing(err) {
   const say = (text) => bot.handleUpdate({ update_id: ++n, message: { message_id: n, date: 0, text, from, chat: { id: 77, type: 'private' } } });
   return { say, sent };
 }
+
+test('one load the board refuses does not stop the others: the rest is posted, the refused one stays to be fixed', async () => {
+  const { ApiError } = await import('../src/apiClient.js');
+  let refuse = true;
+  const { say, press, sent, calls, buttons } = setup({
+    count: 5,
+    bulk: async (bodies) => { if (refuse && bodies.length === 5) throw new ApiError(400, 'validation_error', 'Please check', [{ path: 'loads.2.pickupDate', code: 'pickup_past', message: 'Pickup date is in the past' }]); },
+  });
+  await say('Perm Andijan Ламинат 22 тонн +998938747080');
+  const footer = () => sent.filter((s) => s.method === 'sendMessage' && buttons(s).some((b) => b.startsWith('paste:confirm'))).at(-1);
+  await press(buttons(footer())[0]);
+  const bulks = calls.filter((c) => c[0] === 'bulk');
+  assert.deepEqual(bulks.map((c) => c[1].length), [5, 4], 'tried with all five, then again without the refused one');
+  const answer = sent.filter((s) => s.method === 'editMessageText').at(-1);
+  assert.match(answer.text, /4 ta yuk joylandi/);
+  assert.match(answer.text, /#3 Perm, RU → Andijan, UZ - yuklash sanasi oʻtib ketgan/, 'says which one and why');
+  assert.match(answer.text, /1 tadan 1 ta/, 'the refused one can be posted again');
+  assert.ok(buttons({ reply_markup: answer.reply_markup }).some((b) => b.startsWith('paste:confirm')), 'the Post button is still there');
+  // fix it and post again: only that one goes
+  refuse = false;
+  await press(buttons({ reply_markup: answer.reply_markup })[0]);
+  assert.deepEqual(calls.filter((c) => c[0] === 'bulk').at(-1)[1].length, 1);
+  assert.match(sent.filter((s) => s.method === 'editMessageText').at(-1).text, /1 ta yuk joylandi/);
+});
+
+test('a failed post (quota, outage) keeps the review: tapping Post again works', async () => {
+  const { ApiError } = await import('../src/apiClient.js');
+  let fail = true;
+  const { say, press, sent, calls, buttons } = setup({ count: 3, bulk: async () => { if (fail) throw new ApiError(429, 'quota_exceeded', 'Posting too fast'); } });
+  await say('Perm Andijan Ламинат 22 тонн +998938747080');
+  const confirm = buttons(sent.filter((s) => s.method === 'sendMessage' && buttons(s).some((b) => b.startsWith('paste:confirm'))).at(-1))[0];
+  await press(confirm);
+  assert.match(sent.filter((s) => s.method === 'editMessageText').at(-1).text, /Joylab boʻlmadi|Could not post|Не удалось/);
+  fail = false;
+  await press(confirm);
+  assert.match(sent.filter((s) => s.method === 'editMessageText').at(-1).text, /3 ta yuk joylandi/, 'the same button still works - nothing was lost');
+  assert.equal(calls.filter((c) => c[0] === 'bulk').length, 2);
+});
+
+test('a pickup date from the past is moved to today so it cannot sink the whole batch', async () => {
+  const { toLoadBody } = await import('../src/pasteFlow.js');
+  const draft = { originCityId: 1, destCityId: 2, equip: 'T', fp: 'Full', weightT: 20, pickupDate: '2020-01-01', rateUsd: 0, commodity: 'x', notes: '', contactPhone: '+998901112233', flags: [] };
+  const today = new Date().toISOString().slice(0, 10);
+  assert.equal(toLoadBody(draft, {}).pickupDate, today);
+  assert.equal(toLoadBody({ ...draft, pickupDate: '2099-01-01' }, {}).pickupDate, '2099-01-01', 'a date in the future is left alone');
+  assert.equal(toLoadBody({ ...draft, pickupDate: '2020-01-01', deliveryDate: '2020-01-05' }, {}).deliveryDate, undefined, 'a delivery date older than the (moved) pickup is dropped');
+});
+
+test('a big paste is read in parallel pieces; a piece that fails does not lose the rest', async () => {
+  const post = (i) => `Perm Andijan Yuk ${i} ${'x'.repeat(250)} +99893874${String(7000 + i).slice(0, 4)}`;
+  const big = Array.from({ length: 40 }, (_, i) => post(i)).join('\n\n');
+  assert.ok(big.length > 9000 && big.length < 12000);
+  let running = 0; let peak = 0;
+  const { say, parsed, sent } = setup({
+    parse: async (_text, n) => { running += 1; peak = Math.max(peak, running); await wait(30); running -= 1; if (n === 2) throw new (await import('../src/apiClient.js')).ApiError(503, 'ai_busy', 'busy'); },
+  });
+  await say(`/paste ${big}`);
+  assert.ok(parsed.length >= 3, `read in ${parsed.length} pieces`);
+  assert.ok(peak >= 2, `${peak} pieces were being read at the same time`);
+  assert.ok(sent.some((s) => s.method === 'editMessageText' && /1 qismini hozir oʻqib boʻlmadi/.test(s.text)), 'tells which part was not read');
+  assert.ok(sent.filter((s) => s.method === 'sendMessage' && /^<b>#\d+/.test(s.text)).length >= 2, 'the other pieces still produced loads');
+  assert.equal(parsed.join('').replace(/\s/g, '').length >= big.replace(/\s/g, '').length * 0.98, true, 'no post was cut away');
+});

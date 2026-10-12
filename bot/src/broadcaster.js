@@ -18,6 +18,7 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
   let listener = null; // the currently-live LISTEN client, or null while reconnecting
   let closed = false;
   let retryMs = 500;
+  let catchUpTimer = null;
   let queue = Promise.resolve(); // serialises sends so a slow broadcast can't overlap the next one
 
   async function fetchLoad(id) {
@@ -59,41 +60,124 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     else log.warn?.(`broadcast to ${chatId} failed: ${err.message}`) ?? console.warn(`broadcast to ${chatId} failed: ${err.message}`);
   }
 
-  // Broadcasts to a group/channel are fire-and-forget - deliberately NOT remembered in
-  // telegram_load_messages, so closing/removing the load later never reaches back into a group or
-  // channel to delete anything there (members may already be relying on seeing it, even once it's
-  // no longer active - unlike the poster's own chat, see sendToOwner below).
-  async function sendToAllChats(text) {
-    const chatIds = await store.listActiveChatIds();
-    for (const chatId of chatIds) {
-      try { await pace(chatId, config.broadcastGroupGapMs); await sendWithRetry(chatId, text); } catch (err) { await handleSendError(err, chatId); }
-      if (config.broadcastSpacingMs > 0) await sleep(config.broadcastSpacingMs);
+  // ---- one worker per chat -------------------------------------------------------------------------------------------------
+  // Every chat has its own to-do list and its own worker, so a slow or flooded group never holds up the others or the poster's DM.
+  // A group takes about 20 messages a minute, so when many loads are waiting for it (someone posted 50 at once) up to
+  // DIGEST_MAX_LOADS of them go out as ONE message instead of 5 - the group gets everything in a fraction of the time and without
+  // flooding. The poster's own chat always gets one message per load (each carries its own Edit / Renew / Delete buttons).
+  const DIGEST_MIN_QUEUED = 3;
+  const DIGEST_MAX_LOADS = 5;
+  const DIGEST_MAX_CHARS = 3600; // Telegram's limit is 4096
+  const DIGEST_SEPARATOR = '\n\n━━━━━━━━━━\n\n';
+  const chatQueues = new Map(); // chatId -> { items: [], busy }
+  const inFlight = new Set();   // `${loadId}:${chatId}` - queued or being sent right now
+
+  const groupSuffix = () => { const join = joinLines(config, config.broadcastLang); return join ? `\n\n${join}` : ''; };
+
+  function takeBatch(q) {
+    const first = q.items[0];
+    if (first.own || q.items.length < DIGEST_MIN_QUEUED) return [q.items.shift()];
+    const batch = [];
+    let chars = 0;
+    while (q.items.length && !q.items[0].own && batch.length < DIGEST_MAX_LOADS && (!batch.length || chars + q.items[0].text.length + DIGEST_SEPARATOR.length <= DIGEST_MAX_CHARS)) {
+      const item = q.items.shift();
+      chars += item.text.length + DIGEST_SEPARATOR.length;
+      batch.push(item);
+    }
+    return batch;
+  }
+
+  async function deliver(chatId, batch) {
+    if (batch[0].own) {
+      // The poster's own chat: tracked, so closing the load later pulls its message back out (see handleDelete).
+      const [item] = batch;
+      const lang = (await store.getLanguage?.(chatId)) ?? config.broadcastLang;
+      await pace(chatId, config.broadcastOwnerGapMs);
+      const sent = await sendWithRetry(chatId, item.text + groupSuffix(), loadKeyboard(lang, item.loadId));
+      if (sent?.message_id != null) {
+        await store.saveSentMessage({ loadId: item.loadId, chatId, messageId: sent.message_id })
+          .catch((err) => log.warn?.(`tracking message for load ${item.loadId} in ${chatId} failed: ${err.message}`));
+      }
+      return;
+    }
+    // A group or channel: fire-and-forget on purpose - NOT remembered in telegram_load_messages, so closing a load never reaches into
+    // a group to delete anything (members may be relying on it). Only "this load reached this chat" is recorded, to catch up later.
+    await pace(chatId, config.broadcastGroupGapMs);
+    await sendWithRetry(chatId, batch.map((i) => i.text).join(DIGEST_SEPARATOR) + groupSuffix());
+    await store.markBroadcasts?.(chatId, batch.map((i) => i.loadId)).catch((err) => log.warn?.(`recording broadcast failed: ${err.message}`));
+  }
+
+  async function runChat(chatId, q) {
+    q.busy = true;
+    try {
+      while (q.items.length) {
+        const batch = takeBatch(q);
+        try { await deliver(chatId, batch); } catch (err) { await handleSendError(err, chatId); } finally {
+          for (const item of batch) { inFlight.delete(`${item.loadId}:${chatId}`); item.done(); }
+        }
+      }
+    } finally { q.busy = false; }
+  }
+
+  /** Queues a load for a chat; resolves when it has been sent (or given up on). */
+  function enqueue(chatId, item) {
+    const key = `${item.loadId}:${chatId}`;
+    if (inFlight.has(key)) return Promise.resolve();
+    inFlight.add(key);
+    let q = chatQueues.get(chatId);
+    if (!q) { q = { items: [], busy: false }; chatQueues.set(chatId, q); }
+    const done = new Promise((resolve) => { item.done = resolve; });
+    q.items.push(item);
+    if (!q.busy) runChat(chatId, q);
+    return done;
+  }
+
+  function linkFor(row) {
+    // Each load gets its own link back to this exact load on the web board (GET /api/loads/:id backs it, see server/src/routes/loads.js).
+    return config.webUrlIsPublic === false ? null : `${config.webBaseUrl}/?load=${row.id}`; // never broadcast a dead (internal) address
+  }
+
+  /** Sends one load to the given groups (and, if `owner`, to the poster's own chat). */
+  async function broadcastLoad(row, chatIds, { owner = false } = {}) {
+    const text = formatLoadMessage(row, config.broadcastLang, linkFor(row));
+    const waits = chatIds.map((chatId) => enqueue(chatId, { loadId: row.id, text }));
+    if (owner) {
+      const ownerChat = await store.getTelegramUserIdByMemberId(row.owner_id);
+      if (ownerChat) waits.push(enqueue(ownerChat, { loadId: row.id, text, own: true }));
+    }
+    await Promise.all(waits);
+  }
+
+  // A load that was closed before its turn came never needs to be sent.
+  function forget(loadId) {
+    for (const [chatId, q] of chatQueues) {
+      q.items = q.items.filter((item) => {
+        if (item.loadId !== loadId) return true;
+        inFlight.delete(`${loadId}:${chatId}`);
+        item.done();
+        return false;
+      });
     }
   }
 
-  // The poster gets their own load in their own chat too, same message every group gets - only if
-  // they've ever linked their Telegram account (store.getTelegramUserIdByMemberId returns null
-  // otherwise). This one IS tracked: it's the poster's own chat, so pulling it back out when they
-  // close/remove the load (see handleDelete) is tidying up after them, not touching anyone else's chat.
-  async function sendToOwner(loadId, ownerMemberId, text) {
-    const chatId = await store.getTelegramUserIdByMemberId(ownerMemberId);
-    if (!chatId) return;
-    try {
-      // Each load the poster gets in their own chat carries its own Edit / Renew / Delete buttons (editor.js, myLoads.js).
-      const lang = (await store.getLanguage?.(chatId)) ?? config.broadcastLang;
-      await pace(chatId, config.broadcastOwnerGapMs);
-      const sent = await sendWithRetry(chatId, text, loadKeyboard(lang, loadId));
-      if (sent?.message_id != null) {
-        await store.saveSentMessage({ loadId, chatId, messageId: sent.message_id })
-          .catch((err) => log.warn?.(`tracking message for load ${loadId} in ${chatId} failed: ${err.message}`));
-      }
-    } catch (err) {
-      await handleSendError(err, chatId);
+  // After a restart or a failed send: send what some group never got (migration 019). Runs once at start and then every minute.
+  async function catchUp() {
+    if (closed || typeof store.listUnsentBroadcasts !== 'function') return;
+    const rows = await store.listUnsentBroadcasts();
+    const byLoad = new Map();
+    for (const { load_id: id, chat_id: chatId } of rows) {
+      if (inFlight.has(`${id}:${chatId}`)) continue;
+      byLoad.set(id, [...(byLoad.get(id) ?? []), chatId]);
     }
+    for (const [id, chatIds] of byLoad) {
+      const row = await fetchLoad(id);
+      if (row?.status === 'active') broadcastLoad(row, chatIds).catch((err) => log.warn?.(`catch-up for load ${id} failed: ${err.message}`));
+    }
+    if (byLoad.size) log.info?.(`catch-up: ${byLoad.size} load(s) had not reached every group yet`);
   }
 
   // The load was closed/removed (DELETE /api/loads/:id, from the web app, /postload... or /myloads
-  // below): pull it back out of the poster's own chat (see sendToOwner - groups/channels are never
+  // below): pull it back out of the poster's own chat (see deliver() - groups/channels are never
   // tracked here, so this never touches them). Telegram refuses to delete a message once it's more
   // than 48h old (or already gone) - nothing more to do there, but the row is forgotten regardless
   // so this never retries forever.
@@ -136,6 +220,7 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     }
     if (evt?.entity !== 'loads' || !evt.id) return;
     if (evt.op === 'delete') {
+      forget(evt.id);
       queue = queue.then(() => handleDelete(evt.id)
         .catch((err) => log.error?.(`un-broadcasting load ${evt.id} failed: ${err.message}`) ?? console.error(`un-broadcasting load ${evt.id} failed: ${err.message}`)));
       await queue;
@@ -144,21 +229,11 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     if (evt.op !== 'insert') return;
     const row = await fetchLoad(evt.id);
     if (!row || row.status !== 'active') return; // closed/edited away again before we got to it
-    // Each load gets its own link back to this exact load on the web board (GET /api/loads/:id
-    // backs it, see server/src/routes/loads.js); clicking it works for anyone with board access,
-    // independent of whoever posted it or whichever group it landed in.
-    const linkUrl = config.webUrlIsPublic === false ? null : `${config.webBaseUrl}/?load=${row.id}`; // never broadcast a dead (internal) address
-    const join = joinLines(config, config.broadcastLang);
-    const text = formatLoadMessage(row, config.broadcastLang, linkUrl) + (join ? `\n\n${join}` : '');
-    queue = queue.then(async () => {
-      try {
-        await sendToAllChats(text);
-        await sendToOwner(row.id, row.owner_id, text);
-      } catch (err) {
-        log.error?.(`broadcast failed: ${err.message}`) ?? console.error(`broadcast failed: ${err.message}`);
-      }
-    });
-    await queue;
+    try {
+      await broadcastLoad(row, await store.listActiveChatIds(), { owner: true });
+    } catch (err) {
+      log.error?.(`broadcast failed: ${err.message}`) ?? console.error(`broadcast failed: ${err.message}`);
+    }
   }
 
   async function connect() {
@@ -197,12 +272,19 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
   }
 
   return {
-    async start() { await connect(); },
+    async start() {
+      await connect();
+      catchUpTimer = setInterval(() => catchUp().catch((err) => log.warn?.(`catch-up failed: ${err.message}`)), 60_000);
+      catchUpTimer.unref?.();
+      setTimeout(() => catchUp().catch((err) => log.warn?.(`catch-up failed: ${err.message}`)), 5_000).unref?.();
+    },
     async stop() {
       closed = true;
+      clearInterval(catchUpTimer);
       if (listener) { listener.removeAllListeners(); await listener.end().catch(() => {}); listener = null; }
     },
     // Exposed so bot/test can drive the "a load was inserted" path without a real LISTEN connection.
     _handleEvent: handleEvent,
+    _catchUp: catchUp,
   };
 }

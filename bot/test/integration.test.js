@@ -210,7 +210,7 @@ test('the copy of a load the poster gets in their own chat carries Edit / Renew 
   } finally { await broadcaster.stop(); }
 });
 
-test('50 loads posted at once all reach every group and the poster - paced so Telegram\'s flood limit is never hit', async () => {
+test('50 loads posted at once all reach every group (merged into a few messages) and the poster (one each), at Telegram-safe pace', async () => {
   const sent = []; const waits = [];
   const bot = { telegram: { sendMessage: async (chatId, text) => { sent.push({ chatId, text }); return { message_id: sent.length }; } } };
   const store = {
@@ -219,16 +219,51 @@ test('50 loads posted at once all reach every group and the poster - paced so Te
   };
   const broadcaster = makeBroadcaster({
     config: { databaseUrl: env.config.databaseUrl, broadcastSpacingMs: 0, broadcastGroupGapMs: 3100, broadcastOwnerGapMs: 1100, broadcastLang: 'uz', webBaseUrl: 'https://sng.example', webUrlIsPublic: true },
-    pool: env.pool, store, bot, log: { warn() {}, error() {} }, sleep: async (ms) => { waits.push(ms); },
+    pool: env.pool, store, bot, log: { warn() {}, error() {} }, sleep: async (ms) => { waits.push(ms); await new Promise((r) => setTimeout(r, 25)); }, // a short real pause, so the to-do list can fill up like it does with the real 3-second gaps
   });
   await broadcaster.start();
   try {
     const loads = Array.from({ length: 50 }, (_, i) => ({ ...validLoad(cityA, cityB), commodity: `Paced ${i}` }));
     const res = await env.as('poster@test.com').post('/api/loads/bulk', { loads });
     assert.equal(res.status, 201);
-    assert.ok(await waitFor(() => sent.length === 150, 20000), `3 chats x 50 loads, got ${sent.length}`);
-    for (const chat of [111, 222, 999]) assert.equal(sent.filter((s) => s.chatId === chat).length, 50, `chat ${chat} got every load`);
-    assert.ok(waits.filter((w) => w > 2500).length >= 49 * 2, 'groups are paced to about 20 a minute');
-    assert.ok(waits.filter((w) => w > 800 && w < 1200).length >= 40, 'the private chat is paced to about 1 a second');
+    assert.ok(await waitFor(() => sent.filter((s) => s.chatId === 999).length === 50 && [111, 222].every((c) => sent.filter((s) => s.chatId === c).map((s) => s.text).join('').includes('Paced 49')), 20000), `got ${sent.length} messages`);
+    for (const chat of [111, 222]) {
+      const mine = sent.filter((s) => s.chatId === chat);
+      const all = mine.map((s) => s.text).join('\n');
+      for (let i = 0; i < 50; i += 1) assert.ok(all.includes(`Paced ${i}`), `group ${chat} is missing load ${i}`);
+      assert.ok(mine.length <= 20, `group ${chat} got ${mine.length} messages for 50 loads: merged, not 50 separate ones`);
+      assert.ok(mine.every((m) => m.text.length <= 4096), 'no message is over Telegram\'s limit');
+    }
+    assert.equal(sent.filter((s) => s.chatId === 999).length, 50, 'the poster still gets one message per load (each has its own buttons)');
+    assert.ok(waits.some((w) => w > 2500), 'groups are paced to about 20 a minute');
   } finally { await broadcaster.stop(); }
+});
+
+test('a load some group never received (restart, failed send) is sent by the catch-up - once', async () => {
+  const { makeStore } = await import('../src/store.js');
+  const { makeCrypto } = await import('../src/crypto.js');
+  const store = makeStore(env.pool, makeCrypto(Buffer.alloc(32, 3).toString('base64')));
+  await env.pool.query("INSERT INTO telegram_chats (chat_id, chat_type, title, created_at) VALUES (4242, 'supergroup', 'Test group', now() - interval '1 day') ON CONFLICT DO NOTHING");
+  const posted = await env.as('poster@test.com').post('/api/loads', { ...validLoad(cityA, cityB), commodity: 'Catch me up' }); // no broadcaster is running: nobody sends it
+  assert.equal(posted.status, 201);
+  await env.pool.query("UPDATE loads SET created_at = now() - interval '5 minutes' WHERE id = $1", [posted.json.id]);
+
+  let failNext = true; const got = [];
+  const bot = { telegram: { sendMessage: async (chatId, text) => { if (failNext) { failNext = false; throw Object.assign(new Error('Bad Gateway'), { response: { error_code: 502 } }); } got.push({ chatId, text }); return { message_id: 1 }; } } };
+  const broadcaster = makeBroadcaster({
+    config: { databaseUrl: env.config.databaseUrl, broadcastSpacingMs: 0, broadcastLang: 'uz', webBaseUrl: 'https://sng.example', webUrlIsPublic: true },
+    pool: env.pool, store, bot, log: { warn() {}, error() {}, info() {} }, sleep: async () => {},
+  });
+  await broadcaster._catchUp();
+  assert.ok(await waitFor(() => failNext === false, 3000), 'first attempt was made (and failed)');
+  await sleep(150);
+  assert.equal(got.length, 0);
+  assert.equal((await env.pool.query('SELECT count(*)::int AS n FROM telegram_broadcasts WHERE load_id = $1', [posted.json.id])).rows[0].n, 0, 'a failed send is not recorded as sent');
+  await broadcaster._catchUp(); // the next minute\'s run
+  assert.ok(await waitFor(() => got.some((g) => g.chatId === 4242 && /Catch me up/.test(g.text)), 3000), 'the group gets the load now');
+  await sleep(150);
+  await broadcaster._catchUp();
+  await sleep(150);
+  assert.equal(got.filter((g) => /Catch me up/.test(g.text)).length, 1, 'and only once');
+  assert.equal((await env.pool.query('SELECT count(*)::int AS n FROM telegram_broadcasts WHERE load_id = $1 AND chat_id = 4242', [posted.json.id])).rows[0].n, 1);
 });

@@ -40,7 +40,7 @@ export function loadBotConfig(env = process.env) {
     aiMaxPerMin: Number(env.AI_PASTE_MAX_PER_MIN || 20),
     pendingTtlMin: Number(env.PASTE_PENDING_TTL_MIN || 60),
     // Pause between the per-load messages of a big review (Telegram allows about one message a second to a chat).
-    draftGapMs: Number(env.PASTE_DRAFT_GAP_MS ?? 400),
+    draftGapMs: Number(env.PASTE_DRAFT_GAP_MS ?? 300),
     // Forwarded messages that arrive within this many ms of each other are read as one paste (one review, one Post button).
     pasteDebounceMs: Number(env.PASTE_DEBOUNCE_MS ?? 2500),
   };

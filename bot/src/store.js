@@ -99,6 +99,25 @@ export function makeStore(pool, crypto) {
     );
   }
 
+  // Which loads reached which group (see migration 019): lets the broadcaster send the missing ones after a restart or a failure.
+  async function markBroadcasts(chatId, loadIds) {
+    if (!loadIds.length) return;
+    await pool.query(
+      `INSERT INTO telegram_broadcasts (load_id, chat_id) SELECT unnest($2::bigint[]), $1 ON CONFLICT DO NOTHING`, [chatId, loadIds]);
+  }
+
+  // Active loads from the last two hours that some active group has not received yet (and that the group could have received:
+  // it joined before the load was posted). Loads younger than `minAgeSec` are left alone - the normal path is still sending them.
+  async function listUnsentBroadcasts({ minAgeSec = 90, limit = 500 } = {}) {
+    const { rows } = await pool.query(
+      `SELECT l.id AS load_id, c.chat_id FROM loads l
+         JOIN telegram_chats c ON c.status = 'active' AND c.created_at <= l.created_at
+        WHERE l.status = 'active' AND l.created_at > now() - interval '2 hours' AND l.created_at < now() - make_interval(secs => $1::int)
+          AND NOT EXISTS (SELECT 1 FROM telegram_broadcasts b WHERE b.load_id = l.id AND b.chat_id = c.chat_id)
+        ORDER BY l.id LIMIT $2`, [minAgeSec, limit]);
+    return rows;
+  }
+
   async function listSentMessages(loadId) {
     const { rows } = await pool.query('SELECT chat_id, message_id FROM telegram_load_messages WHERE load_id = $1', [loadId]);
     return rows;
@@ -125,6 +144,6 @@ export function makeStore(pool, crypto) {
   return {
     saveLink, getLinkByTelegramUserId, updateRefreshToken, removeLink, upsertChat, markChatRemoved,
     listActiveChatIds, listOwnerTelegramIds, countActiveChats, getLanguage, setLanguage,
-    getTelegramUserIdByMemberId, saveSentMessage, listSentMessages, deleteSentMessages,
+    getTelegramUserIdByMemberId, saveSentMessage, listSentMessages, deleteSentMessages, markBroadcasts, listUnsentBroadcasts,
   };
 }
