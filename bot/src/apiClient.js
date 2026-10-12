@@ -34,6 +34,8 @@ export function makeApiClient({ baseUrl }) {
   const createLoad = (idToken, body) => request(idToken, 'POST', '/api/loads', body);
   // Same endpoint the web app's "paste from Telegram/WhatsApp" screen calls - see server/src/routes/ai.js.
   // Used by the ingest bot (ingestPipeline.js) to turn a group message into structured load drafts.
+  // Up to 40 at once, all-or-nothing (server/src/routes/loads.js): what pasteFlow's confirm button calls.
+  const createLoadsBulk = (idToken, loads) => request(idToken, 'POST', '/api/loads/bulk', { loads });
   const parseLoads = (idToken, text) => request(idToken, 'POST', '/api/ai/parse-loads', { text });
   // Used by /myloads (bot.js): everything this member has posted, so they can delete one from the chat.
   const listMine = (idToken) => request(idToken, 'GET', '/api/loads/mine');
@@ -47,5 +49,5 @@ export function makeApiClient({ baseUrl }) {
   // Trades a still-valid PIN session for a fresh one, so a linked member never has to /link again just because time passed.
   const refreshSession = (token) => request(token, 'POST', '/api/auth/refresh', {});
 
-  return { getMe, searchCities, createLoad, parseLoads, listMine, deleteLoad, pinLogin, refreshSession };
+  return { getMe, searchCities, createLoad, createLoadsBulk, parseLoads, listMine, deleteLoad, pinLogin, refreshSession };
 }

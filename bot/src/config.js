@@ -31,6 +31,10 @@ export function loadBotConfig(env = process.env) {
     // Stored without the leading "@" (stripped if given) so there's never a double "@@".
     joinChannel: (env.BOT_JOIN_CHANNEL || '').replace(/^@/, ''),
     joinGroup: (env.BOT_JOIN_GROUP || '').replace(/^@/, ''),
+    // AI paste-import (pasteFlow.js): at most this many /api/ai/parse-loads calls per minute from this process, and how long
+    // a parsed batch waits for its Post / Cancel buttons before it must be pasted again.
+    aiMaxPerMin: Number(env.AI_PASTE_MAX_PER_MIN || 20),
+    pendingTtlMin: Number(env.PASTE_PENDING_TTL_MIN || 15),
   };
   const problems = [];
   // Links in broadcasts are clicked by people on the internet. An internal/localhost address would be a dead

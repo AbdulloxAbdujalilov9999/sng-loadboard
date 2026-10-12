@@ -5,6 +5,12 @@ A separate process (`bot/`) that connects the loadboard to Telegram:
 - **Link an account**: `/link your@email.com yourPassword` (DM only) signs in with the same e-mail +
   password the web app uses (Firebase Auth), so posting from Telegram obeys the exact same rules
   (quotas, required fields, approval status) as posting from the browser.
+- **AI paste-import** (same as the standalone `sng-ai-bot`, now built into this bot): in a DM, paste or forward a freight post
+  (Russian or Uzbek, one load or many). The bot sends it to `POST /api/ai/parse-loads` (the same Gemini parser the website
+  uses), shows every load with warnings for anything it had to guess, and posts them with one tap through `POST /api/loads/bulk`
+  under the member's own account and quotas. Plain text typed inside `/link` or `/postload` still goes to those steps first,
+  and groups are never read. Code: `src/pasteFlow.js`; tuned with `AI_PASTE_MAX_PER_MIN` (default 20) and
+  `PASTE_PENDING_TTL_MIN` (default 15).
 - **Post from Telegram**: `/postload` walks through a few questions and ends with the same
   `POST /api/loads` call the web app makes - the load shows up on the web board immediately.
 - **Broadcast everywhere**: add the bot to any group/channel and it posts every new load there

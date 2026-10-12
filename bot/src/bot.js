@@ -11,6 +11,7 @@ import { makeLinkScene, linkFailureText, normalizePhone, performLink } from './l
 import { OWN_PREFIX } from './tokens.js';
 import { escapeHtml, joinLines } from './format.js';
 import { makeLangManager } from './lang.js';
+import { makePasteFlow } from './pasteFlow.js';
 import { t, LANGS, LANG_NAMES } from './i18n.js';
 
 const BROADCAST_CHAT_TYPES = new Set(['group', 'supergroup', 'channel']);
@@ -20,6 +21,7 @@ const loginOf = (identity) => (/^p\d+@phone\.sng$/.test(identity) ? `+${identity
 export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   const bot = new Telegraf(config.botToken);
   const lang = makeLangManager({ store });
+  const pasteFlow = makePasteFlow({ apiClient, tokens, config });
 
   bot.use(session());
   bot.use(async (ctx, next) => { ctx.lang = await lang.getLang(ctx); return next(); });
@@ -47,7 +49,8 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   // format.js's joinLines.
   const welcomeText = (lang) => {
     const join = joinLines(config, lang);
-    return join ? `${t(lang, 'welcome')}\n\n${join}` : t(lang, 'welcome');
+    const text = `${t(lang, 'welcome')}\n\n${t(lang, 'welcome_paste')}`;
+    return join ? `${text}\n\n${join}` : text;
   };
   bot.start((ctx) => ctx.reply(welcomeText(ctx.lang)));
   bot.help((ctx) => ctx.reply(welcomeText(ctx.lang)));
@@ -229,6 +232,17 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     } catch {
       await ctx.editMessageText(t(ctx.lang, 'myloads_delete_failed'));
     }
+  });
+
+  // ---- AI paste-import: paste or forward a freight post in a DM and the bot reads it with AI ----
+  bot.action(/^paste:confirm:([0-9a-f-]+)$/, (ctx) => pasteFlow.handleConfirm(ctx, ctx.match[1]));
+  bot.action(/^paste:cancel:([0-9a-f-]+)$/, (ctx) => pasteFlow.handleCancel(ctx, ctx.match[1]));
+  // Any plain text in a DM that is not a command and not inside a scene (/link, /postload answers go to the scene
+  // first) is treated as a pasted freight post. Registered LAST so every command and the active scene get first refusal.
+  // Groups are never read: the bot only listens to a member's own DM.
+  bot.on('text', (ctx) => {
+    if (ctx.chat.type === 'private' && !ctx.message.text.startsWith('/')) return pasteFlow.handleText(ctx);
+    return undefined;
   });
 
   bot.catch((err, ctx) => {
