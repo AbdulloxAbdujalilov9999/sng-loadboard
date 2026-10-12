@@ -24,7 +24,7 @@ Stack on the server: **Caddy** (HTTPS, automatic certificates) → **API** (also
    The first build takes a few minutes. Then open `https://<SITE_ADDRESS>`.
 6. **Firebase:** console → Authentication → Settings → **Authorized domains** → add your `SITE_ADDRESS`. Without this, Google/phone sign-in is refused on the new address.
 7. **Telegram bot (optional):** put `TELEGRAM_BOT_TOKEN` and `BOT_ENCRYPTION_KEY` in `.env`, run `bash update.sh` again (it starts the bot when a token is set).
-8. **AI paste-import bot (optional, a separate @BotFather token):** put `TELEGRAM_PASTEBOT_TOKEN` in `.env` (reuses `BOT_ENCRYPTION_KEY` from step 7 - it must be the same value), run `bash update.sh` again. A linked member pastes/forwards a freight post in DM and gets it back as draft loads to post with one tap - see [`../pastebot`](../pastebot) (`sng-ai-paste-bot` on GitHub is the same code, kept as its own repo for independent deploys elsewhere).
+8. **AI paste-import bot (optional, a separate @BotFather token):** put `TELEGRAM_PASTEBOT_TOKEN` in `.env` (reuses `BOT_ENCRYPTION_KEY` from step 7 - it must be the same value), run `bash update.sh` again. A linked member pastes/forwards a freight post in DM and gets it back as draft loads to post with one tap - see [`../pastebot`](../pastebot) (`sng-ai-bot` on GitHub is the same code, kept as its own repo for independent deploys elsewhere).
 
 ### Private repository
 Create a read-only key on the server and add it in GitHub → repo → Settings → **Deploy keys**:

@@ -22,7 +22,7 @@ It talks to this same API and database - nothing on the server needed to change 
 linked in either bot is linked in both**, no second `/link`.
 
 The same code is also published as its own standalone repo,
-[`sng-ai-paste-bot`](https://github.com/AbdulloxAbdujalilov9999/sng-ai-paste-bot), for anyone who
+[`sng-ai-bot`](https://github.com/AbdulloxAbdujalilov9999/sng-ai-bot), for anyone who
 wants to run just this bot against a loadboard without cloning the whole app (e.g. a separate
 Render service). Changes made here should be mirrored there, and vice versa.
 

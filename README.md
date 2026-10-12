@@ -175,7 +175,7 @@ reviewable draft loads (same Gemini parser as the web app's paste-import screen 
 bot), then posts them all with one tap under their own account. It shares `bot/`'s
 `telegram_links`/`telegram_users` tables, so linking once in either bot links both. See
 [`pastebot/README.md`](pastebot/README.md) for setup (`npm run pastebot`) - the same code is also
-published standalone as [`sng-ai-paste-bot`](https://github.com/AbdulloxAbdujalilov9999/sng-ai-paste-bot)
+published standalone as [`sng-ai-bot`](https://github.com/AbdulloxAbdujalilov9999/sng-ai-bot)
 for anyone who wants to run it without this repo's API/web app alongside it.
 
 ## Tests
