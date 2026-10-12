@@ -10,6 +10,7 @@ export const LANG_NAMES = { en: 'English', ru: 'Русский', uz: 'Oʻzbekcha
 
 const DICT = {
   en: {
+    paste_ai_limit: "⏳ The hourly AI limit is used up ({n} reads an hour). It works again in about {min} min. In a hurry? Use «✍️ Step by step» to post by hand.",
     paste_added_header: "➕ {added} more load(s) added to the same review. Total: {total}.",
     paste_batch_full: "One review holds up to {max} loads - {n} were not added. Post these first, then send the rest.",
     paste_showing: "⏳ Showing them one by one - this takes a few seconds…",
@@ -95,7 +96,7 @@ const DICT = {
     flag_rate: "rate was not stated - posted as negotiable",
     flag_same_city: "origin and destination look the same",
     flag_weight: "weight was not stated - defaulted to 20t",
-    paste_ai_busy: "The AI import is busy or you've hit your hourly limit - please try again in a bit.",
+    paste_ai_busy: "The AI is busy right now (too many requests at once). Try again in a minute.",
     paste_ai_unavailable: "AI import is not set up on the server yet - ask the platform owner to set GEMINI_API_KEY.",
     paste_bad_output: "The AI answered in an unexpected format - please try again.",
     paste_btn_cancel: "❌ Cancel",
@@ -239,6 +240,7 @@ const DICT = {
   },
 
   ru: {
+    paste_ai_limit: "⏳ Часовой лимит AI исчерпан ({n} чтений в час). Снова заработает примерно через {min} мин. Срочно? Опубликуйте вручную через «✍️ По шагам».",
     paste_added_header: "➕ Добавлено грузов: {added} - в тот же список. Всего: {total}.",
     paste_batch_full: "В одном списке до {max} грузов - не добавлено: {n}. Сначала опубликуйте эти, затем отправьте остальные.",
     paste_showing: "⏳ Показываю по одному - это займёт несколько секунд…",
@@ -324,7 +326,7 @@ const DICT = {
     flag_rate: "ставка не указана - опубликовано как «договорная»",
     flag_same_city: "отправление и назначение похожи на один и тот же город",
     flag_weight: "вес не указан - поставлено 20т по умолчанию",
-    paste_ai_busy: "AI-импорт сейчас занят, либо вы достигли часового лимита - попробуйте немного позже.",
+    paste_ai_busy: "AI сейчас перегружен (слишком много запросов). Повторите через минуту.",
     paste_ai_unavailable: "AI-импорт пока не настроен на сервере - попросите владельца платформы задать GEMINI_API_KEY.",
     paste_bad_output: "AI ответил в неожиданном формате - попробуйте ещё раз.",
     paste_btn_cancel: "❌ Отмена",
@@ -468,6 +470,7 @@ const DICT = {
   },
 
   uz: {
+    paste_ai_limit: "⏳ Soatlik AI limiti tugadi (soatiga {n} ta oʻqish). Taxminan {min} daqiqadan keyin yana ishlaydi. Shoshilinch boʻlsa — «✍️ Bosqichma-bosqich» orqali qoʻlda joylang.",
     paste_added_header: "➕ Shu roʻyxatga yana {added} ta yuk qoʻshildi. Jami: {total}.",
     paste_batch_full: "Bir roʻyxatda {max} tagacha yuk boʻladi - {n} tasi qoʻshilmadi. Avval shularni joylang, qolganini keyin yuboring.",
     paste_showing: "⏳ Birma-bir koʻrsatyapman - bir necha soniya ketadi…",
@@ -553,7 +556,7 @@ const DICT = {
     flag_rate: "narx koʻrsatilmagan - \"kelishilgan\" deb joylandi",
     flag_same_city: "joʻnatish va manzil bir xil shaharga oʻxshaydi",
     flag_weight: "ogʻirlik koʻrsatilmagan - standart 20t qoʻyildi",
-    paste_ai_busy: "AI import hozir band, yoki soatlik limitingizga yetdingiz - birozdan soʻng qayta urinib koʻring.",
+    paste_ai_busy: "AI hozir band (bir vaqtda juda koʻp soʻrov). Bir daqiqadan soʻng qayta urinib koʻring.",
     paste_ai_unavailable: "AI import hali serverda sozlanmagan - platforma egasidan GEMINI_API_KEY ni sozlashini soʻrang.",
     paste_bad_output: "AI kutilmagan formatda javob berdi - qayta urinib koʻring.",
     paste_btn_cancel: "❌ Bekor qilish",

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { distanceKm, fold, resolveCity } from '../lib/ai/cities.js';
-import { HttpError, tooMany } from '../lib/errors.js';
+import { HttpError } from '../lib/errors.js';
 
 const EQUIP = ['T', 'R', 'F', 'V', 'AC'];
 const MAX_ITEMS = 50;
@@ -104,10 +104,15 @@ export default async function aiRoutes(app, { config, ai }) {
   // Soft per-member budget (per instance) + a cap on parallel model calls, so one person cannot burn the API quota.
   const used = new Map();
   let inFlight = 0;
-  const budget = (email) => {
+  const budget = (req) => {
+    if (req.member?.role === 'owner') return; // the platform owner is never limited
+    const email = req.user.email;
     const now = Date.now();
     const hits = (used.get(email) ?? []).filter((t) => now - t < 3_600_000);
-    if (hits.length >= config.aiRatePerHour) throw tooMany(`AI import limit reached (${config.aiRatePerHour} per hour). Try again later.`);
+    if (hits.length >= config.aiRatePerHour) {
+      const min = Math.max(1, Math.ceil((hits[0] + 3_600_000 - now) / 60_000)); // when the oldest read leaves the hour
+      throw new HttpError(429, 'ai_limit', `AI import limit reached (${config.aiRatePerHour} per hour). Try again in ${min} min.`, [{ path: 'ai', code: 'ai_limit', params: { n: config.aiRatePerHour, min } }]);
+    }
     hits.push(now);
     used.set(email, hits);
     if (used.size > 5000) for (const [k, v] of used) if (!v.some((t) => now - t < 3_600_000)) used.delete(k);
@@ -117,7 +122,7 @@ export default async function aiRoutes(app, { config, ai }) {
   async function run(req, method, schema, key) {
     if (!ai || typeof ai[method] !== 'function') throw new HttpError(503, 'ai_unavailable', 'AI import is not set up on this server yet.');
     const { text } = bodySchema.parse(req.body);
-    budget(req.user.email);
+    budget(req);
     if (inFlight >= config.aiMaxParallel) throw new HttpError(503, 'ai_busy', 'The AI is busy right now. Please try again in a moment.');
     const index = await app.cityIndex();
     const today = new Date().toISOString().slice(0, 10);

@@ -349,3 +349,32 @@ test('more than 50 loads: the first 50 are kept, the rest are told about', async
   assert.equal(sent.filter((s) => s.method === 'sendMessage' && /^<b>#\d+/.test(s.text)).length, 50);
   assert.ok(sent.some((s) => s.method === 'editMessageText' && /10 tasi qoʻshilmadi/.test(s.text)));
 });
+
+test('the AI hourly limit and "the AI is busy" are told apart, with the number and the wait', async () => {
+  const { ApiError } = await import('../src/apiClient.js');
+  for (const [err, expected] of [
+    [new ApiError(429, 'ai_limit', 'AI import limit reached (200 per hour). Try again in 7 min.', [{ path: 'ai', code: 'ai_limit', params: { n: 200, min: 7 } }]), /soatiga 200 ta[\s\S]*7 daqiqa/],
+    [new ApiError(503, 'ai_busy', 'The AI is busy'), /AI hozir band/],
+  ]) {
+    const h = setupFailing(err);
+    await h.say('Perm Andijan Ламинат 22 тонн +998938747080');
+    assert.match(h.sent.filter((s) => s.method === 'editMessageText').at(-1).text, expected);
+    assert.doesNotMatch(h.sent.filter((s) => s.method === 'editMessageText').at(-1).text, /limitingizga yetdingiz/);
+  }
+});
+
+function setupFailing(err) {
+  const sent = [];
+  const apiClient = { getMe: async () => ({ profile: { id: 1, status: 'approved', company: 'A', phone: '+998938747080' } }), parseLoads: async () => { throw err; } };
+  const bot = makeBot({
+    config: { botToken: '123:test', broadcastLang: 'uz', joinChannel: '', joinGroup: '', aiMaxPerMin: 600, pendingTtlMin: 15, pasteDebounceMs: 0, webBaseUrl: 'https://x', webUrlIsPublic: true },
+    firebaseAuth: {}, apiClient, tokens: { getIdToken: async () => 'tok', invalidate() {} },
+    store: { getLanguage: async () => null, setLanguage: async () => {}, getLinkByTelegramUserId: async () => null, removeLink: async () => false },
+  });
+  bot.botInfo = { id: 123, is_bot: true, first_name: 'sng', username: 'sng_test_bot' };
+  record = (method, payload) => { sent.push({ method, ...payload }); return { message_id: sent.length, chat: { id: 77 }, date: 0, text: payload.text }; };
+  const from = { id: 77, is_bot: false, first_name: 'Bek', language_code: 'uz' };
+  let n = 0;
+  const say = (text) => bot.handleUpdate({ update_id: ++n, message: { message_id: n, date: 0, text, from, chat: { id: 77, type: 'private' } } });
+  return { say, sent };
+}

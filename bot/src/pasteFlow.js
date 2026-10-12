@@ -273,9 +273,11 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
       ({ loads, truncated } = await apiClient.parseLoads(idToken, text));
     } catch (err) {
       const key = err instanceof ApiError
-        ? ({ ai_unavailable: 'paste_ai_unavailable', ai_busy: 'paste_ai_busy', quota_exceeded: 'paste_ai_busy', ai_bad_output: 'paste_bad_output' }[err.code] ?? 'paste_unreachable')
+        ? ({ ai_unavailable: 'paste_ai_unavailable', ai_busy: 'paste_ai_busy', ai_limit: 'paste_ai_limit', quota_exceeded: 'paste_ai_busy', ai_bad_output: 'paste_bad_output' }[err.code] ?? 'paste_unreachable')
         : 'paste_unreachable';
-      await ctx.telegram.editMessageText(ctx.chat.id, waitMsg.message_id, undefined, t(ctx.lang, key)).catch(() => ctx.reply(t(ctx.lang, key)));
+      const vars = err instanceof ApiError ? (err.details?.find((d) => d.code === 'ai_limit')?.params ?? {}) : {};
+      const msg = t(ctx.lang, key, vars);
+      await ctx.telegram.editMessageText(ctx.chat.id, waitMsg.message_id, undefined, msg).catch(() => ctx.reply(msg));
       return undefined;
     }
 

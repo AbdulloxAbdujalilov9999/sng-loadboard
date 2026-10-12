@@ -19,6 +19,9 @@ git -C .. pull --ff-only --quiet
 after=$(git -C .. rev-parse --short HEAD)
 echo "code: $before -> $after"
 
+# The old env.example said AI_RATE_PER_HOUR=40 (every .env copied from it has that line): 40 was a default, not a choice, so raise it.
+sed -i 's/^AI_RATE_PER_HOUR=40$/AI_RATE_PER_HOUR=200/' .env
+
 # take a safety backup first when there is something new to deploy
 if [ "$before" != "$after" ] && docker compose ps --status running --services 2>/dev/null | grep -q '^db$'; then
   bash ./backup.sh pre-update || echo "warning: backup failed, continuing"

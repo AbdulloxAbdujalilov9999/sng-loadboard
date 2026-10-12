@@ -107,7 +107,7 @@ Migrations in `server/migrations` run automatically at boot under an advisory lo
 
 Setup: create a key at <https://aistudio.google.com/apikey>, set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`, a comma-separated fallback order - default `gemini-3.1-flash-lite,gemini-3.5-flash,gemini-3.8-flash`; a retired or overloaded model hands over to the next) on the server, then run `npm run ai:check` - it makes one real call and prints what the AI understood. Without a key the feature runs in **basic mode** (a simple rule-based reader for the standard flag/flag/cargo/truck/terms/phone layout, clearly labelled in the UI) so it is never missing; set `AI_FALLBACK=false` to switch it off instead.
 
-Privacy/safety: pasted text (including phone numbers) is sent to Google's Gemini API - say so in your terms. The API key never reaches the browser; the pasted text is never logged; the pasted text is treated as data, not instructions; each member has an hourly budget (`AI_RATE_PER_HOUR`) and parallel calls are capped (`AI_MAX_PARALLEL`).
+Privacy/safety: pasted text (including phone numbers) is sent to Google's Gemini API - say so in your terms. The API key never reaches the browser; the pasted text is never logged; the pasted text is treated as data, not instructions; each member has an hourly budget (`AI_RATE_PER_HOUR`, default 200 reads; the owner is never limited; the error says when it works again) and parallel calls are capped (`AI_MAX_PARALLEL`).
 
 ### Russian (and Uzbek) input
 

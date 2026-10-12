@@ -60,7 +60,7 @@ services:
       DB_POOL_MAX: ${DB_POOL_MAX:-20}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite,gemini-3.5-flash,gemini-3.8-flash}
-      AI_RATE_PER_HOUR: ${AI_RATE_PER_HOUR:-40}
+      AI_RATE_PER_HOUR: ${AI_RATE_PER_HOUR:-200}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-sng-pro}
       CSP_ENFORCE: ${CSP_ENFORCE:-false}
     ulimits:

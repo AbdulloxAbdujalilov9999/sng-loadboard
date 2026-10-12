@@ -35,7 +35,7 @@ export function loadConfig(env = process.env) {
     geminiApiKey: env.GEMINI_API_KEY || '',
     geminiModel: env.GEMINI_MODEL || 'gemini-3.1-flash-lite,gemini-3.5-flash,gemini-3.8-flash', // comma-separated fallback order
     aiFallback: truthy(env.AI_FALLBACK, true), // without a Gemini key, offer the basic rule-based reader instead of nothing
-    aiRatePerHour: Number(env.AI_RATE_PER_HOUR || 40),
+    aiRatePerHour: Number(env.AI_RATE_PER_HOUR || 200), // AI reads per member per hour; the owner is exempt
     aiMaxParallel: Number(env.AI_MAX_PARALLEL || 8),
     eventBatchMs: Number(env.EVENT_BATCH_MS ?? 1000),
     memberCacheMs: Number(env.MEMBER_CACHE_MS ?? 10000),

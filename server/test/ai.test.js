@@ -211,7 +211,14 @@ test('parse-loads: AI not configured, provider failures and per-member budget', 
     assert.equal(r.status, 500);
     assert.ok(!JSON.stringify(r.json).includes('secret-key'), 'provider errors never leak to the browser');
     await api.post('/api/ai/parse-loads', { text: 'some pasted text here' });
-    assert.equal((await api.post('/api/ai/parse-loads', { text: 'some pasted text here' })).status, 429, 'per-member hourly budget');
+    const limited = await api.post('/api/ai/parse-loads', { text: 'some pasted text here' });
+    assert.equal(limited.status, 429, 'per-member hourly budget');
+    assert.equal(limited.json.error.code, 'ai_limit', 'its own code, so clients can tell it from "the AI is busy"');
+    assert.deepEqual(limited.json.error.details[0].params.n, 2);
+    assert.ok(limited.json.error.details[0].params.min >= 1 && limited.json.error.details[0].params.min <= 60, 'says when it works again');
+    assert.match(limited.json.error.message, /Try again in \d+ min/);
+    // the platform owner is never limited
+    for (let i = 0; i < 4; i += 1) assert.notEqual((await broken.as('owner@test.com').post('/api/ai/parse-loads', { text: 'some pasted text here' })).status, 429, 'owner call ' + i);
   } finally { await broken.close(); }
 });
 

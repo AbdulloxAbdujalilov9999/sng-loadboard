@@ -13,7 +13,7 @@ class ApiError extends Error {
 // by error code or by text, and anything unknown falls back to the server's wording.
 const SERVER_MESSAGES = [
   [/^AI import is not set up/i, 'srv_ai_unavailable'],
-  [/^AI import limit reached \((\d+) per hour\)/i, 'srv_ai_limit', (m) => ({ n: m[1] })],
+  [/^AI import limit reached \((\d+) per hour\)(?:\. Try again in (\d+) min)?/i, 'srv_ai_limit', (m) => ({ n: m[1], min: m[2] ?? '' })],
   [/^The AI is busy/i, 'srv_ai_busy'],
   [/^The AI answered in an unexpected format/i, 'srv_ai_bad_output'],
   [/^Add a phone number or a Telegram username/i, 'v_contact_required'],
