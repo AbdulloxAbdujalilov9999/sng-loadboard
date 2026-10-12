@@ -240,7 +240,7 @@ const Loads = (() => {
       <td data-label="F/P" class="py-2 px-2 text-slate-600 truncate">${esc(t(l.fp === 'Full' ? 'opt_full' : 'opt_partial'))}</td>
       <td data-label="${esc(t('th_weight'))}" class="py-2 px-2 text-slate-700 truncate">${esc(l.weightT)}t${l.volumeM3 ? ` / ${esc(l.volumeM3)}m³` : ''}</td>
       <td data-label="${esc(t('th_distance'))}" class="py-2 px-2 text-right text-slate-600 truncate">${esc(l.distanceKm.toLocaleString())} km</td>
-      <td data-label="${esc(t('th_rate'))}" class="py-2 px-2.5 text-right font-bold text-emerald-600 truncate">${esc(rateText(l.rateUsd))}</td>
+      <td data-label="${esc(t('th_rate'))}" class="py-2 px-2.5 text-right font-bold text-emerald-600 truncate${l.rateUsd > 0 ? '' : ' rate-neg'}">${esc(rateText(l.rateUsd))}</td>
       <td data-label="${esc(t('th_company'))}" class="py-2 px-2.5 text-slate-800 font-medium truncate" title="${esc(l.company)}">${esc(l.company)}${l.mine ? ` <span class="text-[9px] bg-amber-100 text-amber-800 px-1 rounded font-bold">${esc(t('badge_yours'))}</span>` : ''}</td>
     </tr>`;
   }
@@ -420,7 +420,7 @@ const Loads = (() => {
       <td data-label="${esc(t('th_pickup_delivery'))}" class="p-2.5 text-slate-600">${esc(l.pickupDate)} <span class="text-slate-400">/</span> ${esc(l.deliveryDate || '--')}</td>
       <td data-label="${esc(t('th_type_weight'))}" class="p-2.5"><span class="bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">${esc(l.equip)}</span> ${esc(l.weightT)}t</td>
       <td data-label="${esc(t('th_distance'))}" class="p-2.5 text-slate-600">${esc(l.distanceKm.toLocaleString())} km</td>
-      <td data-label="${esc(t('th_rate'))}" class="p-2.5 font-bold text-emerald-600">${esc(rateText(l.rateUsd))}</td>
+      <td data-label="${esc(t('th_rate'))}" class="p-2.5 font-bold text-emerald-600${l.rateUsd > 0 ? '' : ' rate-neg'}">${esc(rateText(l.rateUsd))}</td>
       <td data-label="${esc(t('lbl_commodity_short'))}" class="p-2.5 text-slate-700 truncate max-w-[150px]" title="${esc(l.commodity)}">${esc(l.commodity)}</td>
       <td class="p-2.5 text-center"><div class="flex items-center justify-center space-x-1">
         ${expiryHours() ? `<button type="button" data-action="renew" data-id="${l.id}" class="flex-1 md:flex-none justify-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-2 py-1.5 md:py-1 rounded text-[10px] border border-emerald-200 flex items-center space-x-1 transition"><i data-lucide="refresh-cw" class="w-3 h-3"></i><span>${esc(t('btn_renew'))}</span></button>` : ''}

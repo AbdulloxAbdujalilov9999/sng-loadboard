@@ -94,7 +94,7 @@ const Trucks = (() => {
       <td data-label="${esc(t('th_pref_dest'))}" class="p-2.5 text-slate-700">${esc(x.destPref)}</td>
       <td data-label="${esc(t('th_equipment'))}" class="p-2.5 text-center"><span class="bg-blue-50 text-blue-800 font-bold px-1.5 py-0.5 rounded border border-blue-200 text-xs">${esc(x.equip)}</span></td>
       <td data-label="${esc(t('th_capacity'))}" class="p-2.5 text-slate-700"><div>${esc(x.capacityT)}t${x.volumeM3 ? ` / ${esc(x.volumeM3)}m³` : ''}</div><div class="text-[10px] text-slate-500">${esc(features(x))}</div></td>
-      <td data-label="${esc(t('th_min_rate'))}" class="p-2.5 font-bold text-emerald-600">${x.minRateUsd ? esc(U.money(x.minRateUsd)) : esc(t('negotiable'))}</td>
+      <td data-label="${esc(t('th_min_rate'))}" class="p-2.5 font-bold text-emerald-600${x.minRateUsd ? '' : ' rate-neg'}">${x.minRateUsd ? esc(U.money(x.minRateUsd)) : esc(t('negotiable'))}</td>
       <td data-label="${esc(t('th_carrier'))}" class="p-2.5 font-semibold text-slate-900">${esc(x.company)}${x.mine ? ` <span class="text-[9px] bg-amber-100 text-amber-800 px-1 rounded font-bold">${esc(t('badge_yours'))}</span>` : ''}</td>
       <td class="p-2.5 text-center"><div class="flex items-center justify-center space-x-1.5">
         ${x.contactTelegram ? `<a href="${contactUrl(x)}" target="_blank" rel="noopener noreferrer" class="flex-1 md:flex-none text-center bg-[#229ED9] text-white hover:bg-blue-600 px-2 py-1.5 md:py-1 rounded text-[10px] font-bold">Telegram</a>` : ''}

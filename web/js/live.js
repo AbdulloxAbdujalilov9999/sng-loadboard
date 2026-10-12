@@ -21,6 +21,8 @@ const Live = (() => {
     dot.className = `w-2 h-2 rounded-full ${palette[state] || palette.off}`;
     text.textContent = t({ live: 'live_on', connecting: 'live_connecting', offline: 'live_offline', off: 'live_connecting' }[state]);
     U.$('live-indicator').title = text.textContent; // the text itself is hidden on narrow screens
+    const dot2 = U.$('live-dot-2'); // the same status inside Settings (phones have no header controls)
+    if (dot2) { dot2.className = dot.className; U.$('live-text-2').textContent = text.textContent; }
   }
 
   function parseFrames(buffer) {
