@@ -482,6 +482,7 @@ const Session = (() => {
       b.type = 'button';
       b.dataset.togglePassword = input.id;
       b.className = 'absolute inset-y-0 right-0 px-3 text-slate-400 hover:text-slate-600';
+      b.dataset.i18nAria = 'show_password'; // re-translated whenever the language changes
       b.setAttribute('aria-label', t('show_password'));
       b.innerHTML = '<i data-lucide="eye" class="w-4 h-4"></i>';
       wrap.appendChild(b);

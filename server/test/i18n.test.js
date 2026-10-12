@@ -46,3 +46,43 @@ test('every data-i18n key used in the page and every t("key") call exists', () =
   const missing = [...used].filter((k) => !(k in DICT.en));
   assert.deepEqual(missing, [], 'keys used by the app but not defined');
 });
+
+test('every error message the server can send is translated for members (Uzbek and Russian)', () => {
+  const api = read('js/api.js');
+  const out = {};
+  for (const lang of ['en', 'ru', 'uz']) {
+    const t = (key, vars) => (DICT[lang][key] ?? key).replace(/\{(\w+)\}/g, (_, k) => vars?.[k] ?? '');
+    out[lang] = vm.runInNewContext(`${api}; localizeServerMessage`, { window: { t, APP_CONFIG: {} }, console });
+  }
+  // the messages are collected from the server's own source, so a new one cannot be forgotten
+  const messages = new Set();
+  const dir = new URL('../src/', import.meta.url);
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(new URL(`${e.name}/`, d)) : [new URL(e.name, d)]));
+  const re = /(?:badRequest|forbidden|notFound|conflict|tooMany|unauthorized|new HttpError\(\s*\d+,\s*'[\w]+',)\s*\(?\s*(['`])((?:\\.|(?!\1).)*)\1/g;
+  for (const f of walk(dir).filter((u) => u.pathname.endsWith('.js'))) {
+    for (const m of fs.readFileSync(f, 'utf8').matchAll(re)) messages.add(m[2].replace(/\$\{[^}]*\}/g, '5'));
+  }
+  assert.ok(messages.size > 30, `found ${messages.size} server messages`);
+  const skip = (m) => m === ', message: ' || m === '5';
+  for (const m of messages) {
+    if (skip(m)) continue;
+    for (const lang of ['ru', 'uz']) {
+      const got = out[lang](undefined, m);
+      assert.notEqual(got, m, `${lang}: "${m}" is shown to members in English`);
+      assert.doesNotMatch(got, /\{\w+\}/, `${lang}: "${m}" has an unfilled placeholder`);
+    }
+  }
+  assert.match(out.uz(undefined, 'You have reached the limit of 100 active loads. Remove some to post more.'), /100/);
+  assert.equal(out.uz('not_approved_rejected', 'Your access request is rejected'), DICT.uz.srv_blocked);
+  assert.equal(out.uz('rate_limited', 'whatever'), DICT.uz.srv_too_fast);
+  assert.equal(out.uz(undefined, 'something new the server says'), 'something new the server says', 'unknown messages stay as the server wrote them');
+});
+
+test('titles and aria-labels in the page are translated (no English tooltip left behind)', () => {
+  const html = read('index.html');
+  const used = [...html.matchAll(/data-i18n-(?:title|aria)="([a-z0-9_]+)"/g)].map((m) => m[1]);
+  assert.ok(used.length > 15);
+  for (const k of used) assert.ok(k in DICT.uz, `missing ${k}`);
+  const left = [...html.matchAll(/\s(title|aria-label)="([^"]*[A-Za-z]{3,}[^"]*)"/g)].map((m) => m[2]).filter((v) => v !== 'Dev email');
+  assert.deepEqual(left, [], 'hard-coded English title / aria-label attributes');
+});

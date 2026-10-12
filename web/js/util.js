@@ -142,9 +142,9 @@
   function ageText(iso) {
     const minutes = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60000));
     if (minutes < 1) return window.t('age_now');
-    if (minutes < 60) return `${minutes}m`;
-    if (minutes < 1440) return `${Math.floor(minutes / 60)}h`;
-    return `${Math.floor(minutes / 1440)}d`;
+    if (minutes < 60) return window.t('age_min', { n: minutes });
+    if (minutes < 1440) return window.t('age_hour', { n: Math.floor(minutes / 60) });
+    return window.t('age_day', { n: Math.floor(minutes / 1440) });
   }
 
   /** 'YYYY-MM-DD' -> 'MM-DD' for compact table cells. */

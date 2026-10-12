@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>SNG ONE — Freight Marketplace</title>
+    <title>SNG ONE — Yuk birjasi</title>
     <meta name="description" content="Load board, truck board and carrier directory for freight across Central Asia, Russia, the Caucasus and Eastern Europe.">
     <meta name="theme-color" content="#0a192f">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
@@ -51,7 +51,7 @@
                     <select id="gate-lang" class="bg-[#0f2942] text-slate-200 text-[11px] font-semibold rounded px-1.5 py-1 border border-slate-600 focus:outline-none cursor-pointer">
                         <option value="uz">UZ</option><option value="ru">RU</option><option value="en">EN</option>
                     </select>
-                    <button type="button" data-theme-toggle class="text-slate-300 hover:text-white bg-[#0f2942] border border-slate-600 rounded p-1" aria-label="Theme"><i data-lucide="moon" class="w-3.5 h-3.5 icon-to-dark"></i><i data-lucide="sun" class="w-3.5 h-3.5 icon-to-light"></i></button>
+                    <button type="button" data-theme-toggle class="text-slate-300 hover:text-white bg-[#0f2942] border border-slate-600 rounded p-1" data-i18n-aria="aria_theme"><i data-lucide="moon" class="w-3.5 h-3.5 icon-to-dark"></i><i data-lucide="sun" class="w-3.5 h-3.5 icon-to-light"></i></button>
                 </div>
                 <img src="/logo.png" alt="SNG ONE" width="720" height="134" class="block mx-auto mt-7 mb-2 w-72 max-w-[88%] h-auto select-none" draggable="false">
                 <h1 class="sr-only">SNG ONE <span data-i18n="brand_tagline">Freight Marketplace</span></h1>
@@ -135,7 +135,7 @@
                             </div>
                             <div class="relative">
                                 <input type="password" id="auth-password" autocomplete="current-password" required class="w-full border border-slate-300 rounded p-2.5 pr-10 text-sm focus:border-blue-500 focus:outline-none">
-                                <button type="button" data-toggle-password="auth-password" class="absolute inset-y-0 right-0 px-3 text-slate-400 hover:text-slate-600" aria-label="Show password"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                                <button type="button" data-toggle-password="auth-password" class="absolute inset-y-0 right-0 px-3 text-slate-400 hover:text-slate-600" data-i18n-aria="show_password"><i data-lucide="eye" class="w-4 h-4"></i></button>
                             </div>
                         </div>
                         <div id="auth-confirm-wrap" class="hidden">
@@ -265,12 +265,12 @@
 
         <div id="sidebar-backdrop" class="hidden md:hidden fixed inset-0 bg-slate-900/50 z-50"></div>
 
-        <aside id="main-sidebar" class="w-60 bg-[#0a192f] text-slate-300 flex flex-col flex-shrink-0 z-20 border-r border-slate-800 select-none" aria-label="Main navigation">
+        <aside id="main-sidebar" class="w-60 bg-[#0a192f] text-slate-300 flex flex-col flex-shrink-0 z-20 border-r border-slate-800 select-none" data-i18n-aria="aria_nav">
             <div class="h-14 px-4 flex items-center justify-between border-b border-slate-800 bg-[#071324]">
                 <div class="flex items-center space-x-2">
                     <img src="/logo.png" alt="SNG ONE" width="720" height="134" class="block h-8 w-auto select-none" draggable="false">
                 </div>
-                <button id="sidebar-close" class="md:hidden text-slate-400 hover:text-white p-1" aria-label="Close menu"><i data-lucide="x" class="w-4 h-4"></i></button>
+                <button id="sidebar-close" class="md:hidden text-slate-400 hover:text-white p-1" data-i18n-aria="aria_close_menu"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
 
             <nav class="flex-1 py-3 px-2 space-y-1 overflow-y-auto text-xs font-medium">
@@ -328,7 +328,7 @@
 
             <header class="bg-white border-b border-slate-200 px-3 md:px-4 py-2 md:h-14 md:py-0 flex flex-wrap md:flex-nowrap items-center justify-between gap-y-2 shadow-sm z-20 flex-shrink-0">
                 <div class="flex items-center space-x-2 md:space-x-3 min-w-0">
-                    <button id="sidebar-open" class="md:hidden text-slate-600 hover:text-slate-900 p-1 -ml-1 flex-shrink-0" aria-label="Open menu"><i data-lucide="menu" class="w-5 h-5"></i></button>
+                    <button id="sidebar-open" class="md:hidden text-slate-600 hover:text-slate-900 p-1 -ml-1 flex-shrink-0" data-i18n-aria="aria_open_menu"><i data-lucide="menu" class="w-5 h-5"></i></button>
                     <h2 class="text-sm md:text-base font-bold text-slate-800 tracking-tight truncate" id="page-title">Search Loads</h2>
                 </div>
                 <div class="flex items-center flex-nowrap gap-1 sm:gap-1.5 md:gap-0 md:space-x-2 xl:space-x-3 text-xs order-2 ml-auto md:ml-0 md:order-none w-auto flex-shrink-0">
@@ -344,7 +344,7 @@
                         <label for="currency-select" class="hidden xl:inline text-slate-500 font-medium pl-1 text-[11px]" data-i18n="currency_label">Currency:</label>
                         <select id="currency-select" class="w-full min-w-0 md:w-auto bg-white font-bold text-slate-700 rounded px-1.5 py-0.5 text-xs border border-slate-200 focus:outline-none cursor-pointer"></select>
                     </div>
-                    <button type="button" data-theme-toggle class="hide-phone flex-shrink-0 text-slate-500 hover:text-slate-800 border border-slate-200 p-1.5 rounded bg-slate-100 hover:bg-slate-200 transition" aria-label="Theme"><i data-lucide="moon" class="w-3.5 h-3.5 icon-to-dark"></i><i data-lucide="sun" class="w-3.5 h-3.5 icon-to-light"></i></button>
+                    <button type="button" data-theme-toggle class="hide-phone flex-shrink-0 text-slate-500 hover:text-slate-800 border border-slate-200 p-1.5 rounded bg-slate-100 hover:bg-slate-200 transition" data-i18n-aria="aria_theme"><i data-lucide="moon" class="w-3.5 h-3.5 icon-to-dark"></i><i data-lucide="sun" class="w-3.5 h-3.5 icon-to-light"></i></button>
                     <button type="button" id="sub-chip" data-view="account-settings" class="hidden flex-shrink-0 text-[11px] font-bold px-2.5 py-1 rounded border"></button>
                     <div id="live-indicator" class="hide-phone flex-shrink-0 flex items-center xl:space-x-1.5 bg-slate-50 text-slate-500 px-2.5 py-1 rounded border border-slate-200 text-xs" title="">
                         <span id="live-dot" class="w-2 h-2 rounded-full bg-slate-300"></span>
@@ -369,14 +369,14 @@
                             <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-origin" data-i18n="filter_origin">Origin (City, Country)</label>
                             <div class="flex">
                                 <input type="text" id="filter-origin" data-city-picker data-allow-country autocomplete="off" placeholder="e.g. Andijan, UZ" data-i18n-placeholder="ph_origin_eg" class="w-full border border-slate-300 rounded-l px-2 py-1.5 focus:border-blue-500 focus:outline-none text-xs">
-                                <input type="number" id="filter-dho" min="0" max="2000" value="100" title="Origin search radius (km)" aria-label="Origin radius km" class="w-16 border-t border-b border-r border-slate-300 rounded-r px-1 py-1.5 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
+                                <input type="number" id="filter-dho" min="0" max="2000" value="100" data-i18n-title="tt_origin_radius" data-i18n-aria="aria_radius_origin" class="w-16 border-t border-b border-r border-slate-300 rounded-r px-1 py-1.5 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
                             </div>
                         </div>
                         <div class="col-span-2 md:col-span-3 relative">
                             <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-dest" data-i18n="filter_dest">Destination (City, Country)</label>
                             <div class="flex">
                                 <input type="text" id="filter-dest" data-city-picker data-allow-country autocomplete="off" placeholder="e.g. Moscow, RU" data-i18n-placeholder="ph_dest_eg" class="w-full border border-slate-300 rounded-l px-2 py-1.5 focus:border-blue-500 focus:outline-none text-xs">
-                                <input type="number" id="filter-dhd" min="0" max="2000" value="100" title="Destination search radius (km)" aria-label="Destination radius km" class="w-16 border-t border-b border-r border-slate-300 rounded-r px-1 py-1.5 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
+                                <input type="number" id="filter-dhd" min="0" max="2000" value="100" data-i18n-title="tt_dest_radius" data-i18n-aria="aria_radius_dest" class="w-16 border-t border-b border-r border-slate-300 rounded-r px-1 py-1.5 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
                             </div>
                         </div>
                         <div class="col-span-1 md:col-span-2">
@@ -419,7 +419,7 @@
                             <span class="hidden sm:inline text-slate-500 italic" data-i18n="lbl_radius_info">Origin & destination match all loads within the chosen deadhead radius</span>
                         </div>
                         <div class="flex items-center space-x-2">
-                            <select id="mobile-sort-select" aria-label="Sort" class="md:hidden border border-slate-300 rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 bg-white focus:outline-none">
+                            <select id="mobile-sort-select" data-i18n-aria="aria_sort" class="md:hidden border border-slate-300 rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 bg-white focus:outline-none">
                                 <option value="created-desc" data-i18n="sort_newest">Newest first</option>
                                 <option value="created-asc" data-i18n="sort_oldest">Oldest first</option>
                                 <option value="pickup-asc" data-i18n="sort_pickup_asc">Pickup date ↑</option>
@@ -445,16 +445,16 @@
                             <thead class="bg-[#0f2942] text-white uppercase text-[10px] tracking-wider sticky top-0 z-10 select-none">
                                 <tr>
                                     <th class="py-2.5 px-1.5 w-6 text-center"></th>
-                                    <th data-sort="created" class="py-2.5 px-2 w-14 sortable-th" title="Sort by age"><div class="flex items-center space-x-1"><span data-i18n="th_age">Age</span><span id="sort-icon-created" class="text-[9px] text-slate-400">⇅</span></div></th>
-                                    <th data-sort="pickup" class="py-2.5 px-2 w-16 sortable-th" title="Sort by pickup date"><div class="flex items-center space-x-1"><span data-i18n="th_date">Date</span><span id="sort-icon-pickup" class="text-[9px] text-slate-400">⇅</span></div></th>
-                                    <th data-sort="origin" class="py-2.5 px-2.5 w-[16%] sortable-th" title="Sort by origin"><div class="flex items-center space-x-1"><span data-i18n="th_origin">Origin / DHO</span><span id="sort-icon-origin" class="text-[9px] text-slate-400">⇅</span></div></th>
-                                    <th data-sort="dest" class="py-2.5 px-2.5 w-[16%] sortable-th" title="Sort by destination"><div class="flex items-center space-x-1"><span data-i18n="th_dest">Destination / DHD</span><span id="sort-icon-dest" class="text-[9px] text-slate-400">⇅</span></div></th>
-                                    <th data-sort="equip" class="py-2.5 px-2 w-12 text-center sortable-th" title="Sort by type"><div class="flex items-center justify-center space-x-1"><span data-i18n="th_type">Type</span><span id="sort-icon-equip" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="created" class="py-2.5 px-2 w-14 sortable-th" data-i18n-title="tt_sort_age"><div class="flex items-center space-x-1"><span data-i18n="th_age">Age</span><span id="sort-icon-created" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="pickup" class="py-2.5 px-2 w-16 sortable-th" data-i18n-title="tt_sort_pickup"><div class="flex items-center space-x-1"><span data-i18n="th_date">Date</span><span id="sort-icon-pickup" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="origin" class="py-2.5 px-2.5 w-[16%] sortable-th" data-i18n-title="tt_sort_origin"><div class="flex items-center space-x-1"><span data-i18n="th_origin">Origin / DHO</span><span id="sort-icon-origin" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="dest" class="py-2.5 px-2.5 w-[16%] sortable-th" data-i18n-title="tt_sort_dest"><div class="flex items-center space-x-1"><span data-i18n="th_dest">Destination / DHD</span><span id="sort-icon-dest" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="equip" class="py-2.5 px-2 w-12 text-center sortable-th" data-i18n-title="tt_sort_type"><div class="flex items-center justify-center space-x-1"><span data-i18n="th_type">Type</span><span id="sort-icon-equip" class="text-[9px] text-slate-400">⇅</span></div></th>
                                     <th class="py-2.5 px-2 w-14">F/P</th>
-                                    <th data-sort="weight" class="py-2.5 px-2 w-[84px] sortable-th" title="Sort by weight"><div class="flex items-center space-x-1"><span data-i18n="th_weight">Weight/Vol</span><span id="sort-icon-weight" class="text-[9px] text-slate-400">⇅</span></div></th>
-                                    <th data-sort="distance" class="py-2.5 px-2 w-[76px] text-right sortable-th" title="Sort by distance"><div class="flex items-center justify-end space-x-1"><span data-i18n="th_distance">Distance</span><span id="sort-icon-distance" class="text-[9px] text-slate-400">⇅</span></div></th>
-                                    <th data-sort="rate" class="py-2.5 px-2.5 w-[118px] text-right sortable-th" title="Sort by rate"><div class="flex items-center justify-end space-x-1"><span data-i18n="th_rate">Rate</span><span id="sort-icon-rate" class="text-[9px] text-slate-400">⇅</span></div></th>
-                                    <th data-sort="company" class="py-2.5 px-2.5 w-[19%] sortable-th" title="Sort by company"><div class="flex items-center space-x-1"><span data-i18n="th_company">Company / Contact</span><span id="sort-icon-company" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="weight" class="py-2.5 px-2 w-[84px] sortable-th" data-i18n-title="tt_sort_weight"><div class="flex items-center space-x-1"><span data-i18n="th_weight">Weight/Vol</span><span id="sort-icon-weight" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="distance" class="py-2.5 px-2 w-[76px] text-right sortable-th" data-i18n-title="tt_sort_distance"><div class="flex items-center justify-end space-x-1"><span data-i18n="th_distance">Distance</span><span id="sort-icon-distance" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="rate" class="py-2.5 px-2.5 w-[118px] text-right sortable-th" data-i18n-title="tt_sort_rate"><div class="flex items-center justify-end space-x-1"><span data-i18n="th_rate">Rate</span><span id="sort-icon-rate" class="text-[9px] text-slate-400">⇅</span></div></th>
+                                    <th data-sort="company" class="py-2.5 px-2.5 w-[19%] sortable-th" data-i18n-title="tt_sort_company"><div class="flex items-center space-x-1"><span data-i18n="th_company">Company / Contact</span><span id="sort-icon-company" class="text-[9px] text-slate-400">⇅</span></div></th>
                                 </tr>
                             </thead>
                             <tbody id="loads-tbody" class="divide-y divide-slate-200"></tbody>
@@ -616,7 +616,7 @@
                             <label class="block font-semibold text-slate-600 mb-1" for="search-truck-loc" data-i18n="lbl_truck_loc">Truck Location</label>
                             <div class="flex">
                                 <input type="text" id="search-truck-loc" data-city-picker data-allow-country autocomplete="off" data-i18n-placeholder="ph_city" placeholder="Type a city" class="w-full border border-slate-300 rounded-l p-1.5 text-xs">
-                                <input type="number" id="search-truck-radius" min="0" max="2000" value="150" title="Search radius (km)" aria-label="Radius km" class="w-14 border-t border-b border-r border-slate-300 rounded-r px-1 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
+                                <input type="number" id="search-truck-radius" min="0" max="2000" value="150" data-i18n-title="tt_radius" data-i18n-aria="aria_radius" class="w-14 border-t border-b border-r border-slate-300 rounded-r px-1 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
                             </div>
                         </div>
                         <div>
@@ -998,7 +998,7 @@
         <div class="bg-white rounded-lg shadow-2xl border border-slate-200 max-w-xl w-full p-4 sm:p-6 space-y-4 text-xs max-h-[92vh] overflow-y-auto">
             <div class="flex justify-between items-center border-b pb-3">
                 <h3 id="edit-title" class="text-sm font-bold text-slate-800 flex items-center space-x-2"><i data-lucide="edit" class="w-4 h-4 text-blue-600"></i><span data-i18n="edit_title">Edit Posted Freight Load</span></h3>
-                <button type="button" id="edit-close" class="text-slate-400 hover:text-slate-600" aria-label="Close"><i data-lucide="x" class="w-4 h-4"></i></button>
+                <button type="button" id="edit-close" class="text-slate-400 hover:text-slate-600" data-i18n-aria="aria_close"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
             <form id="edit-load-form" class="space-y-3" novalidate>
                 <input type="hidden" id="edit-load-id">
@@ -1044,7 +1044,7 @@
                     <h3 id="view-load-title" class="text-sm sm:text-base font-bold text-slate-800 flex items-center space-x-2"><i data-lucide="truck" class="w-4 h-4 text-blue-600 flex-shrink-0"></i><span data-i18n="view_load_title" class="break-words">Load details</span></h3>
                     <p id="view-load-sub" class="text-[11px] text-slate-500 mt-0.5"></p>
                 </div>
-                <button type="button" id="view-load-close" class="text-slate-400 hover:text-slate-600" aria-label="Close"><i data-lucide="x" class="w-4 h-4"></i></button>
+                <button type="button" id="view-load-close" class="text-slate-400 hover:text-slate-600" data-i18n-aria="aria_close"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
             <table class="w-full"><tbody id="view-load-tbody"></tbody></table>
         </div>
@@ -1058,7 +1058,7 @@
                     <h3 id="view-truck-title" class="text-sm sm:text-base font-bold text-slate-800 flex items-center space-x-2"><i data-lucide="truck" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i><span class="break-words"></span></h3>
                     <p id="view-truck-sub" class="text-[11px] text-slate-500 mt-0.5"></p>
                 </div>
-                <button type="button" id="view-truck-close" class="text-slate-400 hover:text-slate-600" aria-label="Close"><i data-lucide="x" class="w-4 h-4"></i></button>
+                <button type="button" id="view-truck-close" class="text-slate-400 hover:text-slate-600" data-i18n-aria="aria_close"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
             <div id="view-truck-body"></div>
         </div>

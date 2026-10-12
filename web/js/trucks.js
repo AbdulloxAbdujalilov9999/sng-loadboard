@@ -1,6 +1,8 @@
 // Truck board: search (radius, destination text, trailer), infinite scroll, post, my trucks.
 const Trucks = (() => {
   const { $, esc } = U;
+  // "Anywhere" is what the server stores when no destination was given (and what the AI writes): show it in the member's language.
+  const destText = (v) => String(v ?? '').replace(/\bany(?:where|\s+direction)\b/gi, () => t('dest_anywhere'));
   const PAGE = window.APP_CONFIG.pageSize;
   const CAP = window.APP_CONFIG.maxRenderedRows;
   const list = { items: [], cursor: null, total: null, capped: false, loading: false, done: false, error: null, ctrl: null };
@@ -91,7 +93,7 @@ const Trucks = (() => {
     return `<tr class="data-row hover:bg-slate-50 transition border-b border-slate-200 cursor-pointer" data-id="${x.id}" tabindex="0" aria-haspopup="dialog">
       <td data-label="${esc(t('th_available'))}" class="p-2.5 font-bold text-slate-800">${avail(x)}</td>
       <td class="cell-heading p-2.5 font-bold text-blue-700">${esc(x.locCity)}${dh}</td>
-      <td data-label="${esc(t('th_pref_dest'))}" class="p-2.5 text-slate-700">${esc(x.destPref)}</td>
+      <td data-label="${esc(t('th_pref_dest'))}" class="p-2.5 text-slate-700">${esc(destText(x.destPref))}</td>
       <td data-label="${esc(t('th_equipment'))}" class="p-2.5 text-center"><span class="bg-blue-50 text-blue-800 font-bold px-1.5 py-0.5 rounded border border-blue-200 text-xs">${esc(x.equip)}</span></td>
       <td data-label="${esc(t('th_capacity'))}" class="p-2.5 text-slate-700"><div>${esc(x.capacityT)}t${x.volumeM3 ? ` / ${esc(x.volumeM3)}m³` : ''}</div><div class="text-[10px] text-slate-500">${esc(features(x))}</div></td>
       <td data-label="${esc(t('th_min_rate'))}" class="p-2.5 font-bold text-emerald-600${x.minRateUsd ? '' : ' rate-neg'}">${x.minRateUsd ? esc(U.money(x.minRateUsd)) : esc(t('negotiable'))}</td>
@@ -122,7 +124,7 @@ const Trucks = (() => {
           ${row(t('th_equipment'), esc(t(`eq_${x.equip}`)))}
           ${row(t('th_capacity'), `${esc(x.capacityT)} t${x.volumeM3 ? ` / ${esc(x.volumeM3)} m³` : ''}`)}
           ${row(t('th_available'), avail(x))}
-          ${row(t('th_pref_dest'), esc(x.destPref))}
+          ${row(t('th_pref_dest'), esc(destText(x.destPref)))}
           <div class="col-span-2 pt-1 border-t border-slate-100"><span class="text-slate-500">${esc(t('lbl_trailer_features'))}</span><div class="flex flex-wrap gap-1 mt-1">${chips}</div></div>
         </div>
         ${x.notes ? `<div class="text-[11px] bg-amber-50 border border-amber-200 rounded p-2 text-slate-800"><span class="text-[10px] uppercase font-bold text-amber-700 tracking-wider block mb-0.5">${esc(t('lbl_notes'))}</span><span class="whitespace-pre-line break-words">${esc(x.notes)}</span></div>` : ''}
@@ -147,7 +149,7 @@ const Trucks = (() => {
   function showTruckPreview(x, trigger = null) {
     viewing = x;
     previewTrigger = trigger;
-    $('view-truck-title').lastElementChild.textContent = `${x.locCity} → ${x.destPref}`;
+    $('view-truck-title').lastElementChild.textContent = `${x.locCity} → ${destText(x.destPref)}`;
     $('view-truck-sub').innerHTML = `${esc(x.company)} · ${esc(U.ageText(x.createdAt))}${x.mine ? ` <span class="text-[9px] bg-amber-100 text-amber-800 px-1 rounded font-bold">${esc(t('badge_yours'))}</span>` : ''}`;
     $('view-truck-body').innerHTML = previewHtml(x);
     $('modal-view-truck').classList.remove('hidden');
@@ -197,7 +199,7 @@ const Trucks = (() => {
     const tbody = $('my-trucks-tbody');
     if (!mine.length) { tbody.innerHTML = `<tr class="status-row"><td colspan="5" class="p-4 text-center text-slate-400 font-sans">${esc(t('my_trucks_empty'))}</td></tr>`; return; }
     tbody.innerHTML = mine.map((x) => `<tr class="data-row hover:bg-slate-50 transition border-b border-slate-200">
-      <td class="cell-heading p-2.5 font-bold text-slate-900">${esc(x.locCity)} → ${esc(x.destPref)}</td>
+      <td class="cell-heading p-2.5 font-bold text-slate-900">${esc(x.locCity)} → ${esc(destText(x.destPref))}</td>
       <td data-label="${esc(t('th_available'))}" class="p-2.5 text-slate-600">${avail(x)}</td>
       <td data-label="${esc(t('th_equipment'))}" class="p-2.5"><span class="bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">${esc(x.equip)}</span> ${esc(x.capacityT)}t</td>
       <td data-label="${esc(t('th_min_rate'))}" class="p-2.5 font-bold text-emerald-600">${x.minRateUsd ? esc(U.money(x.minRateUsd)) : esc(t('negotiable'))}</td>
