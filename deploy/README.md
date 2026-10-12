@@ -1,6 +1,6 @@
 # Deploying SNG ONE on one server (Hetzner)
 
-Stack on the server: **Caddy** (HTTPS, automatic certificates) → **API** (also serves the web app) → **PostgreSQL**, plus the optional **Telegram bot**. All in Docker; data lives in Docker volumes and survives every update.
+Stack on the server: **Caddy** (HTTPS, automatic certificates) → **API** (also serves the web app) → **PostgreSQL**, plus two optional Telegram bots (broadcast/`/postload` and the AI paste-import bot). All in Docker; data lives in Docker volumes and survives every update.
 
 ## First-time setup (about 20 minutes)
 
@@ -24,6 +24,7 @@ Stack on the server: **Caddy** (HTTPS, automatic certificates) → **API** (also
    The first build takes a few minutes. Then open `https://<SITE_ADDRESS>`.
 6. **Firebase:** console → Authentication → Settings → **Authorized domains** → add your `SITE_ADDRESS`. Without this, Google/phone sign-in is refused on the new address.
 7. **Telegram bot (optional):** put `TELEGRAM_BOT_TOKEN` and `BOT_ENCRYPTION_KEY` in `.env`, run `bash update.sh` again (it starts the bot when a token is set).
+8. **AI paste-import bot (optional, a separate @BotFather token):** put `TELEGRAM_PASTEBOT_TOKEN` in `.env` (reuses `BOT_ENCRYPTION_KEY` from step 7 - it must be the same value), run `bash update.sh` again. A linked member pastes/forwards a freight post in DM and gets it back as draft loads to post with one tap - see [`../pastebot`](../pastebot) (`sng-ai-paste-bot` on GitHub is the same code, kept as its own repo for independent deploys elsewhere).
 
 ### Private repository
 Create a read-only key on the server and add it in GitHub → repo → Settings → **Deploy keys**:
@@ -67,5 +68,6 @@ and `cd /opt/sng/app/deploy && docker compose exec caddy caddy reload --config /
 docker compose ps                 # what is running
 docker compose logs -f --tail=100 api
 docker compose --profile bot logs -f bot
+docker compose --profile pastebot logs -f pastebot
 docker stats --no-stream          # memory / CPU
 ```

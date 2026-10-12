@@ -81,5 +81,32 @@ services:
       INGEST_SERVICE_PASSWORD: ${INGEST_SERVICE_PASSWORD:?set INGEST_SERVICE_PASSWORD to that account's password}
       INGEST_ADMIN_TG_IDS: ${INGEST_ADMIN_TG_IDS:-}
 
+  # Optional: the AI paste-import bot (pastebot/) - a third, independent bot: a member pastes or
+  # forwards a freight post in DM, it's parsed by the same /api/ai/parse-loads Gemini pipeline the
+  # web app's import screen uses, and posted under that member's own account after a one-tap
+  # confirm. MUST share the same BOT_ENCRYPTION_KEY as `bot` above - both decrypt the same
+  # telegram_links row, so a member linked to one is already linked to both.
+  pastebot:
+    build: .
+    command: ["node", "pastebot/src/index.js"]
+    restart: unless-stopped
+    profiles: ["pastebot"]
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    healthcheck:
+      disable: true
+    environment:
+      DATABASE_URL: postgres://sng:${POSTGRES_PASSWORD:-sng-local-only}@db:5432/sng
+      API_BASE_URL: http://api:8080
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL:-http://localhost:8080}
+      # pastebot/src/config.js reads TELEGRAM_BOT_TOKEN - map the host's own TELEGRAM_PASTEBOT_TOKEN
+      # var onto it so a host-level name clash with the `bot` service above is impossible.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_PASTEBOT_TOKEN:?set TELEGRAM_PASTEBOT_TOKEN to a third @BotFather token}
+      FIREBASE_WEB_API_KEY: ${FIREBASE_WEB_API_KEY:-AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg}
+      BOT_ENCRYPTION_KEY: ${BOT_ENCRYPTION_KEY:?set BOT_ENCRYPTION_KEY - the SAME value as the `bot` service above}
+
 volumes:
   pgdata:

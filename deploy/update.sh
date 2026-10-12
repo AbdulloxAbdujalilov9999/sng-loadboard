@@ -26,6 +26,7 @@ fi
 
 PROFILES=()
 grep -q '^TELEGRAM_BOT_TOKEN=.\+' .env && grep -q '^BOT_ENCRYPTION_KEY=.\+' .env && PROFILES+=(--profile bot)
+grep -q '^TELEGRAM_PASTEBOT_TOKEN=.\+' .env && grep -q '^BOT_ENCRYPTION_KEY=.\+' .env && PROFILES+=(--profile pastebot)
 docker compose "${PROFILES[@]}" up -d --build --remove-orphans
 docker image prune -f >/dev/null
 # pick up changes to Caddyfile / sites/*.caddy without restarting the proxy

@@ -1,0 +1,50 @@
+// Every write this bot makes goes through the real HTTP API, with the member's own ID token - the
+// exact same door the web app uses. This means quotas, validation, CHECK constraints and the AI
+// city-resolution all behave identically no matter whether a load's draft came from the web app's
+// paste screen or from this bot. There is only one place (server/src/routes/ai.js and
+// server/src/routes/loads.js) that decides what a valid load looks like.
+
+export class ApiError extends Error {
+  constructor(status, code, message, details) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
+}
+
+export function makeApiClient({ baseUrl }) {
+  async function request(idToken, method, path, body) {
+    const res = await fetch(`${baseUrl}${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = data?.error ?? {};
+      throw new ApiError(res.status, err.code ?? `http_${res.status}`, err.message ?? 'Request failed', err.details);
+    }
+    return data;
+  }
+
+  const getMe = (idToken) => request(idToken, 'GET', '/api/me');
+  // Same endpoint the web app's "paste from Telegram/WhatsApp" screen calls (server/src/routes/ai.js):
+  // sends the pasted text to Gemini and gets back one draft per load it found, cities already
+  // resolved against the board's own gazetteer.
+  const parseLoads = (idToken, text) => request(idToken, 'POST', '/api/ai/parse-loads', { text });
+  const createLoad = (idToken, body) => request(idToken, 'POST', '/api/loads', body);
+  // Up to 40 at once, all-or-nothing (server/src/routes/loads.js) - what the confirm button calls
+  // once the member has reviewed every draft parsed out of their pasted text.
+  const createLoadsBulk = (idToken, loads) => request(idToken, 'POST', '/api/loads/bulk', { loads });
+  // Used by /myloads: everything this member has posted, so they can delete one from the chat.
+  const listMine = (idToken) => request(idToken, 'GET', '/api/loads/mine');
+  const deleteLoad = (idToken, id) => request(idToken, 'DELETE', `/api/loads/${id}`);
+
+  // Phone + 4-digit PIN sign-in (server/src/routes/pin.js): the same door the web app uses. Returns { token, expiresAt }.
+  const pinLogin = (phone, pin) => request(null, 'POST', '/api/auth/pin/login', { phone, pin, purpose: 'bot' });
+  // Trades a still-valid PIN session for a fresh one, so a linked member never has to /link again just because time passed.
+  const refreshSession = (token) => request(token, 'POST', '/api/auth/refresh', {});
+
+  return { getMe, parseLoads, createLoad, createLoadsBulk, listMine, deleteLoad, pinLogin, refreshSession };
+}

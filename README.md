@@ -169,12 +169,22 @@ app or from Telegram - to every group/channel the bot has been added to, the ins
 It talks to this same API and database; nothing on the server needed to change. See
 [`bot/README.md`](bot/README.md) for setup (`npm run bot`) and how it works.
 
+`pastebot/` is a third, independent bot process (its own `@BotFather` token): a linked member
+pastes or forwards a freight post in DM - one load or many, any layout - and gets it back as
+reviewable draft loads (same Gemini parser as the web app's paste-import screen and the ingest
+bot), then posts them all with one tap under their own account. It shares `bot/`'s
+`telegram_links`/`telegram_users` tables, so linking once in either bot links both. See
+[`pastebot/README.md`](pastebot/README.md) for setup (`npm run pastebot`) - the same code is also
+published standalone as [`sng-ai-paste-bot`](https://github.com/AbdulloxAbdujalilov9999/sng-ai-paste-bot)
+for anyone who wants to run it without this repo's API/web app alongside it.
+
 ## Tests
 
 ```bash
 npm test      # 148 tests. server: real embedded PostgreSQL - auth, approval, search, quotas, security, SSE, boot/cluster, i18n
               # bot (28): crypto + formatting + translations, and integration tests against the real API, database and
               #           LISTEN/NOTIFY channel (only Telegram itself is faked)
+              # pastebot: draft-to-load-body conversion, postable/flag filtering, message formatting
 ```
 
 ## Layout
@@ -186,4 +196,5 @@ server/scripts      seed, benchmark, fake-auth dev server
 server/test         integration tests
 web/                browser app (web/js modules, Tailwind source) → built to web/dist
 bot/                Telegram bot (account linking, /postload, broadcasting) - see bot/README.md
+pastebot/           AI paste-import Telegram bot (paste/forward -> draft loads -> one-tap post) - see pastebot/README.md
 ```
