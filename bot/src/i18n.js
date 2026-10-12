@@ -10,6 +10,9 @@ export const LANG_NAMES = { en: 'English', ru: 'Русский', uz: 'Oʻzbekcha
 
 const DICT = {
   en: {
+    paste_howto: "📋 Paste or forward a freight post here - Russian or Uzbek, one load or many. I read it with AI, show you every load, and post them to the board after you tap ✅.\n\nAnother way: send /paste and the text in one message.\nNot linked yet? Send /link first.",
+    paste_too_short: "That does not look like a freight post. Paste a text with the route, truck type, cargo and contact. Help: /paste",
+    unknown_command: "There is no such command. Send /start to see what I can do.",
     // ---- AI paste-import (pasteFlow.js; merged in from the paste bot) ----
     busy_finish_or_cancel: "Finish this step, or send /cancel to stop.",
     flag_date: "pickup date was not stated or already passed - defaulted to today",
@@ -172,6 +175,9 @@ const DICT = {
   },
 
   ru: {
+    paste_howto: "📋 Вставьте или перешлите сюда пост о грузе - по-русски или по-узбекски, один груз или несколько. Я прочитаю его с помощью AI, покажу каждый груз и опубликую на бирже после нажатия ✅.\n\nДругой способ: отправьте /paste и текст одним сообщением.\nЕщё не привязаны? Сначала отправьте /link.",
+    paste_too_short: "Это не похоже на пост о грузе. Вставьте текст с маршрутом, типом машины, грузом и контактом. Помощь: /paste",
+    unknown_command: "Такой команды нет. Отправьте /start, чтобы увидеть, что я умею.",
     // ---- AI paste-import (pasteFlow.js; merged in from the paste bot) ----
     busy_finish_or_cancel: "Завершите этот шаг или отправьте /cancel, чтобы остановиться.",
     flag_date: "дата погрузки не указана или уже прошла - поставлена сегодняшняя",
@@ -334,6 +340,9 @@ const DICT = {
   },
 
   uz: {
+    paste_howto: "📋 Yuk postini shu yerga joylang yoki forward qiling — rus yoki oʻzbek tilida, bitta yoki bir nechta yuk. AI oʻqib, har bir yukni koʻrsatadi, siz ✅ bosganingizdan keyin birjaga joylanadi.\n\nBoshqa usul: /paste va matnni bitta xabarda yuboring.\nHali ulanmagan boʻlsangiz, avval /link yuboring.",
+    paste_too_short: "Bu yuk postiga oʻxshamaydi. Yoʻnalish, mashina turi, yuk va aloqa maʼlumoti bor matnni joylang. Yordam: /paste",
+    unknown_command: "Bunday buyruq yoʻq. Nimalar qila olishimni koʻrish uchun /start yuboring.",
     // ---- AI paste-import (pasteFlow.js; merged in from the paste bot) ----
     busy_finish_or_cancel: "Avval shu bosqichni tugating yoki toʻxtatish uchun /cancel yuboring.",
     flag_date: "olib ketish sanasi ko'rsatilmagan yoki o'tib ketgan - bugungi sana qo'yildi",
@@ -509,3 +518,40 @@ export function t(lang, key, vars) {
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
   return s;
 }
+
+// What the Telegram app shows in the bot's "/" menu and on its start page. Command NAMES must be lowercase Latin (a Telegram rule);
+// the descriptions are translated. Uzbek is the default for everybody, Russian for Russian-speaking phones.
+export const COMMAND_MENU = {
+  uz: [
+    ['start', 'Boshlash va yordam'],
+    ['paste', 'Yuk postini AI bilan joylash'],
+    ['postload', 'Yukni bosqichma-bosqich joylash'],
+    ['myloads', 'Mening yuklarim (oʻchirish)'],
+    ['link', 'Hisobni telefon va parol bilan ulash'],
+    ['linkemail', 'Hisobni e-pochta bilan ulash'],
+    ['mystatus', 'Ulanish holati'],
+    ['unlink', 'Hisobni uzish'],
+    ['language', 'Tilni oʻzgartirish'],
+  ],
+  ru: [
+    ['start', 'Начало и помощь'],
+    ['paste', 'Опубликовать пост о грузе через AI'],
+    ['postload', 'Опубликовать груз по шагам'],
+    ['myloads', 'Мои грузы (удаление)'],
+    ['link', 'Привязать аккаунт: телефон и пароль'],
+    ['linkemail', 'Привязать аккаунт: e-mail'],
+    ['mystatus', 'Состояние привязки'],
+    ['unlink', 'Отвязать аккаунт'],
+    ['language', 'Сменить язык'],
+  ],
+};
+export const BOT_ABOUT = {
+  uz: {
+    short: 'SNG ONE yuk birjasi: yuk postini joylang — AI oʻqib, birjaga joylaydi.',
+    long: 'SNG ONE — MDH yuk birjasi boti.\n\n• Yuk postini joylang yoki forward qiling — AI oʻqib, birjaga joylaydi\n• Yukni bosqichma-bosqich joylash (/postload)\n• Guruhlarga yangi yuklar avtomatik yuboriladi\n\nBoshlash: /start',
+  },
+  ru: {
+    short: 'Биржа грузов SNG ONE: вставьте пост о грузе — AI прочитает и опубликует.',
+    long: 'SNG ONE — бот грузовой биржи СНГ.\n\n• Вставьте или перешлите пост о грузе — AI прочитает и опубликует на бирже\n• Публикация груза по шагам (/postload)\n• Новые грузы автоматически приходят в группы\n\nНачать: /start',
+  },
+};

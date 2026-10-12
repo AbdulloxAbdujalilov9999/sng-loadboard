@@ -7,6 +7,7 @@ import { makeStore } from './store.js';
 import { makeTokenManager } from './tokens.js';
 import { makeBot } from './bot.js';
 import { makeBroadcaster } from './broadcaster.js';
+import { publishBotProfile } from './profile.js';
 
 async function main() {
   const config = loadBotConfig();
@@ -22,6 +23,7 @@ async function main() {
   const broadcaster = makeBroadcaster({ config, pool, store, bot });
 
   await broadcaster.start();
+  await publishBotProfile(bot.telegram);
   await bot.launch();
   const chats = await store.countActiveChats();
   console.log(`sng-one telegram bot running - broadcasting to ${chats} chat(s)`);
