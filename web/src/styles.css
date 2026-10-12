@@ -120,16 +120,21 @@
   #my-trucks-tbody tr.data-row { border-left-color: #059669; }
 
   /* --- truck search results: 1 available · 2 location · 3 destination · 4 type · 5 capacity · 6 min rate · 7 carrier · 8 contact --- */
-  #trucks-tbody tr.data-row > td:nth-child(2) { grid-column: 1 / 9;  grid-row: 1; font-size: 14px; line-height: 1.25; background: transparent; }
-  #trucks-tbody tr.data-row > td:nth-child(3) { grid-column: 1 / 9;  grid-row: 2; font-size: 13px; font-weight: 700; color: #0f172a; line-height: 1.25; }
+  /* one compact card: 1 where it is → where it wants to go · 2 type, capacity, price · 3 available from · 4 carrier + contact buttons */
+  #trucks-tbody tr.data-row > td:nth-child(2) { grid-column: 1 / 7;  grid-row: 1; font-size: 14px; line-height: 1.25; background: transparent; white-space: nowrap !important; overflow: hidden; text-overflow: ellipsis; }
+  #trucks-tbody tr.data-row > td:nth-child(3) { grid-column: 7 / 13; grid-row: 1; font-size: 14px; font-weight: 700; color: #0f172a; line-height: 1.25; white-space: nowrap !important; overflow: hidden; text-overflow: ellipsis; }
   #trucks-tbody tr.data-row > td:nth-child(3)::before { display: inline; float: none; content: '→ '; color: inherit; font-size: inherit; text-transform: none; letter-spacing: 0; margin: 0; }
-  #trucks-tbody tr.data-row > td:nth-child(6) { grid-column: 9 / 13; grid-row: 1 / 3; text-align: right; font-size: 16px; font-weight: 800; align-self: center; }
-  #trucks-tbody tr.data-row > td:nth-child(4) { grid-column: 1 / 3;  grid-row: 3; margin-top: 0.45rem; }
-  #trucks-tbody tr.data-row > td:nth-child(5) { grid-column: 3 / 13; grid-row: 3; margin-top: 0.45rem; font-size: 11px; }
-  #trucks-tbody tr.data-row > td:nth-child(1) { grid-column: 1 / 13; grid-row: 4; margin-top: 0.35rem; font-size: 11px; }
+  #trucks-tbody tr.data-row > td:nth-child(3):empty::before { content: ''; }
+  #trucks-tbody tr.data-row > td:nth-child(4) { grid-column: 1 / 3;  grid-row: 2; margin-top: 0.4rem; }
+  #trucks-tbody tr.data-row > td:nth-child(5) { grid-column: 3 / 9; grid-row: 2; margin-top: 0.4rem; font-size: 14px; font-weight: 700; display: flex; align-items: baseline; gap: 0.45rem; white-space: nowrap; overflow: hidden; }
+  #trucks-tbody tr.data-row > td:nth-child(5) > div:nth-child(2) { font-size: 11px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+  #trucks-tbody tr.data-row > td:nth-child(6) { grid-column: 9 / 13; grid-row: 2; margin-top: 0.4rem; text-align: right; font-size: 16px; font-weight: 800; overflow: hidden; white-space: nowrap; }
+  #trucks-tbody tr.data-row > td:nth-child(1) { grid-column: 1 / 13; grid-row: 3; margin-top: 0.35rem; font-size: 12px; }
   #trucks-tbody tr.data-row > td:nth-child(1)::before { display: inline; float: none; margin-right: 0.3rem; }
-  #trucks-tbody tr.data-row > td:nth-child(7) { grid-column: 1 / 13; grid-row: 5; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed #cbd5e1; font-size: 11px; color: #475569; }
-  #trucks-tbody tr.data-row > td:nth-child(8) { grid-column: 1 / 13; grid-row: 6; margin-top: 0.5rem; }
+  #trucks-tbody tr.data-row > td:nth-child(7) { grid-column: 1 / 13; grid-row: 4; margin-top: 0.45rem; padding-top: 0.5rem; border-top: 1px dashed #cbd5e1; font-size: 12px; color: #475569; align-self: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #trucks-tbody tr.data-row > td:nth-child(8) { grid-column: 1 / 13; grid-row: 5; margin-top: 0.4rem; }
+  #trucks-tbody tr.data-row > td:nth-child(8) > div { justify-content: stretch; }
+  #trucks-tbody tr.data-row > td:nth-child(8) a { padding: 0.4rem 0.5rem; font-size: 12px; white-space: nowrap; }
 
   /* --- my posted loads: 1 route · 2 pickup/delivery · 3 type & weight · 4 distance · 5 rate · 6 commodity · 7 actions --- */
   #my-loads-tbody tr.data-row > td:nth-child(1) { grid-column: 1 / 9;  grid-row: 1; font-size: 13px; background: transparent; line-height: 1.3; }
@@ -272,9 +277,8 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
   #ai-text, #ai-t-text { min-height: 11rem; }
 }
 @media (max-width: 1199px) {
-  #trucks-tbody tr.data-row > td:nth-child(5) { font-size: 13px; font-weight: 600; }
-  #trucks-tbody tr.data-row > td:nth-child(1), #trucks-tbody tr.data-row > td:nth-child(7) { font-size: 12px; }
   /* "negotiable" is the usual case: a quiet label, not a headline (a real price stays big) */
   #loads-tbody tr.data-row > td.rate-neg { font-size: 11px; font-weight: 600; }
-  #trucks-tbody tr.data-row > td.rate-neg, #my-loads-tbody tr.data-row > td.rate-neg { font-size: 12px; font-weight: 600; }
+  #trucks-tbody tr.data-row > td.rate-neg { font-size: 11px; font-weight: 600; }
+  #my-loads-tbody tr.data-row > td.rate-neg { font-size: 12px; font-weight: 600; }
 }
