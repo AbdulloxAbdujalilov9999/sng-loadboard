@@ -23,6 +23,10 @@ export function loadBotConfig(env = process.env) {
     // Spacing between consecutive Telegram sends while broadcasting one load to many chats
     // (Telegram's own limit is ~30 msg/s across all chats); keep this well under it.
     broadcastSpacingMs: Number(env.BOT_BROADCAST_SPACING_MS || 60),
+    // Minimum gap between two messages to the SAME chat: a group/channel takes ~20 a minute, a private chat ~1 a second. Without it a
+    // 50-load post would be cut off by Telegram's flood limit part-way through.
+    broadcastGroupGapMs: Number(env.BOT_BROADCAST_GROUP_GAP_MS ?? 3100),
+    broadcastOwnerGapMs: Number(env.BOT_BROADCAST_OWNER_GAP_MS ?? 1100),
     // Groups mix members of different languages, so broadcasts use one fixed language for everyone
     // (unlike DMs, which follow each person's own /language choice).
     broadcastLang: LANGS.includes(env.BOT_BROADCAST_LANG) ? env.BOT_BROADCAST_LANG : DEFAULT_LANG,
@@ -34,7 +38,9 @@ export function loadBotConfig(env = process.env) {
     // AI paste-import (pasteFlow.js): at most this many /api/ai/parse-loads calls per minute from this process, and how long
     // a parsed batch waits for its Post / Cancel buttons before it must be pasted again.
     aiMaxPerMin: Number(env.AI_PASTE_MAX_PER_MIN || 20),
-    pendingTtlMin: Number(env.PASTE_PENDING_TTL_MIN || 15),
+    pendingTtlMin: Number(env.PASTE_PENDING_TTL_MIN || 60),
+    // Pause between the per-load messages of a big review (Telegram allows about one message a second to a chat).
+    draftGapMs: Number(env.PASTE_DRAFT_GAP_MS ?? 400),
     // Forwarded messages that arrive within this many ms of each other are read as one paste (one review, one Post button).
     pasteDebounceMs: Number(env.PASTE_DEBOUNCE_MS ?? 2500),
   };

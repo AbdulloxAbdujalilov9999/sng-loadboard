@@ -91,6 +91,28 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
   const MAX_COLLECT_MS = 8000;
   const collecting = new Map(); // telegramUserId -> { texts, ctx, timer, since }
   const MAX_PASTE_CHARS = 12000; // the API's own limit for one text
+  const MAX_BATCH = 50; // loads in one review = loads one Post tap publishes (the API's bulk limit)
+  const draftGapMs = config.draftGapMs ?? 0; // pause between the messages of a big batch (the tests use 0)
+  const sleep = config.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+
+  // Telegram answers 429 "retry after N seconds" when a chat is flooded: wait exactly that long and try again.
+  async function withRetry(fn) {
+    for (let attempt = 0; ; attempt += 1) {
+      try { return await fn(); } catch (err) {
+        if (err?.response?.error_code !== 429 || attempt >= 8) throw err;
+        await sleep(Math.min(Number(err.response.parameters?.retry_after ?? 3), 60) * 1000 + 300);
+      }
+    }
+  }
+
+  // One read at a time per person, so two pastes close together cannot interleave their messages.
+  const chains = new Map();
+  function serial(userId, fn) {
+    const run = (chains.get(userId) ?? Promise.resolve()).catch(() => {}).then(fn);
+    chains.set(userId, run);
+    run.finally(() => { if (chains.get(userId) === run) chains.delete(userId); }).catch(() => {});
+    return run;
+  }
 
   function addEntry(userId, entry) {
     const m = pending.get(userId) ?? new Map();
@@ -102,6 +124,12 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     const m = pending.get(userId);
     m?.delete(batchOf(entry.nonce));
     if (m && !m.size) pending.delete(userId);
+  }
+  function openEntry(userId) {
+    const m = pending.get(userId);
+    if (!m) return null;
+    for (const entry of [...m.values()].reverse()) { if (entryFor(userId, batchOf(entry.nonce))) return entry; }
+    return null;
   }
   function entryFor(userId, batch) {
     const entry = pending.get(userId)?.get(batch);
@@ -164,7 +192,8 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
   // Once the batch is posted or cancelled the Edit / Remove buttons on its messages would act on nothing: take them away.
   async function clearButtons(ctx, entry) {
     for (const id of entry.msgIds) {
-      await ctx.telegram.editMessageReplyMarkup?.(entry.chatId, id, undefined, { inline_keyboard: [] }).catch(() => {});
+      await withRetry(() => ctx.telegram.editMessageReplyMarkup?.(entry.chatId, id, undefined, { inline_keyboard: [] })).catch(() => {});
+      if (draftGapMs > 0) await sleep(Math.round(draftGapMs / 3));
     }
   }
 
@@ -223,7 +252,9 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     return undefined;
   }
 
-  async function readPaste(ctx, text) {
+  const readPaste = (ctx, text) => serial(ctx.from.id, () => readPasteNow(ctx, text));
+
+  async function readPasteNow(ctx, text) {
     if (text.length < MIN_PASTE_CHARS) return ctx.reply(t(ctx.lang, 'paste_too_short')); // not a load post: say how it works instead of staying silent
 
     let idToken, member;
@@ -253,20 +284,39 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
       return undefined;
     }
 
-    const nonce = randomUUID();
-    const entry = { nonce, drafts: loads.map((d) => ({ ...d })), member, createdAt: Date.now(), chatId: ctx.chat.id, msgIds: [], footerMsgId: null };
-    addEntry(ctx.from.id, entry);
-
-    const header = `${t(ctx.lang, 'paste_found_header', { count: loads.length })}${truncated ? `\n${t(ctx.lang, 'paste_truncated_note', { max: loads.length })}` : ''}\n${t(ctx.lang, 'paste_review_hint')}`;
-    await ctx.telegram.editMessageText(ctx.chat.id, waitMsg.message_id, undefined, header).catch(() => {});
-    // Each load is its own message, so each can be edited or removed on its own.
-    for (let i = 0; i < entry.drafts.length; i += 1) {
-      const v = draftView(ctx, entry, i);
-      const sent = await ctx.reply(v.text, { parse_mode: 'HTML', ...v.keyboard });
-      entry.msgIds.push(sent?.message_id);
+    // Everything pasted while a review is open joins that same review, so there is always ONE Post button at the bottom, whatever
+    // the number of messages forwarded or loads in them. (After Post / Cancel, or when it expired, the next paste starts a new one.)
+    let entry = openEntry(ctx.from.id);
+    const fresh = !entry;
+    if (fresh) {
+      entry = { nonce: randomUUID(), drafts: [], member, createdAt: Date.now(), chatId: ctx.chat.id, msgIds: [], footerMsgId: null };
+      addEntry(ctx.from.id, entry);
     }
+    entry.member = member;
+    const room = Math.max(0, MAX_BATCH - entry.drafts.length);
+    const incoming = loads.slice(0, room);
+    const overflow = loads.length - incoming.length;
+    const firstIdx = entry.drafts.length;
+    entry.drafts.push(...incoming.map((d) => ({ ...d })));
+
+    const notes = [];
+    if (truncated) notes.push(t(ctx.lang, 'paste_truncated_note', { max: loads.length }));
+    if (overflow > 0) notes.push(t(ctx.lang, 'paste_batch_full', { max: MAX_BATCH, n: overflow }));
+    const title = fresh ? t(ctx.lang, 'paste_found_header', { count: incoming.length }) : t(ctx.lang, 'paste_added_header', { added: incoming.length, total: entry.drafts.length });
+    const slow = incoming.length > 10 ? `\n${t(ctx.lang, 'paste_showing')}` : '';
+    await ctx.telegram.editMessageText(ctx.chat.id, waitMsg.message_id, undefined, [title, ...notes, t(ctx.lang, 'paste_review_hint')].join('\n') + slow).catch(() => {});
+    // Each load is its own message, so each can be edited or removed on its own. Telegram allows about one message a second to a chat,
+    // so a big batch is sent at an even pace, and a "slow down" answer (429) is waited out instead of losing the rest of the batch.
+    for (let i = firstIdx; i < entry.drafts.length; i += 1) {
+      const v = draftView(ctx, entry, i);
+      const sent = await withRetry(() => ctx.reply(v.text, { parse_mode: 'HTML', ...v.keyboard }));
+      entry.msgIds.push(sent?.message_id);
+      if (draftGapMs > 0) await sleep(draftGapMs);
+    }
+    // The one Post message always sits at the very bottom: the old one (if any) is replaced.
+    if (entry.footerMsgId) await ctx.telegram.deleteMessage(entry.chatId, entry.footerMsgId).catch(() => {});
     const f = footerView(ctx, entry);
-    const footer = await ctx.reply(f.text, { parse_mode: 'HTML', ...f.keyboard });
+    const footer = await withRetry(() => ctx.reply(f.text, { parse_mode: 'HTML', ...f.keyboard }));
     entry.footerMsgId = footer?.message_id;
     return undefined;
   }

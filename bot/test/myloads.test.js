@@ -57,7 +57,7 @@ let record = () => {};
 Telegram.prototype.callApi = async function fake(method, payload) { return record(method, payload); };
 process.on('exit', () => { Telegram.prototype.callApi = realCallApi; });
 
-function setup({ debounce = 0 } = {}) {
+function setup({ debounce = 0, count = 0, flood = 0 } = {}) {
   const sent = []; const calls = []; const parsed = [];
   let loads = [{
     id: 7, originCity: 'Perm, RU', destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 22, volumeM3: 120, pickupDate: '2026-10-12', deliveryDate: null,
@@ -70,18 +70,22 @@ function setup({ debounce = 0 } = {}) {
     deleteLoad: async (_t, id) => { calls.push(['delete', id]); loads = loads.filter((l) => l.id !== id); },
     searchCities: async (_t, q) => (/^tom/i.test(q) ? { items: [{ id: 5, label: 'Tomsk, RU' }, { id: 6, label: 'Tomsk Oblast, RU' }] } : { items: [] }),
     getMe: async () => ({ profile: { id: 1, status: 'approved', company: 'Abdulloh', phone: '+998938747080', contactName: 'Abdulloh' } }),
-    parseLoads: async (_t, text) => { parsed.push(text); return ({ truncated: false, loads: [
+    parseLoads: async (_t, text) => { parsed.push(text); if (count) return { truncated: false, loads: Array.from({ length: count }, (_, i) => ({ originCityId: 1, originCity: 'Perm, RU', destCityId: 2, destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 20, volumeM3: null, pickupDate: '2026-10-12', rateUsd: 100 + i, commodity: `Yuk ${i + 1}`, notes: '', contactPhone: '+998938747080', contactTelegram: '', contactName: '', flags: [] })) }; return ({ truncated: false, loads: [
       { originCityId: 1, originCity: 'Perm, RU', destCityId: 2, destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 22, volumeM3: 120, pickupDate: '2026-10-12', rateUsd: 0, commodity: 'Ламинат', notes: 'Срочно', contactPhone: '+998938747080', contactTelegram: '', contactName: '', flags: ['date'] },
       { originCityId: null, originCity: '', originText: 'Питр', destCityId: 2, destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 20, volumeM3: null, pickupDate: '2026-10-13', rateUsd: 500, commodity: 'Тент', notes: '', contactPhone: '', contactTelegram: '', contactName: '', flags: ['origin'] },
     ] }); },
     createLoadsBulk: async (_t, bodies) => { calls.push(['bulk', bodies]); return { items: bodies.map((b, i) => ({ id: 100 + i, originCity: 'x', destCity: 'y', pickupDate: b.pickupDate, rateUsd: b.rateUsd })) }; },
   };
-  const config = { botToken: '123:test', broadcastLang: 'uz', joinChannel: '', joinGroup: '', aiMaxPerMin: 600, pendingTtlMin: 15, pasteDebounceMs: debounce, webBaseUrl: 'https://x', webUrlIsPublic: true };
+  const config = { botToken: '123:test', broadcastLang: 'uz', joinChannel: '', joinGroup: '', aiMaxPerMin: 600, pendingTtlMin: 15, pasteDebounceMs: debounce, draftGapMs: 0, sleep: async () => {}, webBaseUrl: 'https://x', webUrlIsPublic: true };
   const state = { link: null, removed: 0, lang: null };
   const store = { getLanguage: async () => state.lang, setLanguage: async (_id, l) => { state.lang = l; }, getLinkByTelegramUserId: async () => state.link, removeLink: async () => { state.removed += 1; return true; } };
   const bot = makeBot({ config, firebaseAuth: {}, apiClient, tokens: { getIdToken: async () => 'tok', invalidate() {} }, store });
   bot.botInfo = { id: 123, is_bot: true, first_name: 'sng', username: 'sng_test_bot' };
-  record = (method, payload) => { sent.push({ method, ...payload }); return { message_id: sent.length, chat: { id: 77 }, date: 0, text: payload.text }; };
+  let sends = 0; let floods = 0;
+  record = (method, payload) => {
+    if (flood && method === 'sendMessage' && (sends += 1) % flood === 0) { floods += 1; throw Object.assign(new Error('429: Too Many Requests'), { response: { error_code: 429, parameters: { retry_after: 1 } } }); }
+    sent.push({ method, ...payload }); return { message_id: sent.length, chat: { id: 77 }, date: 0, text: payload.text };
+  };
   let n = 0;
   const from = { id: 77, is_bot: false, first_name: 'Bek', language_code: 'uz' };
   const say = (text) => bot.handleUpdate({ update_id: ++n, message: { message_id: n, date: 0, text, from, chat: { id: 77, type: 'private' }, ...(text.startsWith('/') ? { entities: [{ type: 'bot_command', offset: 0, length: text.split(/\s/)[0].length }] } : {}) } });
@@ -89,7 +93,7 @@ function setup({ debounce = 0 } = {}) {
   const last = (method) => sent.filter((s) => s.method === method).at(-1);
   const buttons = (s) => (s?.reply_markup?.inline_keyboard ?? []).flat().map((b) => b.callback_data);
   const keyboardOf = (m) => (m?.reply_markup?.keyboard ?? []).map((row) => row.map((b) => b.text ?? b));
-  return { say, press, last, calls, sent, buttons, state, keyboardOf, parsed };
+  return { say, press, last, calls, sent, buttons, state, keyboardOf, parsed, floods: () => floods };
 }
 
 test('/myloads shows the whole load with Edit, Renew and Delete buttons', async () => {
@@ -303,18 +307,45 @@ test('forwarding several posts at once is ONE paste: one AI call, one review, on
   assert.equal(posts.length, 1, 'exactly one "post" button');
 });
 
-test('a second paste a little later is a second review - the first one\'s Post button still works', async () => {
+test('a second paste later joins the SAME review: still one Post button, at the bottom, counting everything', async () => {
   const { say, press, sent, calls, buttons } = setup({ debounce: 30 });
   await say('Perm Andijan Ламинат 22 тонн +998938747080');
   await wait(200);
   await say('Perm Andijan Мебель 10 тонн +998938747080');
   await wait(200);
-  const confirms = sent.filter((s) => s.method === 'sendMessage' && buttons(s).some((b) => b.startsWith('paste:confirm'))).map((s) => buttons(s)[0]);
-  assert.equal(confirms.length, 2);
-  await press(confirms[0]);
-  assert.equal(calls.filter((c) => c[0] === 'bulk').length, 1, 'the earlier review can still be posted');
-  await press(confirms[1]);
-  assert.equal(calls.filter((c) => c[0] === 'bulk').length, 2);
-  await press(confirms[0]);
+  const postButtons = () => sent.filter((s) => s.method === 'sendMessage' && buttons(s).some((b) => b.startsWith('paste:confirm')));
+  assert.equal(postButtons().length, 2, 'two footers were sent over time...');
+  assert.equal(sent.filter((s) => s.method === 'deleteMessage').length, 1, '...and the old one was deleted, so only one is left');
+  const numbered = sent.filter((s) => s.method === 'sendMessage' && /^<b>#\d+/.test(s.text)).map((s) => Number(s.text.match(/#(\d+)/)[1]));
+  assert.deepEqual(numbered, [1, 2, 3, 4], 'the second paste carries on counting');
+  const latest = postButtons().at(-1);
+  assert.match(latest.text, /4 tadan 2 ta/, 'the count covers both pastes (one load of each has no city)');
+  await press(buttons(latest)[0]);
+  const bulk = calls.filter((c) => c[0] === 'bulk');
+  assert.equal(bulk.length, 1, 'one tap publishes everything');
+  assert.equal(bulk[0][1].length, 2);
+  await press(buttons(latest)[0]);
   assert.match(sent.filter((s) => s.method === 'editMessageText').at(-1).text, /eskirdi/, 'a button that was already used does nothing twice');
+});
+
+test('50 loads in one review are all shown and published with ONE tap - even when Telegram says "slow down"', async () => {
+  const { say, press, sent, calls, buttons, floods } = setup({ count: 50, flood: 7 });
+  await say('Perm Andijan Ламинат 22 тонн +998938747080');
+  const drafts = sent.filter((s) => s.method === 'sendMessage' && /^<b>#\d+/.test(s.text));
+  assert.equal(drafts.length, 50, 'every load got its own message');
+  assert.ok(floods() >= 7, `Telegram pushed back ${floods()} times and the bot waited it out`);
+  const footers = sent.filter((s) => s.method === 'sendMessage' && buttons(s).some((b) => b.startsWith('paste:confirm')));
+  assert.equal(footers.length, 1);
+  assert.match(footers[0].text, /50 tadan 50 ta/);
+  await press(buttons(footers[0])[0]);
+  const bulk = calls.find((c) => c[0] === 'bulk');
+  assert.equal(bulk[1].length, 50, 'all 50 are sent to the board in one go');
+  assert.match(sent.filter((s) => s.method === 'editMessageText').at(-1).text, /50 ta yuk joylandi/);
+});
+
+test('more than 50 loads: the first 50 are kept, the rest are told about', async () => {
+  const { say, sent } = setup({ count: 60 });
+  await say('Perm Andijan Ламинат 22 тонн +998938747080');
+  assert.equal(sent.filter((s) => s.method === 'sendMessage' && /^<b>#\d+/.test(s.text)).length, 50);
+  assert.ok(sent.some((s) => s.method === 'editMessageText' && /10 tasi qoʻshilmadi/.test(s.text)));
 });

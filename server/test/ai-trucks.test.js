@@ -120,7 +120,7 @@ test('bulk trucks: all-or-nothing, quotas for the whole batch, notes stored and 
   assert.ok(bad.json.error.details.some((d) => d.path === 'trucks.1.locCityId'), JSON.stringify(bad.json.error.details));
   assert.equal((await api.get('/api/trucks/mine')).json.items.length, before, 'nothing half-posted');
   assert.equal((await api.post('/api/trucks/bulk', { trucks: [] })).status, 400);
-  assert.equal((await api.post('/api/trucks/bulk', { trucks: Array.from({ length: 41 }, () => one) })).status, 400);
+  assert.equal((await api.post('/api/trucks/bulk', { trucks: Array.from({ length: 51 }, () => one) })).status, 400);
 
   const capped = await startTestEnv({ MAX_ACTIVE_TRUCKS_PER_MEMBER: '3' });
   try {

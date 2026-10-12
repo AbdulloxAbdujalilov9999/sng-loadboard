@@ -307,3 +307,15 @@ test('GET /api/stats: approved members only, counts live loads and trucks', asyn
   assert.equal(typeof r.json.trucks, 'number');
   assert.ok(r.json.loads >= 1, 'sees the loads created by earlier tests');
 });
+
+test('bulk: 50 loads are posted at once, 51 are refused, and the quota counts every one', async () => {
+  const api = env.as('dias@test.com');
+  const mk = (i) => ({ ...validLoad(ids['Almaty, KZ'], ids['Tashkent, UZ']), commodity: `bulk ${i}` });
+  const before = (await env.pool.query("SELECT count(*)::int AS n FROM loads WHERE status = 'active'")).rows[0].n;
+  const tooMany = await api.post('/api/loads/bulk', { loads: Array.from({ length: 51 }, (_, i) => mk(i)) });
+  assert.equal(tooMany.status, 400);
+  const ok = await api.post('/api/loads/bulk', { loads: Array.from({ length: 50 }, (_, i) => mk(i)) });
+  assert.equal(ok.status, 201);
+  assert.equal(ok.json.items.length, 50);
+  assert.equal((await env.pool.query("SELECT count(*)::int AS n FROM loads WHERE status = 'active'")).rows[0].n, before + 50);
+});

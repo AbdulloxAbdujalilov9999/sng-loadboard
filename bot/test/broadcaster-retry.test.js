@@ -35,7 +35,7 @@ test('gives up after a few throttles instead of looping forever, and does not dr
   let calls = 0;
   const { b, removed } = run({ send: async () => { calls += 1; throw tg(429, { parameters: { retry_after: 1 } }); } });
   await b._handleEvent({ entity: 'loads', op: 'insert', id: 7 });
-  assert.equal(calls, 5);
+  assert.equal(calls, 9, "one try plus eight waits, then it gives up");
   assert.deepEqual(removed, []);
 });
 

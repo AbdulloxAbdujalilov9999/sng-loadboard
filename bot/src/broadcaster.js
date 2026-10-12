@@ -27,12 +27,22 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
 
   // Telegram caps a bot at ~20 messages a minute per group. Past that it answers 429 with how long to wait;
   // we wait exactly that long and try again (a member posting 40 loads in one go must not lose broadcasts).
+  // Telegram lets a group take about 20 messages a minute and a private chat about one a second. A member posting 50 loads at once
+  // must not lose any broadcast, so sends to the same chat are spaced out up front (and a 429 is still waited out below).
+  const lastSentAt = new Map();
+  async function pace(chatId, gapMs) {
+    if (!(gapMs > 0)) return;
+    const wait = (lastSentAt.get(chatId) ?? 0) + gapMs - Date.now();
+    if (wait > 0) await sleep(wait);
+    lastSentAt.set(chatId, Date.now());
+  }
+
   async function sendWithRetry(chatId, text, extra = {}) {
     for (let attempt = 0; ; attempt += 1) {
       try {
         return await bot.telegram.sendMessage(chatId, text, { parse_mode: 'HTML', ...extra });
       } catch (err) {
-        if (err?.response?.error_code !== 429 || attempt >= 4) throw err;
+        if (err?.response?.error_code !== 429 || attempt >= 8) throw err;
         const waitS = Number(err.response.parameters?.retry_after ?? 5);
         await sleep(Math.min(waitS, 60) * 1000 + 250);
       }
@@ -56,7 +66,7 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
   async function sendToAllChats(text) {
     const chatIds = await store.listActiveChatIds();
     for (const chatId of chatIds) {
-      try { await sendWithRetry(chatId, text); } catch (err) { await handleSendError(err, chatId); }
+      try { await pace(chatId, config.broadcastGroupGapMs); await sendWithRetry(chatId, text); } catch (err) { await handleSendError(err, chatId); }
       if (config.broadcastSpacingMs > 0) await sleep(config.broadcastSpacingMs);
     }
   }
@@ -71,6 +81,7 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     try {
       // Each load the poster gets in their own chat carries its own Edit / Renew / Delete buttons (editor.js, myLoads.js).
       const lang = (await store.getLanguage?.(chatId)) ?? config.broadcastLang;
+      await pace(chatId, config.broadcastOwnerGapMs);
       const sent = await sendWithRetry(chatId, text, loadKeyboard(lang, loadId));
       if (sent?.message_id != null) {
         await store.saveSentMessage({ loadId, chatId, messageId: sent.message_id })

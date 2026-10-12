@@ -3,7 +3,7 @@ import { distanceKm, fold, resolveCity } from '../lib/ai/cities.js';
 import { HttpError, tooMany } from '../lib/errors.js';
 
 const EQUIP = ['T', 'R', 'F', 'V', 'AC'];
-const MAX_ITEMS = 40;
+const MAX_ITEMS = 50;
 const DEFAULT_WEIGHT_T = 20; // a full tent/"fura" truck; flagged in the response so the member checks it
 
 const bodySchema = z.object({ text: z.string().trim().min(8, 'Paste at least one post').max(12_000) }).strict();

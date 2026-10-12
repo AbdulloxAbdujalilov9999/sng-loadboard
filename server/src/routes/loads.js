@@ -179,7 +179,7 @@ export default async function loadRoutes(app, { pool, config }) {
     return reply.code(201).send(loadDto(created, req.member.id));
   });
 
-  // Up to 40 loads at once (used by "paste from Telegram/WhatsApp"). All-or-nothing: one bad row rejects the
+  // Up to 50 loads at once (used by "paste from Telegram/WhatsApp"). All-or-nothing: one bad row rejects the
   // batch with errors pointing at `loads.<index>.<field>`, so nothing is half-posted.
   app.post('/api/loads/bulk', write, async (req, reply) => {
     const { loads } = loadsBulkBody.parse(req.body);

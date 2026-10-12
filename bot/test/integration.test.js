@@ -209,3 +209,26 @@ test('the copy of a load the poster gets in their own chat carries Edit / Renew 
     assert.match(own.extra.reply_markup.inline_keyboard[0][0].text, /Tahrirlash/);
   } finally { await broadcaster.stop(); }
 });
+
+test('50 loads posted at once all reach every group and the poster - paced so Telegram\'s flood limit is never hit', async () => {
+  const sent = []; const waits = [];
+  const bot = { telegram: { sendMessage: async (chatId, text) => { sent.push({ chatId, text }); return { message_id: sent.length }; } } };
+  const store = {
+    listActiveChatIds: async () => [111, 222], markChatRemoved: async () => {}, getTelegramUserIdByMemberId: async () => 999,
+    saveSentMessage: async () => {}, listSentMessages: async () => [], deleteSentMessages: async () => {}, getLanguage: async () => 'uz',
+  };
+  const broadcaster = makeBroadcaster({
+    config: { databaseUrl: env.config.databaseUrl, broadcastSpacingMs: 0, broadcastGroupGapMs: 3100, broadcastOwnerGapMs: 1100, broadcastLang: 'uz', webBaseUrl: 'https://sng.example', webUrlIsPublic: true },
+    pool: env.pool, store, bot, log: { warn() {}, error() {} }, sleep: async (ms) => { waits.push(ms); },
+  });
+  await broadcaster.start();
+  try {
+    const loads = Array.from({ length: 50 }, (_, i) => ({ ...validLoad(cityA, cityB), commodity: `Paced ${i}` }));
+    const res = await env.as('poster@test.com').post('/api/loads/bulk', { loads });
+    assert.equal(res.status, 201);
+    assert.ok(await waitFor(() => sent.length === 150, 20000), `3 chats x 50 loads, got ${sent.length}`);
+    for (const chat of [111, 222, 999]) assert.equal(sent.filter((s) => s.chatId === chat).length, 50, `chat ${chat} got every load`);
+    assert.ok(waits.filter((w) => w > 2500).length >= 49 * 2, 'groups are paced to about 20 a minute');
+    assert.ok(waits.filter((w) => w > 800 && w < 1200).length >= 40, 'the private chat is paced to about 1 a second');
+  } finally { await broadcaster.stop(); }
+});

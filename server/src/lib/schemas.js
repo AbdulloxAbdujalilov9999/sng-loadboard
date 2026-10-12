@@ -98,7 +98,7 @@ export const loadBody = loadBase.extend({
   contactTelegram: orEmpty(telegram).default(''),
 }).superRefine((v, ctx) => needsContact(v, ctx));
 
-export const loadsBulkBody = z.object({ loads: z.array(loadBody).min(1).max(40) }).strict();
+export const loadsBulkBody = z.object({ loads: z.array(loadBody).min(1).max(50) }).strict();
 
 export const loadPatchBody = loadBase.partial().strict(); // the route checks the merged result still has a phone or Telegram
 
@@ -124,7 +124,7 @@ export const truckBody = truckBase.extend({
   contactTelegram: orEmpty(telegram).default(''),
 }).superRefine((v, ctx) => needsContact(v, ctx));
 
-export const trucksBulkBody = z.object({ trucks: z.array(truckBody).min(1).max(40) }).strict();
+export const trucksBulkBody = z.object({ trucks: z.array(truckBody).min(1).max(50) }).strict();
 
 const csv = (allowed) => z.string().transform((s) => s.split(',').map((x) => x.trim()).filter(Boolean))
   .pipe(z.array(z.enum(allowed)).max(allowed.length));

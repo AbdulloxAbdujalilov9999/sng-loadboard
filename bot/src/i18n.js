@@ -10,6 +10,9 @@ export const LANG_NAMES = { en: 'English', ru: 'Русский', uz: 'Oʻzbekcha
 
 const DICT = {
   en: {
+    paste_added_header: "➕ {added} more load(s) added to the same review. Total: {total}.",
+    paste_batch_full: "One review holds up to {max} loads - {n} were not added. Post these first, then send the rest.",
+    paste_showing: "⏳ Showing them one by one - this takes a few seconds…",
     btn_menu_ai: "📋 Post with AI",
     btn_menu_post: "✍️ Step by step",
     btn_menu_myloads: "📦 My loads",
@@ -236,6 +239,9 @@ const DICT = {
   },
 
   ru: {
+    paste_added_header: "➕ Добавлено грузов: {added} - в тот же список. Всего: {total}.",
+    paste_batch_full: "В одном списке до {max} грузов - не добавлено: {n}. Сначала опубликуйте эти, затем отправьте остальные.",
+    paste_showing: "⏳ Показываю по одному - это займёт несколько секунд…",
     btn_menu_ai: "📋 Через AI",
     btn_menu_post: "✍️ По шагам",
     btn_menu_myloads: "📦 Мои грузы",
@@ -462,6 +468,9 @@ const DICT = {
   },
 
   uz: {
+    paste_added_header: "➕ Shu roʻyxatga yana {added} ta yuk qoʻshildi. Jami: {total}.",
+    paste_batch_full: "Bir roʻyxatda {max} tagacha yuk boʻladi - {n} tasi qoʻshilmadi. Avval shularni joylang, qolganini keyin yuboring.",
+    paste_showing: "⏳ Birma-bir koʻrsatyapman - bir necha soniya ketadi…",
     btn_menu_ai: "📋 AI bilan joylash",
     btn_menu_post: "✍️ Bosqichma-bosqich",
     btn_menu_myloads: "📦 Mening yuklarim",

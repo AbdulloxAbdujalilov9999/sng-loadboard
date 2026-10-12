@@ -267,7 +267,7 @@ test('bulk post: all-or-nothing, quotas counted for the whole batch, notes store
   assert.equal((await api.get('/api/loads/mine')).json.items.length, before, 'nothing was half-posted');
 
   assert.equal((await api.post('/api/loads/bulk', { loads: [] })).status, 400);
-  assert.equal((await api.post('/api/loads/bulk', { loads: Array.from({ length: 41 }, () => good) })).status, 400);
+  assert.equal((await api.post('/api/loads/bulk', { loads: Array.from({ length: 51 }, () => good) })).status, 400);
 
   const capped = await startTestEnv({ MAX_ACTIVE_LOADS_PER_MEMBER: '3' });
   try {
