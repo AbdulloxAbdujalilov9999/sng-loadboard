@@ -126,12 +126,29 @@ const Session = (() => {
     showPane('error');
   }
 
+  // "Open the website, already signed in": the Telegram bot sends https://site/?login=<one-time code>. The code is removed from the address bar
+  // at once, traded for a normal session, and any other sign-in in this browser gives way to it.
+  let fromLoginLink = false;
+  async function consumeLoginLink() {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('login');
+    if (!code) return;
+    url.searchParams.delete('login');
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    try {
+      const r = await API.request('POST', '/api/auth/link-login', { body: { code }, retry: false });
+      PinSession.set({ token: r.token, expiresAt: r.expiresAt, phone: r.phone });
+      fromLoginLink = true;
+    } catch (err) { startError(err.message || t('err_network')); }
+  }
+
   async function start() {
     showPane('start');
     setReady(false);
     startError('');
     try { cfg = await loadConfig(); } catch { showError(t('err_server_down')); return; }
     App.applyConfig(cfg);
+    await consumeLoginLink();
     // Phone + password does not need Firebase, so a returning member is let in (and a new one can sign up) even when Google's
     // scripts are slow or blocked on their network.
     const resumed = PinSession.active() ? refresh() : null;
@@ -140,6 +157,7 @@ const Session = (() => {
     provider.setLanguage?.(I18N.lang);
     provider.onChange(handleUser);
     await resumed;
+    setTimeout(() => { fromLoginLink = false; }, 5000); // by then the browser's earlier sign-in (if any) has been dealt with
   }
 
   function clearSecrets() {
@@ -147,6 +165,7 @@ const Session = (() => {
   }
 
   async function handleUser(user) {
+    if (user && fromLoginLink) { fromLoginLink = false; provider?.signOut?.(); return; } // the link was just used: it wins over an older sign-in in this browser
     if (user) PinSession.clear(); // a Firebase sign-in replaces any PIN session
     if (!user && PinSession.active()) return; // no Firebase user is expected while a PIN session is in use
     if (!user) {

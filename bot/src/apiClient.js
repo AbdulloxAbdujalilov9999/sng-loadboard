@@ -50,9 +50,14 @@ export function makeApiClient({ baseUrl }) {
   const renewLoad = (idToken, id) => request(idToken, 'POST', `/api/loads/${id}/renew`, {});
 
   // Phone + 4-digit PIN sign-in (server/src/routes/pin.js): the same door the web app uses. Returns { token, expiresAt }.
+  // Sign-up without leaving Telegram (server/src/routes/pin.js): the number + a 4-6 digit password + the name. The number is not verified by SMS.
+  const phoneRegister = (body) => request(null, 'POST', '/api/auth/phone/register', body);
+  const phoneCheck = (phone) => request(null, 'POST', '/api/auth/phone/check', { phone });
+  // A one-time code that opens the website already signed in as this member (valid 15 minutes, works once).
+  const createLoginLink = (idToken) => request(idToken, 'POST', '/api/me/login-link', {});
   const pinLogin = (phone, pin) => request(null, 'POST', '/api/auth/pin/login', { phone, pin, purpose: 'bot' });
   // Trades a still-valid PIN session for a fresh one, so a linked member never has to /link again just because time passed.
   const refreshSession = (token) => request(token, 'POST', '/api/auth/refresh', {});
 
-  return { getMe, searchCities, createLoad, createLoadsBulk, parseLoads, listMine, deleteLoad, updateLoad, renewLoad, pinLogin, refreshSession };
+  return { getMe, searchCities, createLoad, createLoadsBulk, parseLoads, listMine, deleteLoad, updateLoad, renewLoad, phoneRegister, phoneCheck, createLoginLink, pinLogin, refreshSession };
 }

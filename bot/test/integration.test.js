@@ -276,3 +276,16 @@ test('a load some group never received (restart, failed send) is sent by the cat
   assert.equal(got.filter((g) => /Catch me up/.test(g.text)).length, 1, 'and only once');
   assert.equal((await env.pool.query('SELECT count(*)::int AS n FROM telegram_broadcasts WHERE load_id = $1 AND chat_id = 4242', [posted.json.id])).rows[0].n, 1);
 });
+
+test('sign-up from the bot against the real API: account, Telegram link and a website link that signs in once', async () => {
+  const phone = '+998901119900';
+  await api.phoneRegister({ phone, pin: '4829', contactName: 'Bot Person', telegram: '' });
+  await assert.rejects(api.phoneRegister({ phone, pin: '4829', contactName: 'Again', telegram: '' }), (e) => e instanceof ApiError && e.details?.some((d) => d.code === 'phone_taken'));
+  assert.deepEqual(await api.phoneCheck(phone), { exists: true, hasPin: true });
+  const session = await api.pinLogin(phone, '4829'); // what performLink does right after registering
+  const { code } = await api.createLoginLink(session.token);
+  const web = await env.anon().post('/api/auth/link-login', { code });
+  assert.equal(web.status, 200);
+  assert.equal((await env.withToken(web.json.token).get('/api/me')).json.profile.contactName, 'Bot Person', 'the website session is that member');
+  assert.equal((await env.anon().post('/api/auth/link-login', { code })).status, 401, 'the code works once');
+});

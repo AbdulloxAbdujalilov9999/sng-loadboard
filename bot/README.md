@@ -8,6 +8,7 @@ A separate process (`bot/`) that connects the loadboard to Telegram:
 - **Buttons instead of commands**: `/start` shows a menu that stays at the bottom of the chat (AI posting, step-by-step posting, My loads,
   My account, Language, Help; labels follow the person's language - `src/menu.js`). "My account" shows the link status with Connect /
   Disconnect buttons. Every command still works for people who prefer typing; a menu tap also ends any open dialogue.
+- **Sign up from Telegram**: «👤 My account» → «🆕 Create an account» asks for a name, the phone number (share button or typed) and a 4-6 digit password (twice; the messages are deleted), creates the account through `POST /api/auth/phone/register`, links this Telegram to it and sends a button that opens the website already signed in - a one-time link (`/?login=<code>`, 15 minutes, works once; only a hash is stored: migration 020, `POST /api/me/login-link` + `POST /api/auth/link-login`). Linked members get the same button from «👤 My account» → «🌐 Open the website». `src/signupScene.js`.
 - **AI paste-import** (same as the standalone `sng-ai-bot`, now built into this bot): in a DM, paste or forward a freight post
   (Russian or Uzbek, one load or many). The bot sends it to `POST /api/ai/parse-loads` (the same Gemini parser the website
   uses), shows every load with warnings for anything it had to guess, and posts them with one tap through `POST /api/loads/bulk`

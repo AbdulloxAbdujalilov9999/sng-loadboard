@@ -1,7 +1,8 @@
 // Phone + 4-digit PIN sign-in. The phone number was proven once with an SMS code (Firebase); after that the member
 // signs in with phone + PIN and no SMS is needed. The Telegram bot uses the same endpoint (purpose: "bot").
-import { phoneCheckBody, phoneRegisterBody, pinLoginBody } from '../lib/schemas.js';
-import { HttpError, notFound, unauthorized, validationError } from '../lib/errors.js';
+import { createHash, randomBytes } from 'node:crypto';
+import { linkLoginBody, phoneCheckBody, phoneRegisterBody, pinLoginBody } from '../lib/schemas.js';
+import { HttpError, forbidden, notFound, unauthorized, validationError } from '../lib/errors.js';
 import { detail } from '../lib/validation.js';
 import { phoneIdentity } from '../lib/identity.js';
 import { withTx } from '../db.js';
@@ -78,6 +79,35 @@ export default async function pinRoutes(app, { pool, config }) {
     if (m.pin_fails) await pool.query('UPDATE members SET pin_fails = 0, pin_locked_until = NULL WHERE id = $1', [m.id]);
     const session = await signSession({ secret: config.authSecret, identity: m.email, phone, purpose });
     return { ...session, status: m.status };
+  });
+
+  // ---- "open the website, already signed in": a one-time link made from the Telegram bot ----
+  const LINK_MINUTES = 15;
+  const hashOf = (code) => createHash('sha256').update(code).digest('hex');
+
+  // The signed-in member (the bot calls this with the member's own session) gets a code that opens the website as them, once.
+  app.post('/api/me/login-link', { preHandler: app.guards.approved, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
+    if (!enabled) throw off();
+    const m = req.member;
+    if (!m.login_phone || m.role === 'owner') throw forbidden('Not available for this account', 'pin_not_for_provider'); // sessions of this kind belong to phone members
+    const code = randomBytes(32).toString('base64url');
+    const { rows: [row] } = await pool.query(
+      `INSERT INTO login_links (code_hash, member_id, expires_at) VALUES ($1, $2, now() + make_interval(mins => $3)) RETURNING expires_at`, [hashOf(code), m.id, LINK_MINUTES]);
+    pool.query("DELETE FROM login_links WHERE expires_at < now() - interval '1 day'").catch(() => {});
+    return { code, expiresAt: row.expires_at };
+  });
+
+  // Trade the code for a normal web session. Atomic: of two requests with the same code only one wins.
+  app.post('/api/auth/link-login', { config: { rateLimit: { max: config.pinLoginPerMin, timeWindow: '1 minute' } } }, async (req) => {
+    if (!enabled) throw off();
+    const { code } = linkLoginBody.parse(req.body);
+    const { rows: [link] } = await pool.query(
+      'UPDATE login_links SET used_at = now() WHERE code_hash = $1 AND used_at IS NULL AND expires_at > now() RETURNING member_id', [hashOf(code)]);
+    if (!link) throw unauthorized('Invalid or expired link');
+    const { rows: [m] } = await pool.query("SELECT email, login_phone, status FROM members WHERE id = $1 AND role = 'member' AND login_phone IS NOT NULL", [link.member_id]);
+    if (!m || m.status !== 'approved') throw unauthorized('Invalid or expired link');
+    const session = await signSession({ secret: config.authSecret, identity: m.email, phone: m.login_phone, purpose: 'web' });
+    return { ...session, status: m.status, phone: m.login_phone };
   });
 
   // Trade a still-valid PIN session for a fresh one (the browser and the bot do this before theirs runs out).

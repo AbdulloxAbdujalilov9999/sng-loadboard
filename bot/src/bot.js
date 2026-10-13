@@ -15,6 +15,7 @@ import { makePasteFlow } from './pasteFlow.js';
 import { makeMyLoads } from './myLoads.js';
 import { makeEditor } from './editor.js';
 import { MENU_TEXTS, mainKeyboard, menuAction } from './menu.js';
+import { makeSignupScene, sendWebLogin } from './signupScene.js';
 import { t, LANGS, LANG_NAMES } from './i18n.js';
 
 const BROADCAST_CHAT_TYPES = new Set(['group', 'supergroup', 'channel']);
@@ -38,7 +39,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     return next();
   });
 
-  const stage = new Scenes.Stage([makePostLoadScene({ apiClient, config }), makeLinkScene({ apiClient, store, tokens })]);
+  const stage = new Scenes.Stage([makePostLoadScene({ apiClient, config }), makeLinkScene({ apiClient, store, tokens }), makeSignupScene({ apiClient, store, tokens, config })]);
   bot.use(stage.middleware());
   // Any command other than /cancel ends a half-finished edit, so the next thing typed is never mistaken for its value.
   bot.use((ctx, next) => {
@@ -93,6 +94,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     const link = await store.getLinkByTelegramUserId(ctx.from.id);
     if (!link) {
       await ctx.reply(t(ctx.lang, 'account_none'), Markup.inlineKeyboard([
+        [Markup.button.callback(t(ctx.lang, 'acct_btn_signup'), 'acct:signup')],
         [Markup.button.callback(t(ctx.lang, 'acct_btn_link'), 'acct:link')],
         [Markup.button.callback(t(ctx.lang, 'acct_btn_linkemail'), 'acct:linkemail')],
       ]));
@@ -100,8 +102,13 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     }
     await ctx.reply(t(ctx.lang, 'account_linked', {
       company: escapeHtml(link.company), login: escapeHtml(loginOf(link.email)), status: t(ctx.lang, `status_${link.member_status}`),
-    }), { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback(t(ctx.lang, 'acct_btn_unlink'), 'acct:unlink')]]) });
+    }), { parse_mode: 'HTML', ...Markup.inlineKeyboard([
+      [Markup.button.callback(t(ctx.lang, 'acct_btn_weblogin'), 'acct:weblogin')],
+      [Markup.button.callback(t(ctx.lang, 'acct_btn_unlink'), 'acct:unlink')],
+    ]) });
   }
+  bot.action('acct:signup', async (ctx) => { await ctx.answerCbQuery(); if (isPrivate(ctx)) await ctx.scene.enter('signup'); });
+  bot.action('acct:weblogin', async (ctx) => { await ctx.answerCbQuery(); if (isPrivate(ctx)) await sendWebLogin(ctx, { apiClient, tokens, config }); });
   bot.action('acct:link', async (ctx) => { await ctx.answerCbQuery(); if (isPrivate(ctx)) await ctx.scene.enter('link'); });
   bot.action('acct:linkemail', async (ctx) => { await ctx.answerCbQuery(); await ctx.reply(t(ctx.lang, 'link_email_usage')); });
   bot.action('acct:unlink', async (ctx) => {

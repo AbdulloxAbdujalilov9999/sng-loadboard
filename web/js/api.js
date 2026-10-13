@@ -46,6 +46,7 @@ const SERVER_MESSAGES = [
   [/^You have reached the limit of (\d+) active trucks/i, 'srv_limit_trucks', (m) => ({ n: m[1] })],
   [/^Your access request is/i, 'srv_blocked'],
   [/^Your free trial or subscription has ended/i, 'srv_subscription_required'],
+  [/^Invalid or expired link/i, 'srv_link_invalid'],
   [/^Not allowed/i, 'srv_not_allowed'],
   [/^(Route .* not found|Not found)$/i, 'srv_not_found'],
 ];

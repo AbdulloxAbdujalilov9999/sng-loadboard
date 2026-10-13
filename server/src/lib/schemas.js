@@ -54,6 +54,7 @@ export const phoneRegisterBody = z.object({
   telegram: orEmpty(telegram).default(''),
   contactEmail: orEmpty(email).default(''),
 }).strict();
+export const linkLoginBody = z.object({ code: z.string().regex(/^[A-Za-z0-9_-]{30,64}$/, 'invalid') }).strict();
 export const phoneCheckBody = z.object({ phone: z.string().trim().regex(/^\+\d{8,15}$/, 'phone') }).strict();
 
 // A profile may leave contact fields empty while it is being filled in; an empty string clears a field.

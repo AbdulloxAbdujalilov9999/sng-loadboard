@@ -183,3 +183,50 @@ test('contact rules: a phone OR a Telegram username is required on posts; e-mail
   assert.equal((await api.post('/api/trucks', { ...truck, contactTelegram })).status, 201);
   assert.equal((await api.post('/api/trucks', { ...truck, contactPhone })).status, 201);
 });
+
+test('one-time website link: made from a member session, works once, expires, and cannot be guessed', async () => {
+  const phone = '+998901230077';
+  const reg = await register(phone, '4829', { contactName: 'Link Person' });
+  assert.equal(reg.status, 201);
+  const mine = env.withToken(reg.json.token);
+
+  const made = await mine.post('/api/me/login-link', {});
+  assert.equal(made.status, 200);
+  assert.ok(made.json.code.length >= 40);
+  const { rows } = await env.pool.query('SELECT code_hash FROM login_links');
+  assert.ok(!rows.some((r) => r.code_hash === made.json.code), 'only a hash of the code is stored');
+
+  // anyone holding the code gets a web session for that member - once
+  const used = await env.anon().post('/api/auth/link-login', { code: made.json.code });
+  assert.equal(used.status, 200);
+  assert.equal(used.json.phone, phone);
+  const me = await env.withToken(used.json.token).get('/api/me');
+  assert.equal(me.json.profile.contactName, 'Link Person');
+  assert.equal((await env.anon().post('/api/auth/link-login', { code: made.json.code })).status, 401, 'a second use is refused');
+
+  // concurrent use: exactly one wins
+  const again = (await mine.post('/api/me/login-link', {})).json.code;
+  const results = await Promise.all([1, 2, 3].map(() => env.anon().post('/api/auth/link-login', { code: again })));
+  assert.deepEqual(results.map((r) => r.status).sort(), [200, 401, 401]);
+
+  // expired
+  const old = (await mine.post('/api/me/login-link', {})).json.code;
+  await env.pool.query("UPDATE login_links SET expires_at = now() - interval '1 minute'");
+  assert.equal((await env.anon().post('/api/auth/link-login', { code: old })).status, 401);
+
+  // garbage / guessed codes
+  assert.equal((await env.anon().post('/api/auth/link-login', { code: 'x'.repeat(43) })).status, 401);
+  assert.equal((await env.anon().post('/api/auth/link-login', { code: 'short' })).status, 400);
+  assert.equal((await env.anon().post('/api/auth/link-login', {})).status, 400);
+
+  // needs a signed-in member; Google-only members and the owner do not have this kind of session
+  assert.equal((await env.anon().post('/api/me/login-link', {})).status, 401);
+  await env.approvedMember('google-only@test.com');
+  assert.equal((await env.as('google-only@test.com').post('/api/me/login-link', {})).status, 403);
+  assert.equal((await env.as('owner@test.com').post('/api/me/login-link', {})).status, 403);
+
+  // a blocked member's link does nothing
+  const blockedLink = (await mine.post('/api/me/login-link', {})).json.code;
+  await env.pool.query("UPDATE members SET status = 'rejected' WHERE login_phone = $1", [phone]);
+  assert.equal((await env.anon().post('/api/auth/link-login', { code: blockedLink })).status, 401);
+});
