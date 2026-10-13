@@ -125,6 +125,43 @@ export const truckBody = truckBase.extend({
   contactTelegram: orEmpty(telegram).default(''),
 }).superRefine((v, ctx) => needsContact(v, ctx));
 
+// Editing a posted truck: every field optional, and (unlike truckBase) no defaults - an omitted flag must stay as it is.
+export const truckPatchBody = z.object({
+  locCityId: cityId,
+  destPref: z.string().trim().max(120).transform((v) => v || 'Anywhere'),
+  equip: z.enum(EQUIP),
+  capacityT: truckBase.shape.capacityT,
+  volumeM3: truckBase.shape.volumeM3,
+  availableFrom: isoDate,
+  availableTo: isoDate.nullish().transform((v) => v ?? null),
+  minRateUsd: truckBase.shape.minRateUsd,
+  hasTir: z.boolean(),
+  hasAdr: z.boolean(),
+  hasGps: z.boolean(),
+  sideLoading: z.boolean(),
+  notes: z.string().trim().max(500),
+  contactPhone: orEmpty(phone),
+  contactTelegram: orEmpty(telegram),
+}).partial().strict();
+
+// The saved "my truck": what a driver fills in once. Nothing here is required except the type and the capacity.
+export const myTruckBody = z.object({
+  equip: z.enum(EQUIP),
+  capacityT: truckBase.shape.capacityT,
+  volumeM3: truckBase.shape.volumeM3,
+  hasTir: z.boolean().default(false),
+  hasAdr: z.boolean().default(false),
+  hasGps: z.boolean().default(false),
+  sideLoading: z.boolean().default(false),
+  locCityId: cityId.nullish().transform((v) => v ?? null),   // where the truck usually stands (home base)
+  destPref: z.string().trim().max(120).default(''),          // where it likes to go
+  plate: z.string().trim().max(20).default(''),
+  trailerPlate: z.string().trim().max(20).default(''),
+  driverName: z.string().trim().max(80).default(''),
+  driverPhone: orEmpty(phone).default(''),
+  notes: z.string().trim().max(300).default(''),
+}).strict();
+
 export const trucksBulkBody = z.object({ trucks: z.array(truckBody).min(1).max(50) }).strict();
 
 const csv = (allowed) => z.string().transform((s) => s.split(',').map((x) => x.trim()).filter(Boolean))

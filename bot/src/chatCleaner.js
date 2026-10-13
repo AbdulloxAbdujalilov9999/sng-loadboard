@@ -42,9 +42,17 @@ export function makeChatCleaner({ store, log = console, sleep = (ms) => new Prom
       for (const r of rows) if (Number(r.chat_id) === Number(job.chatId)) ids.add(Number(r.message_id));
     }
     ids.delete(own);
-    for (const id of ids) {
-      await withRetry(() => ctx.telegram.deleteMessage(job.chatId, id), { sleep }).catch(() => {}); // already gone / too old: nothing to do
-      if (gapMs > 0) await sleep(gapMs);
+    // Telegram deletes up to 100 messages in ONE call (messages that are gone or too old are skipped by it). 50 loads used to be 50 calls
+    // and a minute of waiting; now it is one. If that call is refused for any reason, fall back to one message at a time.
+    const all = [...ids];
+    for (let i = 0; i < all.length; i += 100) {
+      const chunk = all.slice(i, i + 100);
+      try { await withRetry(() => ctx.telegram.deleteMessages(job.chatId, chunk), { sleep }); } catch {
+        for (const id of chunk) {
+          await withRetry(() => ctx.telegram.deleteMessage(job.chatId, id), { sleep }).catch(() => {}); // already gone / too old: nothing to do
+          if (gapMs > 0) await sleep(gapMs);
+        }
+      }
     }
     for (const loadId of job.loadIds) await store.deleteSentMessages(loadId).catch((err) => log.warn?.(`forgetting messages of load ${loadId} failed: ${err.message}`));
     await ctx.editMessageText(t(ctx.lang, 'chat_cleared')).catch(() => {});

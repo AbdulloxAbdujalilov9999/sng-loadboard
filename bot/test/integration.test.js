@@ -357,3 +357,39 @@ test('the bot\'s "near me" search against the real API: radius, nearest first, p
   assert.ok(Array.isArray(trucks.items));
   await assert.rejects(api.searchLoads(token, { nearLat: 41.3 }), (e) => e instanceof ApiError && e.status === 400, 'half a position is refused');
 });
+
+test('trucks through the real API: post, edit, renew, my list, the saved truck, and it reaches the groups', async () => {
+  const token = tokenFor('poster@test.com');
+  const day = (n) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+  const { broadcaster, sent } = await startBroadcaster({ chats: [111] });
+  try {
+    // exactly the payloads bot/src/trucks.js builds
+    const one = await api.createTruck(token, { locCityId: cityB, destPref: 'Anywhere', equip: 'R', capacityT: 20, volumeM3: 82, availableFrom: day(1), availableTo: null, minRateUsd: null,
+      hasTir: true, hasAdr: false, hasGps: true, sideLoading: false, notes: '', contactPhone: '+998901234567', contactTelegram: '@bek_disp' });
+    assert.equal(one.company, 'Poster Co');
+    const { items } = await api.createTrucksBulk(token, [{ locCityId: cityA, destPref: 'Moscow', equip: 'T', capacityT: 22, volumeM3: null, availableFrom: day(0), availableTo: null, minRateUsd: 1800,
+      hasTir: false, hasAdr: false, hasGps: false, sideLoading: false, notes: '', contactPhone: '', contactTelegram: '@bek_disp' }]);
+    assert.equal(items.length, 1);
+    assert.ok(await waitFor(() => sent.length >= 2), 'both trucks reached the group');
+    assert.ok(sent.some((m) => /Tashkent, UZ/.test(m.text) && /20 t/.test(m.text)));
+
+    assert.equal((await api.listMyTrucks(token)).items.length >= 2, true);
+    assert.equal((await api.updateTruck(token, one.id, { capacityT: 18 })).capacityT, 18);
+    assert.equal((await api.updateTruck(token, one.id, { hasTir: false })).hasGps, true, 'a flag that was not sent stays');
+    assert.equal((await api.renewTruck(token, one.id)).availableFrom, day(0));
+    await assert.rejects(api.updateTruck(tokenFor('viewer@test.com'), one.id, { capacityT: 5 }), (e) => e instanceof ApiError && e.status === 403);
+    await api.deleteTruck(token, items[0].id);
+
+    const { profile } = await api.putMyTruck(token, { equip: 'R', capacityT: 20, locCityId: cityB });
+    assert.equal(profile.myTruck.locCity, 'Tashkent, UZ');
+    assert.equal((await api.getMe(token)).profile.myTruck.capacityT, 20, 'the bot reads the same saved truck the website shows');
+    // «loads for my truck»: type + capacity narrow the search
+    await env.as('poster@test.com').post('/api/loads', { ...validLoad(cityB, cityA), equip: 'R', weightT: 18, commodity: 'Fits' });
+    await env.as('poster@test.com').post('/api/loads', { ...validLoad(cityB, cityA), equip: 'R', weightT: 30, commodity: 'Too heavy' });
+    await env.as('poster@test.com').post('/api/loads', { ...validLoad(cityB, cityA), equip: 'T', weightT: 10, commodity: 'Wrong type' });
+    const found = await api.searchLoads(token, { origin: cityB, originRadius: 100, equip: 'R', maxWeight: 20, limit: 20 });
+    assert.deepEqual(found.items.map((l) => l.commodity).filter((c) => ['Fits', 'Too heavy', 'Wrong type'].includes(c)), ['Fits']);
+    await api.deleteMyTruck(token);
+    assert.equal((await api.getMe(token)).profile.myTruck, null);
+  } finally { await broadcaster.stop(); }
+});

@@ -1,4 +1,4 @@
-import { idParam, truckBody, truckQuery, trucksBulkBody } from '../lib/schemas.js';
+import { idParam, truckBody, truckPatchBody, truckQuery, trucksBulkBody } from '../lib/schemas.js';
 import { likePattern, truckDto } from '../lib/dto.js';
 import { badRequest, forbidden, notFound, tooMany } from '../lib/errors.js';
 import { detail } from '../lib/validation.js';
@@ -142,6 +142,59 @@ export default async function truckRoutes(app, { pool, config }) {
     const { trucks } = trucksBulkBody.parse(req.body);
     const created = await createTrucks(req.member, trucks, 'trucks');
     return reply.code(201).send({ items: created.map((r) => truckDto(r, req.member.id)) });
+  });
+
+  // Edit a posted truck (the owner, or the platform owner). Omitted fields stay as they are.
+  app.patch('/api/trucks/:id', write, async (req) => {
+    const { id } = idParam.parse(req.params);
+    const patch = truckPatchBody.parse(req.body);
+    const updated = await withTx(pool, async (db) => {
+      const { rows: [cur] } = await db.query(`SELECT * FROM trucks WHERE id = $1 AND status = 'active' FOR UPDATE`, [id]);
+      if (!cur) throw notFound('Truck not found');
+      if (cur.owner_id !== req.member.id && req.member.role !== 'owner') throw forbidden('You can only edit your own trucks');
+      const phoneAfter = patch.contactPhone ?? cur.contact_phone;
+      const tgAfter = patch.contactTelegram ?? cur.contact_tg;
+      if (!phoneAfter && !tgAfter) throw badRequest('Add a phone number or a Telegram username', [detail('contactPhone', 'contact_required'), detail('contactTelegram', 'contact_required')]);
+      const day = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : d);
+      const fromS = day(patch.availableFrom ?? cur.available_from);
+      const toS = day(patch.availableTo === undefined ? cur.available_to : patch.availableTo);
+      if (toS && toS < fromS) throw badRequest('End date is before start', [detail('availableTo', 'end_before_start')]);
+      let city = { id: cur.loc_city_id, label: cur.loc_city, lat: cur.loc_lat, lng: cur.loc_lng };
+      if (patch.locCityId !== undefined && patch.locCityId !== cur.loc_city_id) {
+        const { rows: [c] } = await db.query('SELECT id, label, lat, lng FROM cities WHERE id = $1', [patch.locCityId]);
+        if (!c) throw badRequest('Unknown location city', [detail('locCityId', 'pick_city')]);
+        city = c;
+      }
+      const pick = (k, col) => (patch[k] === undefined ? cur[col] : patch[k]);
+      const { rows: [row] } = await db.query(
+        `UPDATE trucks SET loc_city_id = $2, loc_city = $3, loc_lat = $4, loc_lng = $5, dest_pref = $6, equip = $7, capacity_t = $8,
+                volume_m3 = $9, available_from = $10, available_to = $11, min_rate_usd = $12, has_tir = $13, has_adr = $14,
+                has_gps = $15, side_loading = $16, notes = $17, contact_phone = $18, contact_tg = $19, updated_at = now()
+          WHERE id = $1 RETURNING *`,
+        [id, city.id, city.label, city.lat, city.lng, pick('destPref', 'dest_pref'), pick('equip', 'equip'), pick('capacityT', 'capacity_t'),
+          pick('volumeM3', 'volume_m3'), fromS, toS || null, pick('minRateUsd', 'min_rate_usd'), pick('hasTir', 'has_tir'), pick('hasAdr', 'has_adr'),
+          pick('hasGps', 'has_gps'), pick('sideLoading', 'side_loading'), pick('notes', 'notes'), phoneAfter, tgAfter]);
+      await publish(db, { entity: 'trucks', op: 'update', id, ownerId: cur.owner_id });
+      return row;
+    });
+    return truckDto(updated, req.member.id);
+  });
+
+  // "Still available": the truck counts from today again (its 30 days start over; a fixed end date is dropped).
+  app.post('/api/trucks/:id/renew', write, async (req) => {
+    const { id } = idParam.parse(req.params);
+    const row = await withTx(pool, async (db) => {
+      const { rows: [r] } = await db.query(
+        `UPDATE trucks SET available_from = current_date, available_to = NULL, created_at = now(), updated_at = now()
+          WHERE id = $1 AND status = 'active' AND owner_id = $2 RETURNING *`, [id, req.member.id]);
+      if (!r) {
+        const { rows: [exists] } = await db.query(`SELECT 1 FROM trucks WHERE id = $1 AND status = 'active'`, [id]);
+        throw exists ? forbidden('You can only renew your own trucks') : notFound('Truck not found');
+      }
+      await publish(db, { entity: 'trucks', op: 'update', id, ownerId: r.owner_id });
+      return r;
+    });
+    return truckDto(row, req.member.id);
   });
 
   app.delete('/api/trucks/:id', write, async (req, reply) => {

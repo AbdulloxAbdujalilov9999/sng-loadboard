@@ -425,6 +425,11 @@
                     </form>
                 </div>
 
+                <div id="mytruck-bar" class="hidden px-3 pb-2 text-xs flex flex-wrap items-center gap-2">
+                    <button type="button" id="mytruck-use-btn" class="inline-flex items-center gap-1.5 bg-white border border-sky-300 text-sky-700 font-semibold rounded-full px-3 py-1 hover:bg-sky-50"><i data-lucide="truck" class="w-3.5 h-3.5"></i><span data-i18n="mt_filter_btn">Loads for my truck</span></button>
+                    <span id="mytruck-chip" class="hidden inline-flex items-center gap-1.5 bg-sky-50 border border-sky-300 text-sky-800 font-semibold rounded-full pl-3 pr-1 py-1"><i data-lucide="truck" class="w-3.5 h-3.5"></i><span id="mytruck-chip-text"></span><button type="button" id="mytruck-off-btn" class="rounded-full p-1 hover:bg-sky-100" data-i18n-aria="mt_filter_off"><i data-lucide="x" class="w-3 h-3"></i></button></span>
+                </div>
+
                 <div class="list-pane flex-1 flex flex-col bg-white overflow-hidden relative z-10">
                     <div class="bg-slate-50 px-4 py-1.5 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2 text-xs flex-shrink-0">
                         <div class="flex items-center space-x-3 text-[11px]">
@@ -706,6 +711,9 @@
                         <h3 class="text-lg font-bold text-slate-800" data-i18n="post_truck_heading">Post Available Truck</h3>
                         <p class="text-xs text-slate-500" data-i18n="post_truck_sub">Broadcast your empty trailer capacity to shippers and brokers across SNG corridors.</p>
                     </div>
+                    <div id="truck-fill-row" class="hidden flex flex-wrap gap-2">
+                        <button type="button" id="truck-fill-btn" class="inline-flex items-center gap-1.5 bg-sky-50 border border-sky-300 text-sky-800 font-semibold rounded px-3 py-1.5 hover:bg-sky-100"><i data-lucide="truck" class="w-3.5 h-3.5"></i><span data-i18n="mt_fill">Fill from my truck</span></button>
+                    </div>
                     <form id="post-truck-form" class="space-y-4" novalidate>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div class="relative">
@@ -775,6 +783,7 @@
                         <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-2.5 rounded text-xs shadow transition flex items-center justify-center space-x-2">
                             <i data-lucide="check-circle" class="w-4 h-4"></i><span data-i18n="btn_publish_truck">Publish Available Equipment</span>
                         </button>
+                        <button type="button" id="truck-save-mine-btn" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded text-xs border border-slate-300" data-i18n="mt_save_from_form">Save as my truck</button>
                     </form>
                 </div>
 
@@ -872,6 +881,45 @@
                                     <div><label class="block font-semibold text-slate-700 mb-1" for="setting-tg" data-i18n="lbl_telegram">Telegram</label><input type="text" id="setting-tg" name="telegram" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
                                 </div>
                                 <div><label class="block font-semibold text-slate-700 mb-1" for="setting-contact-email" data-i18n="lbl_contact_email">Contact email</label><input type="email" id="setting-contact-email" name="contactEmail" maxlength="254" autocomplete="off" data-i18n-placeholder="ph_contact_email" placeholder="Leave empty to use your Google login email" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                            </div>
+                        </div>
+                        <div id="mytruck-card" class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
+                            <h4 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2"><i data-lucide="truck" class="w-4 h-4 text-sky-600"></i><span data-i18n="mt_title">My truck</span></h4>
+                            <p class="text-slate-500" data-i18n="mt_sub">Fill it in once. Searching for loads can start from it, and posting a truck is filled in for you.</p>
+                            <div class="grid grid-cols-3 gap-2">
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-equip" data-i18n="filter_type">Trailer Type</label>
+                                    <select id="mt-equip" name="equip" class="w-full border border-slate-300 rounded p-2 text-xs"><option value="T" data-i18n="eq_T">T</option><option value="R" data-i18n="eq_R">R</option><option value="F" data-i18n="eq_F">F</option><option value="V" data-i18n="eq_V">V</option><option value="AC" data-i18n="eq_AC">AC</option></select></div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-cap" data-i18n="lbl_max_payload">Max Payload (Tons)</label>
+                                    <input type="number" id="mt-cap" name="capacityT" step="0.1" min="0.1" max="100" placeholder="22" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-vol" data-i18n="lbl_vol_cube">Volume (m³)</label>
+                                    <input type="number" id="mt-vol" name="volumeM3" min="1" max="200" placeholder="92" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-1 text-[11px] text-slate-700">
+                                <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="mt-tir" name="hasTir" class="rounded text-blue-600"><span data-i18n="feat_tir">TIR Carnet</span></label>
+                                <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="mt-adr" name="hasAdr" class="rounded text-blue-600"><span data-i18n="feat_adr">ADR (Hazardous)</span></label>
+                                <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="mt-gps" name="hasGps" class="rounded text-blue-600"><span data-i18n="feat_gps">GPS Live Tracking</span></label>
+                                <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="mt-side" name="sideLoading" class="rounded text-blue-600"><span data-i18n="feat_side">Side & Top Loading</span></label>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div class="relative"><label class="block font-semibold text-slate-700 mb-1" for="mt-loc" data-i18n="mt_loc">Usually stands in</label>
+                                    <input type="text" id="mt-loc" data-city-picker autocomplete="off" data-i18n-placeholder="ph_city" placeholder="Type a city" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-dest" data-i18n="mt_dest">Likes to go to</label>
+                                    <input type="text" id="mt-dest" name="destPref" maxlength="120" data-i18n-placeholder="ph_truck_dest" placeholder="e.g. Moscow, RU or Anywhere" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-plate" data-i18n="mt_plate">Truck plate</label>
+                                    <input type="text" id="mt-plate" name="plate" maxlength="20" autocomplete="off" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-trailer" data-i18n="mt_trailer_plate">Trailer plate</label>
+                                    <input type="text" id="mt-trailer" name="trailerPlate" maxlength="20" autocomplete="off" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-driver" data-i18n="mt_driver">Driver name</label>
+                                    <input type="text" id="mt-driver" name="driverName" maxlength="80" autocomplete="off" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-driver-phone" data-i18n="mt_driver_phone">Driver phone</label>
+                                    <input type="tel" id="mt-driver-phone" name="driverPhone" maxlength="40" autocomplete="off" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                            </div>
+                            <div><label class="block font-semibold text-slate-700 mb-1" for="mt-notes" data-i18n="lbl_notes">Notes</label>
+                                <textarea id="mt-notes" name="notes" rows="2" maxlength="300" class="w-full border border-slate-300 rounded p-2 text-xs"></textarea></div>
+                            <p class="text-[10px] text-slate-400" data-i18n="mt_private">Plates and driver are only for you and your bot - they are not shown on the board.</p>
+                            <div class="flex gap-2 flex-wrap">
+                                <button type="button" id="mt-save-btn" class="bg-sky-600 hover:bg-sky-700 text-white font-bold px-3 py-2 rounded" data-i18n="mt_save">Save my truck</button>
+                                <button type="button" id="mt-clear-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded border border-slate-300" data-i18n="mt_clear">Remove</button>
                             </div>
                         </div>
                         <div id="geo-card" class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
@@ -1120,6 +1168,7 @@
     <script src="/js/aitrucks.js?v=__BUILD__"></script>
     <script src="/js/directory.js?v=__BUILD__"></script>
     <script src="/js/account.js?v=__BUILD__"></script>
+    <script src="/js/mytruck.js?v=__BUILD__"></script>
     <script src="/js/admin.js?v=__BUILD__"></script>
     <script src="/js/prefs.js?v=__BUILD__"></script>
     <script src="/js/scrolltop.js?v=__BUILD__"></script>

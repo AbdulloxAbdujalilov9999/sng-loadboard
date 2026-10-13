@@ -245,6 +245,7 @@ const Trucks = (() => {
       form.reset();
       Cities.clear($('truck-post-loc'));
       Account.prefillContacts();
+      MyTruck.fillPostForm({ quiet: true }); // the next truck starts from the saved one again
       // Clear the search filters so the truck just posted can't be hidden by an old search.
       filters = { loc: null, near: null, radius: 150, dest: '', equip: '' };
       Cities.clear($('search-truck-loc')); $('search-truck-dest').value = ''; $('search-truck-equip').value = ''; $('search-truck-radius').value = 150;

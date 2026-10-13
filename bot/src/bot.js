@@ -18,6 +18,8 @@ import { MENU_TEXTS, mainKeyboard, menuAction } from './menu.js';
 import { makeSignupScene, sendWebLogin } from './signupScene.js';
 import { makeChatCleaner } from './chatCleaner.js';
 import { makeNearby } from './nearby.js';
+import { makeTrucks } from './trucks.js';
+import { makeMyTruck } from './myTruck.js';
 import { t, LANGS, LANG_NAMES } from './i18n.js';
 
 const BROADCAST_CHAT_TYPES = new Set(['group', 'supergroup', 'channel']);
@@ -40,7 +42,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   // A tap on a menu button while a dialogue is open (the step-by-step posting, linking, an edit) ends that dialogue: the button text
   // must never be taken as the answer to its question.
   bot.use((ctx, next) => {
-    if (menuAction(ctx.message?.text) && ctx.session) { ctx.session.__scenes = {}; delete ctx.session.edit; }
+    if (menuAction(ctx.message?.text) && ctx.session) { ctx.session.__scenes = {}; delete ctx.session.edit; delete ctx.session.ptr; delete ctx.session.trpaste; delete ctx.session.mtnew; }
     return next();
   });
 
@@ -203,17 +205,14 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     }), { parse_mode: 'HTML' });
   });
 
-  const startPostload = async (ctx) => {
-    if (ctx.chat.type !== 'private') {
-      await ctx.reply(t(ctx.lang, 'postload_dm_only'));
-      return;
-    }
+  // The signed-in, approved member behind this chat: { idToken, member }. When that is not possible the person is told why and null comes back.
+  async function loadMember(ctx) {
     let idToken;
     try {
       idToken = await tokens.getIdToken(ctx.from.id);
     } catch (err) {
       await ctx.reply(t(ctx.lang, err instanceof NotLinkedError ? 'postload_not_linked' : 'postload_session_error'));
-      return;
+      return null;
     }
     let me;
     try {
@@ -223,16 +222,29 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
         await store.removeLink(ctx.from.id); // the PIN was changed (or the account removed): the old link can never work again
         tokens.invalidate(ctx.from.id);
         await ctx.reply(t(ctx.lang, 'postload_session_error'));
-        return;
+        return null;
       }
       await ctx.reply(t(ctx.lang, 'postload_unreachable'));
-      return;
+      return null;
     }
     if (!me.profile || me.profile.status !== 'approved') {
       await ctx.reply(t(ctx.lang, 'postload_not_approved'));
+      return null;
+    }
+    return { idToken, member: me.profile };
+  }
+
+  const trucks = makeTrucks({ apiClient, tokens, config, cleaner, loadMember });
+  const myTruck = makeMyTruck({ apiClient, tokens, loadMember, trucks, nearby });
+
+  const startPostload = async (ctx) => {
+    if (ctx.chat.type !== 'private') {
+      await ctx.reply(t(ctx.lang, 'postload_dm_only'));
       return;
     }
-    await ctx.scene.enter('postload', { idToken, member: me.profile });
+    const m = await loadMember(ctx);
+    if (!m) return;
+    await ctx.scene.enter('postload', { idToken: m.idToken, member: m.member });
   };
   bot.command('postload', startPostload);
 
@@ -244,10 +256,10 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   bot.action(/^myloads:del:(\d+)$/, (ctx) => myLoads.confirmDelete(ctx, ctx.match[1]));
   bot.action(/^myloads:renew:(\d+)$/, (ctx) => myLoads.renew(ctx, ctx.match[1]));
   // editing - the same buttons under a posted load and under a draft that is still being reviewed (target L<id> / D<batch>.<n>)
-  bot.action(/^ed:menu:([LD][\w.]+)$/, (ctx) => editor.menu(ctx, ctx.match[1]));
-  bot.action(/^ed:back:([LD][\w.]+)$/, (ctx) => editor.back(ctx, ctx.match[1]));
-  bot.action(/^ed:f:([LD][\w.]+):(\w+)$/, (ctx) => editor.pick(ctx, ctx.match[1], ctx.match[2]));
-  bot.action(/^ed:set:([LD][\w.]+):(\w+):(\w+)$/, (ctx) => editor.choose(ctx, ctx.match[1], ctx.match[2], ctx.match[3]));
+  bot.action(/^ed:menu:([LDTM][\w.]*)$/, (ctx) => editor.menu(ctx, ctx.match[1]));
+  bot.action(/^ed:back:([LDTM][\w.]*)$/, (ctx) => editor.back(ctx, ctx.match[1]));
+  bot.action(/^ed:f:([LDTM][\w.]*):(\w+)$/, (ctx) => editor.pick(ctx, ctx.match[1], ctx.match[2]));
+  bot.action(/^ed:set:([LDTM][\w.]*):(\w+):(\w+)$/, (ctx) => editor.choose(ctx, ctx.match[1], ctx.match[2], ctx.match[3]));
   bot.action(/^ed:city:(\d+)$/, (ctx) => editor.city(ctx, ctx.match[1]));
   bot.action('ed:cancel', (ctx) => editor.cancel(ctx));
   bot.action(/^myloads:edit:(\d+)$/, (ctx) => editor.menu(ctx, `L${ctx.match[1]}`)); // buttons on older messages
@@ -258,7 +270,42 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     await ctx.answerCbQuery();
     await ctx.editMessageText(t(ctx.lang, 'myloads_cancelled'));
   });
-  bot.command('cancel', (ctx) => editor.cancel(ctx));
+  bot.command('cancel', async (ctx) => { // ends whatever is open: an edit, the truck dialogue, the AI truck paste, the saved-truck setup
+    const truckBusy = Boolean(ctx.session?.ptr || ctx.session?.trpaste || ctx.session?.mtnew);
+    if (truckBusy) { trucks.endAll(ctx); delete ctx.session.mtnew; delete ctx.session.edit; await ctx.reply(t(ctx.lang, 'ptr_cancelled')); return undefined; }
+    return editor.cancel(ctx);
+  });
+
+  // ---- trucks: post (saved truck / step by step / AI), my trucks, the saved "my truck" ----
+  bot.command('posttruck', trucks.start);
+  bot.command('mytrucks', trucks.list);
+  bot.command('mytruck', myTruck.show);
+  bot.action(/^ptr:go:(saved|new)$/, (ctx) => trucks.begin(ctx, ctx.match[1]));
+  bot.action('ptr:ai', trucks.askAi);
+  bot.action(/^ptr:eq:(\w+)$/, (ctx) => trucks.chooseEquip(ctx, ctx.match[1]));
+  bot.action('ptr:loc:keep', trucks.keepLoc);
+  bot.action(/^ptr:city:(\d+)$/, (ctx) => trucks.chooseCity(ctx, ctx.match[1]));
+  bot.action(/^ptr:date:([01])$/, (ctx) => trucks.chooseDate(ctx, ctx.match[1]));
+  bot.action(/^ptr:dest:(any|saved)$/, (ctx) => trucks.chooseDest(ctx, ctx.match[1]));
+  bot.action('ptr:ok', trucks.publish);
+  bot.action('ptr:cancel', trucks.cancel);
+  bot.action(/^ptr:save:(\d+)$/, (ctx) => trucks.saveAsMine(ctx, ctx.match[1]));
+  bot.action(/^trp:rm:(\w+):(\d+)$/, (ctx) => trucks.toggleDraft(ctx, ctx.match[1], ctx.match[2], true));
+  bot.action(/^trp:back:(\w+):(\d+)$/, (ctx) => trucks.toggleDraft(ctx, ctx.match[1], ctx.match[2], false));
+  bot.action(/^trp:ok:(\w+)$/, (ctx) => trucks.publishReview(ctx, ctx.match[1]));
+  bot.action(/^trp:cancel:(\w+)$/, (ctx) => trucks.cancelReview(ctx, ctx.match[1]));
+  bot.action(/^mytr:card:(\d+)$/, (ctx) => trucks.showCard(ctx, ctx.match[1]));
+  bot.action(/^mytr:ask:(\d+)$/, (ctx) => trucks.askDelete(ctx, ctx.match[1]));
+  bot.action(/^mytr:del:(\d+)$/, (ctx) => trucks.confirmDelete(ctx, ctx.match[1]));
+  bot.action(/^mytr:renew:(\d+)$/, (ctx) => trucks.renew(ctx, ctx.match[1]));
+  bot.action('mt:new', myTruck.setup);
+  bot.action(/^mt:eq:(\w+)$/, (ctx) => myTruck.chooseEquip(ctx, ctx.match[1]));
+  bot.action('mt:ask', myTruck.ask);
+  bot.action('mt:keep', myTruck.keep);
+  bot.action('mt:del', myTruck.remove);
+  bot.action('mt:post', myTruck.post);
+  bot.action('mt:loads', myTruck.loads);
+  bot.action('near:truck', (ctx) => nearby.toggleTruck(ctx));
 
   // ---- AI paste-import: paste or forward a freight post in a DM and the bot reads it with AI ----
   // /paste on its own explains how; "/paste <the whole post>" does it in one message.
@@ -272,6 +319,9 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   const MENU_HANDLERS = {
     ai: (ctx) => ctx.reply(t(ctx.lang, 'paste_howto')),
     post: startPostload,
+    posttruck: trucks.start,
+    mytruck: myTruck.show,
+    mytrucks: trucks.list,
     nearloads: (ctx) => nearby.start(ctx, 'loads'),
     neartrucks: (ctx) => nearby.start(ctx, 'trucks'),
     myloads: (ctx) => myLoads.list(ctx),
@@ -298,7 +348,11 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   bot.on('text', (ctx) => {
     if (ctx.chat.type !== 'private') return undefined;
     if (ctx.message.text.startsWith('/')) return ctx.reply(t(ctx.lang, 'unknown_command'));
-    return editor.handleText(ctx).then((handled) => (handled ? undefined : pasteFlow.handleText(ctx)));
+    // the first of these that has an open question takes the message; otherwise it is a pasted load post
+    return editor.handleText(ctx)
+      .then((handled) => handled || myTruck.handleText(ctx))
+      .then((handled) => handled || trucks.handleText(ctx))
+      .then((handled) => (handled ? undefined : pasteFlow.handleText(ctx)));
   });
 
   bot.catch((err, ctx) => {

@@ -6,7 +6,7 @@
 // web app or from /postload here, since both go through the same `loads` table and the same
 // `publish()` call in server/src/events.js.
 import pg from 'pg';
-import { formatLoadMessage, escapeHtml, joinLines } from './format.js';
+import { formatLoadMessage, formatTruckMessage, truckRowToDto, escapeHtml, joinLines } from './format.js';
 import { loadKeyboard } from './editor.js';
 import { t } from './i18n.js';
 
@@ -105,7 +105,8 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     // a group to delete anything (members may be relying on it). Only "this load reached this chat" is recorded, to catch up later.
     await pace(chatId, config.broadcastGroupGapMs);
     await sendWithRetry(chatId, batch.map((i) => i.text).join(DIGEST_SEPARATOR) + groupSuffix());
-    await store.markBroadcasts?.(chatId, batch.map((i) => i.loadId)).catch((err) => log.warn?.(`recording broadcast failed: ${err.message}`));
+    const loadIds = batch.map((i) => i.loadId).filter((id) => typeof id === 'number'); // trucks are fire-and-forget: nothing to catch up on
+    if (loadIds.length) await store.markBroadcasts?.(chatId, loadIds).catch((err) => log.warn?.(`recording broadcast failed: ${err.message}`));
   }
 
   async function runChat(chatId, q) {
@@ -147,6 +148,17 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
       if (ownerChat) waits.push(enqueue(ownerChat, { loadId: row.id, text, own: true }));
     }
     await Promise.all(waits);
+  }
+
+  async function fetchTruck(id) {
+    const { rows: [row] } = await pool.query('SELECT * FROM trucks WHERE id = $1', [id]);
+    return row ?? null;
+  }
+
+  /** A truck posted from the website or the bot goes to the same groups, as its own message, paced like loads. */
+  async function broadcastTruck(row, chatIds) {
+    const text = formatTruckMessage(truckRowToDto(row), config.broadcastLang);
+    await Promise.all(chatIds.map((chatId) => enqueue(chatId, { loadId: `T${row.id}`, text })));
   }
 
   // A load that was closed before its turn came never needs to be sent.
@@ -217,6 +229,14 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
       queue = queue.then(() => notifyOwners(evt.id)
         .catch((err) => log.error?.(`owner notice failed: ${err.message}`) ?? console.error(`owner notice failed: ${err.message}`)));
       await queue;
+      return;
+    }
+    if (evt?.entity === 'trucks' && evt.op === 'insert' && evt.id && config.broadcastTrucks !== false) {
+      const row = await fetchTruck(evt.id);
+      if (!row || row.status !== 'active') return;
+      try { await broadcastTruck(row, await store.listActiveChatIds()); } catch (err) {
+        log.error?.(`truck broadcast failed: ${err.message}`) ?? console.error(`truck broadcast failed: ${err.message}`);
+      }
       return;
     }
     if (evt?.entity !== 'loads' || !evt.id) return;

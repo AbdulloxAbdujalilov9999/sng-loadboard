@@ -33,7 +33,7 @@ const Loads = (() => {
 
   // ---------------------------------------------------------------- tabs
   const defaultRadius = () => Number(U.store.get('sng.defaultDh', 100)) || 100;
-  const newTab = (n) => ({ id: Date.now() + Math.floor(Math.random() * 1000), n, near: null, origin: null, dho: defaultRadius(), dest: null, dhd: defaultRadius(), equip: '', fp: '', dateRange: '', sort: 'created', dir: 'desc' });
+  const newTab = (n) => ({ id: Date.now() + Math.floor(Math.random() * 1000), n, near: null, origin: null, dho: defaultRadius(), dest: null, dhd: defaultRadius(), equip: '', fp: '', truck: false, dateRange: '', sort: 'created', dir: 'desc' });
   const active = () => tabs.find((tb) => tb.id === activeId) || tabs[0];
   const saveTabs = () => U.store.set(tabsKey(), { tabs, activeId });
 
@@ -75,6 +75,7 @@ const Loads = (() => {
     $('filter-dhd').value = tab.dhd;
     $('filter-equip').value = tab.equip;
     $('filter-fp').value = tab.fp;
+    syncMyTruck();
     if (datePicker) datePicker.setDate(tab.dateRange ? tab.dateRange.split(' to ') : [], false);
     $('filter-date-range').value = tab.dateRange;
     $('filter-origin').classList.remove('field-invalid');
@@ -120,6 +121,27 @@ const Loads = (() => {
     renderTabs();
     updateRadiusState();
     return true;
+  }
+
+  // ---- "Loads for my truck": the saved truck's type and capacity (and where it stands, when no place is picked yet) ----
+  function syncMyTruck() {
+    const m = MyTruck.mine();
+    const on = Boolean(m && active().truck);
+    $('mytruck-use-btn').classList.toggle('hidden', on);
+    $('mytruck-chip').classList.toggle('hidden', !on);
+    if (on) $('mytruck-chip-text').textContent = t('mt_filter_on', { type: m.equip, cap: m.capacityT });
+  }
+  function useMyTruck() {
+    const m = MyTruck.mine();
+    if (!m) { U.toast(t('mt_setup_hint'), 'info'); return; }
+    const tab = active();
+    Object.assign(tab, { truck: true, equip: m.equip });
+    if (!tab.origin && !tab.near && m.locCityId) tab.origin = { id: m.locCityId, label: m.locCity };
+    saveTabs(); renderTabs(); fillForm(tab); reload();
+  }
+  function clearMyTruck() {
+    Object.assign(active(), { truck: false, equip: '' });
+    saveTabs(); renderTabs(); fillForm(active()); reload();
   }
 
   // ---- "Near me": the person's own position replaces the origin city, nearest loads first ----
@@ -195,6 +217,7 @@ const Loads = (() => {
       dest: tab.dest?.kind === 'country' ? undefined : tab.dest?.id, destRadius: tab.dest && tab.dest.kind !== 'country' ? tab.dhd : undefined,
       destCountry: tab.dest?.kind === 'country' ? tab.dest.country : undefined,
       equip: tab.equip || undefined, fp: tab.fp || undefined,
+      maxWeight: tab.truck && MyTruck.mine() ? MyTruck.mine().capacityT : undefined, // "for my truck": nothing heavier than it carries
       dateFrom, dateTo: dateTo || dateFrom,
       sort: tab.sort, dir: tab.dir, limit: PAGE,
       // "near me": loads that start within the radius of the person's own position (last, so its radius wins)
@@ -585,10 +608,13 @@ const Loads = (() => {
 
     $('load-filter-form').addEventListener('submit', (e) => { e.preventDefault(); search(); });
     for (const id of ['filter-equip', 'filter-fp']) $(id).addEventListener('change', searchSoon);
+    $('filter-equip').addEventListener('change', () => { const tab = active(); if (tab.truck && $('filter-equip').value !== MyTruck.mine()?.equip) tab.truck = false; });
+    $('mytruck-use-btn').addEventListener('click', useMyTruck);
+    $('mytruck-off-btn').addEventListener('click', clearMyTruck);
     nearBar = Geo.nearBar('loads', { onUse: useNearMe, onMiles: setNearMiles, onClear: clearNear });
     for (const id of ['filter-dho', 'filter-dhd']) $(id).addEventListener('change', searchSoon);
     $('reset-filters-btn').addEventListener('click', () => {
-      Object.assign(active(), { near: null, origin: null, dest: null, dho: defaultRadius(), dhd: defaultRadius(), equip: '', fp: '', dateRange: '', sort: 'created', dir: 'desc' });
+      Object.assign(active(), { near: null, origin: null, dest: null, dho: defaultRadius(), dhd: defaultRadius(), equip: '', fp: '', truck: false, dateRange: '', sort: 'created', dir: 'desc' });
       saveTabs(); renderTabs(); fillForm(active()); reload();
     });
 
@@ -703,7 +729,7 @@ const Loads = (() => {
   function onShow() { if (stale) reload({ silent: true }); Geo.maybeBanner(useNearMe); }
 
   return {
-    init, enter, leave, onShow, useNearMe, render, renderTabs, renderMine, loadMine, closeEdit,
+    init, enter, leave, onShow, useNearMe, syncMyTruck, render, renderTabs, renderMine, loadMine, closeEdit,
     openDeepLinkedLoad, closeViewLoad, markStale() { stale = true; }, get stale() { return stale; },
   };
 })();

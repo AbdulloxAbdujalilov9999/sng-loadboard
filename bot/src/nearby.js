@@ -24,7 +24,7 @@ export function ageText(lang, at, now = Date.now()) {
 
 export function makeNearby({ apiClient, tokens, store, config, log = console }) {
   const sleep = config.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
-  const gap = config.nearGapMs ?? 250; // a pause between the cards (Telegram allows about one message a second to a chat)
+  const gap = config.nearGapMs ?? 120; // a pause between the cards (Telegram allows about one message a second to a chat)
   const retry = (fn) => withRetry(fn, { sleep });
 
   async function token(ctx) {
@@ -63,10 +63,16 @@ export function makeNearby({ apiClient, tokens, store, config, log = console }) 
     await show(ctx, kind, await store.getGeo(ctx.from.id));
   }
 
-  function controls(ctx, kind, miles, { withLocation = true } = {}) {
+  // The saved "my truck" (equipment + capacity): loads are narrowed to what it can carry, unless the person switched that off.
+  async function savedTruck(idToken) {
+    try { return (await apiClient.getMe(idToken)).profile?.myTruck ?? null; } catch { return null; }
+  }
+
+  function controls(ctx, kind, miles, { withLocation = true, mt = null, truckOn = false } = {}) {
     const radius = RADII.map((mi) => Markup.button.callback(mi === miles ? `✓ ${mi}` : String(mi), `near:mi:${kind}:${mi}`));
     return Markup.inlineKeyboard([
       radius,
+      ...(kind === 'loads' && mt ? [[Markup.button.callback(t(ctx.lang, truckOn ? 'near_truck_on' : 'near_truck_off'), 'near:truck')]] : []),
       ...(withLocation ? [[Markup.button.callback(t(ctx.lang, 'near_btn_update'), `near:upd:${kind}`), Markup.button.callback(t(ctx.lang, 'near_btn_forget'), 'near:del')]] : []),
     ]);
   }
@@ -80,11 +86,15 @@ export function makeNearby({ apiClient, tokens, store, config, log = console }) 
   }
 
   /** One page of results (the first page also sends the header with the radius buttons). */
-  async function show(ctx, kind, geo, { cursor } = {}) {
+  async function show(ctx, kind, geo, { cursor, home = null } = {}) {
     const idToken = await token(ctx);
     if (!idToken) return;
     const miles = geo.miles ?? 100;
-    const params = { nearLat: geo.lat, nearLng: geo.lng, sort: 'nearest', dir: 'asc', limit: PAGE, cursor, ...(kind === 'trucks' ? { locRadius: miToKm(miles) } : { originRadius: miToKm(miles) }) };
+    const mt = kind === 'loads' ? (home ?? await savedTruck(idToken)) : null;
+    const truckOn = Boolean(mt) && (home ? true : ctx.session.nearTruck !== false);
+    // "around me" (the shared position) or, for «loads for my truck» with no position shared, around where the truck usually stands
+    const centre = home ? { origin: home.locCityId } : { nearLat: geo.lat, nearLng: geo.lng };
+    const params = { ...centre, sort: 'nearest', dir: 'asc', limit: PAGE, cursor, ...(kind === 'trucks' ? { locRadius: miToKm(miles) } : { originRadius: miToKm(miles) }), ...(truckOn ? { equip: mt.equip, maxWeight: mt.capacityT } : {}) };
     let res;
     try { res = await (kind === 'trucks' ? apiClient.searchTrucks(idToken, params) : apiClient.searchLoads(idToken, params)); } catch (err) {
       if (err instanceof ApiError && err.code === 'subscription_required') { await ctx.reply(t(ctx.lang, 'paste_subscription_required')); return; }
@@ -92,10 +102,14 @@ export function makeNearby({ apiClient, tokens, store, config, log = console }) 
       await ctx.reply(t(ctx.lang, 'postload_unreachable'));
       return;
     }
-    ctx.session.near = { kind, cursor: res.nextCursor ?? null, shown: (cursor ? (ctx.session.near?.shown ?? 0) : 0) + res.items.length };
+    ctx.session.near = { kind, cursor: res.nextCursor ?? null, shown: (cursor ? (ctx.session.near?.shown ?? 0) : 0) + res.items.length, home: home ? { locCityId: home.locCityId, equip: home.equip, capacityT: home.capacityT, locCity: home.locCity } : null };
     if (!cursor) {
-      if (!res.items.length) { await ctx.reply(`${t(ctx.lang, kind === 'trucks' ? 'near_empty_trucks' : 'near_empty_loads', { mi: miles })}\n(${ageText(ctx.lang, geo.at)})`, controls(ctx, kind, miles)); return; }
-      await ctx.reply(`${t(ctx.lang, kind === 'trucks' ? 'near_header_trucks' : 'near_header_loads', { mi: miles, n: res.total ?? res.items.length })}\n${ageText(ctx.lang, geo.at)}\n${t(ctx.lang, 'near_radius')}`, controls(ctx, kind, miles));
+      const withLocation = !home;
+      const where = home ? t(ctx.lang, 'near_home_line', { city: home.locCity || '' }) : ageText(ctx.lang, geo.at);
+      const forTruck = truckOn ? `\n${t(ctx.lang, 'near_truck_line', { type: t(ctx.lang, `eq_${mt.equip}`), cap: mt.capacityT })}` : '';
+      const keys = controls(ctx, kind, miles, { withLocation, mt, truckOn });
+      if (!res.items.length) { await ctx.reply(`${t(ctx.lang, kind === 'trucks' ? 'near_empty_trucks' : 'near_empty_loads', { mi: miles })}\n(${where})${forTruck}`, keys); return; }
+      await ctx.reply(`${t(ctx.lang, kind === 'trucks' ? 'near_header_trucks' : 'near_header_loads', { mi: miles, n: res.total ?? res.items.length })}\n${where}${forTruck}\n${t(ctx.lang, 'near_radius')}`, keys);
     }
     for (const item of res.items) {
       const text = kind === 'trucks' ? formatTruckMessage(item, ctx.lang, { km: item.dho }) : `${distanceLine(item.dho, ctx.lang)}\n\n${formatLoadMessage(dtoToRow(item), ctx.lang)}`;
@@ -112,9 +126,9 @@ export function makeNearby({ apiClient, tokens, store, config, log = console }) 
     await ctx.answerCbQuery().catch(() => {});
     const near = ctx.session?.near;
     const geo = await store.getGeo(ctx.from.id);
-    if (geo.lat == null) { await askLocation(ctx, kind); return; }
+    if (geo.lat == null && !near?.home) { await askLocation(ctx, kind); return; }
     ctx.editMessageReplyMarkup?.({ inline_keyboard: [] }).catch(() => {});
-    if (near?.kind === kind && near.cursor) await show(ctx, kind, geo, { cursor: near.cursor });
+    if (near?.kind === kind && near.cursor) await show(ctx, kind, geo, { cursor: near.cursor, home: near.home });
     else await show(ctx, kind, geo);
   }
 
@@ -123,8 +137,33 @@ export function makeNearby({ apiClient, tokens, store, config, log = console }) 
     if (!RADII.includes(miles)) return;
     await store.setGeoMiles(ctx.from.id, miles, ctx.lang);
     const geo = await store.getGeo(ctx.from.id);
-    if (geo.lat == null) { await askLocation(ctx, kind); return; }
-    await show(ctx, kind, geo);
+    const home = kind === 'loads' ? ctx.session.near?.home : null;
+    if (geo.lat == null && !home) { await askLocation(ctx, kind); return; }
+    await show(ctx, kind, geo, home ? { home } : {});
+  }
+
+  /** «Loads for my truck»: around the shared position if there is one, otherwise around where the saved truck usually stands. */
+  async function truckLoads(ctx) {
+    if (ctx.chat.type !== 'private') { await ctx.reply(t(ctx.lang, 'link_dm_only')); return; }
+    const idToken = await token(ctx);
+    if (!idToken) return;
+    const mt = await savedTruck(idToken);
+    if (!mt) { await ctx.reply(t(ctx.lang, 'mt_none')); return; }
+    ctx.session.nearTruck = true;
+    const geo = await store.getGeo(ctx.from.id);
+    if (geo.lat != null) { ctx.session.near = { kind: 'loads' }; await show(ctx, 'loads', geo); return; }
+    if (mt.locCityId) { await show(ctx, 'loads', geo, { home: mt }); return; }
+    await askLocation(ctx, 'loads');
+  }
+
+  /** The button under the results: narrow the loads to my truck, or show everything. */
+  async function toggleTruck(ctx) {
+    await ctx.answerCbQuery().catch(() => {});
+    ctx.session.nearTruck = ctx.session.nearTruck === false;
+    const geo = await store.getGeo(ctx.from.id);
+    const home = ctx.session.near?.home;
+    if (geo.lat == null && !home) { await askLocation(ctx, 'loads'); return; }
+    await show(ctx, 'loads', geo, home ? { home } : {});
   }
 
   async function update(ctx, kind) { await ctx.answerCbQuery().catch(() => {}); await askLocation(ctx, kind); }
@@ -138,5 +177,5 @@ export function makeNearby({ apiClient, tokens, store, config, log = console }) 
 
   async function cancel(ctx) { delete ctx.session.near; await ctx.reply(t(ctx.lang, 'near_cancelled'), mainKeyboard(ctx.lang)); }
 
-  return { start, onLocation, more, setRadius, update, forget, cancel };
+  return { start, onLocation, more, setRadius, update, forget, cancel, truckLoads, toggleTruck };
 }

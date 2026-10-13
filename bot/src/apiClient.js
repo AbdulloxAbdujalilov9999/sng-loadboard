@@ -53,6 +53,17 @@ export function makeApiClient({ baseUrl }) {
   const updateLoad = (idToken, id, patch) => request(idToken, 'PATCH', `/api/loads/${id}`, patch);
   const renewLoad = (idToken, id) => request(idToken, 'POST', `/api/loads/${id}/renew`, {});
 
+  // Trucks: the same endpoints the website uses (AI reading, bulk posting, my list, edit, "still available", remove) and the saved "my truck".
+  const parseTrucks = (idToken, text) => request(idToken, 'POST', '/api/ai/parse-trucks', { text });
+  const createTruck = (idToken, body) => request(idToken, 'POST', '/api/trucks', body);
+  const createTrucksBulk = (idToken, trucks) => request(idToken, 'POST', '/api/trucks/bulk', { trucks });
+  const listMyTrucks = (idToken) => request(idToken, 'GET', '/api/trucks/mine');
+  const updateTruck = (idToken, id, patch) => request(idToken, 'PATCH', `/api/trucks/${id}`, patch);
+  const renewTruck = (idToken, id) => request(idToken, 'POST', `/api/trucks/${id}/renew`, {});
+  const deleteTruck = (idToken, id) => request(idToken, 'DELETE', `/api/trucks/${id}`);
+  const putMyTruck = (idToken, body) => request(idToken, 'PUT', '/api/me/truck', body);
+  const deleteMyTruck = (idToken) => request(idToken, 'DELETE', '/api/me/truck');
+
   // Phone + 4-digit PIN sign-in (server/src/routes/pin.js): the same door the web app uses. Returns { token, expiresAt }.
   // Sign-up without leaving Telegram (server/src/routes/pin.js): the number + a 4-6 digit password + the name. The number is not verified by SMS.
   const phoneRegister = (body) => request(null, 'POST', '/api/auth/phone/register', body);
@@ -63,5 +74,5 @@ export function makeApiClient({ baseUrl }) {
   // Trades a still-valid PIN session for a fresh one, so a linked member never has to /link again just because time passed.
   const refreshSession = (token) => request(token, 'POST', '/api/auth/refresh', {});
 
-  return { getMe, searchCities, createLoad, createLoadsBulk, parseLoads, listMine, deleteLoad, updateLoad, renewLoad, searchLoads, searchTrucks, phoneRegister, phoneCheck, createLoginLink, pinLogin, refreshSession };
+  return { getMe, searchCities, createLoad, createLoadsBulk, parseLoads, listMine, deleteLoad, updateLoad, renewLoad, searchLoads, searchTrucks, parseTrucks, createTruck, createTrucksBulk, listMyTrucks, updateTruck, renewTruck, deleteTruck, putMyTruck, deleteMyTruck, phoneRegister, phoneCheck, createLoginLink, pinLogin, refreshSession };
 }

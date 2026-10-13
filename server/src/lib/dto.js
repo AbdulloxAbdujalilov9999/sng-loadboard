@@ -23,6 +23,7 @@ export const memberDto = (m) => ({
   status: m.status,
   role: m.role,
   hasPin: Boolean(m.pin_hash),
+  myTruck: m.my_truck ?? null,
   loginPhone: m.login_phone ?? '',
   requestedAt: iso(m.requested_at),
   reviewedAt: iso(m.reviewed_at),

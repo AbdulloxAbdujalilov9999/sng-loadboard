@@ -27,6 +27,8 @@ export function loadBotConfig(env = process.env) {
     // 50-load post would be cut off by Telegram's flood limit part-way through.
     // Off: one message per load everywhere. On: when 3+ loads wait for a group, up to 5 go out as one message (faster, but not what members want).
     broadcastDigest: ['1', 'true', 'yes'].includes(String(env.BOT_BROADCAST_DIGEST ?? '').toLowerCase()),
+    // Trucks posted on the website or in the bot go to the groups too, one message each (set BOT_BROADCAST_TRUCKS=0 for loads only).
+    broadcastTrucks: !['0', 'false', 'no', 'off'].includes(String(env.BOT_BROADCAST_TRUCKS ?? '').toLowerCase()),
     broadcastGroupGapMs: Number(env.BOT_BROADCAST_GROUP_GAP_MS ?? 3100),
     broadcastOwnerGapMs: Number(env.BOT_BROADCAST_OWNER_GAP_MS ?? 1100),
     // Groups mix members of different languages, so broadcasts use one fixed language for everyone

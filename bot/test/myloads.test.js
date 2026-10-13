@@ -271,7 +271,7 @@ test('the bottom menu: /start brings it, every button does what its command did,
   const { say, last, lastCard, keyboardOf, sent, state, press, buttons } = setup();
   await say('/start');
   const welcome = last('sendMessage');
-  assert.deepEqual(keyboardOf(welcome), [['📋 AI bilan joylash', '✍️ Bosqichma-bosqich'], ['📍 Yaqin yuklar', '🚚 Yaqin mashinalar'], ['📦 Mening yuklarim', '👤 Hisobim'], ['🌐 Til', 'ℹ️ Yordam']]);
+  assert.deepEqual(keyboardOf(welcome), [['📋 AI bilan joylash', '✍️ Bosqichma-bosqich'], ['🚚 Mashina joylash', '🛠 Mashina profili'], ['📍 Yaqin yuklar', '🚚 Yaqin mashinalar'], ['📦 Mening yuklarim', '🚛 Mening mashinalarim'], ['👤 Hisobim', '🌐 Til', 'ℹ️ Yordam']]);
   assert.equal(welcome.reply_markup.is_persistent, true, 'it stays at the bottom of the chat');
   assert.doesNotMatch(welcome.text, /\/link|\/postload|\/myloads/, 'the welcome talks about buttons, not commands');
 
@@ -299,7 +299,7 @@ test('the bottom menu: /start brings it, every button does what its command did,
   // language: the labels change with it
   await say('🌐 Til');
   await press('lang:ru');
-  assert.deepEqual(keyboardOf(last('sendMessage')), [['📋 Через AI', '✍️ По шагам'], ['📍 Грузы рядом', '🚚 Машины рядом'], ['📦 Мои грузы', '👤 Мой аккаунт'], ['🌐 Язык', 'ℹ️ Помощь']]);
+  assert.deepEqual(keyboardOf(last('sendMessage')), [['📋 Через AI', '✍️ По шагам'], ['🚚 Разместить машину', '🛠 Профиль машины'], ['📍 Грузы рядом', '🚚 Машины рядом'], ['📦 Мои грузы', '🚛 Мои машины'], ['👤 Мой аккаунт', '🌐 Язык', 'ℹ️ Помощь']]);
   await say('📦 Мои грузы'); // the Russian label works too
   assert.match(lastCard().text, /Perm, RU/);
 });
@@ -688,11 +688,13 @@ test('«Clear from chat»: removes the review, the copies and the pasted posts f
   assert.match(summary.reply_markup.inline_keyboard[0][0].text, /Chatdan tozalash/);
 
   await press(clear);
-  const deleted = sent.filter((x) => x.method === 'deleteMessage').map((x) => x.message_id);
+  const bulk = sent.filter((x) => x.method === 'deleteMessages');
+  assert.equal(bulk.length, 1, 'all of it goes in ONE call to Telegram, not one call per message');
+  const deleted = bulk.flatMap((x) => x.message_ids);
   assert.ok(deleted.length >= 5, `${deleted.length} messages removed (3 loads + their copies + the pasted post)`);
   assert.ok(deleted.includes(9001) && deleted.includes(9002), 'the copies of the loads in this chat');
   assert.ok(!deleted.includes(7), 'never a message in another chat');
-  assert.ok(sent.filter((x) => x.method === 'deleteMessage').every((x) => x.chat_id === 77));
+  assert.ok(bulk.every((x) => x.chat_id === 77));
   assert.equal(calls.filter((c) => c[0] === 'delete').length, 0, 'NO load was deleted - they stay on the board, in the groups and in My loads');
   assert.deepEqual(state.deletedRows.sort(), [100, 101, 102], 'the bot forgets the removed chat messages (it must not try again)');
   assert.match(sent.filter((x) => x.method === 'editMessageText').at(-1).text, /Chat tozalandi[\s\S]*Mening yuklarim/);
@@ -707,6 +709,6 @@ test('/myloads: the list can be cleared from the chat too - the loads stay', asy
   const clear = buttons(tail).find((b) => b.startsWith('chat:clear:'));
   assert.ok(clear);
   await press(clear);
-  assert.ok(sent.filter((x) => x.method === 'deleteMessage').length >= 2, 'header + the card');
+  assert.ok(sent.filter((x) => x.method === 'deleteMessages').flatMap((x) => x.message_ids).length >= 2, 'header + the card');
   assert.equal(calls.filter((c) => c[0] === 'delete').length, 0);
 });

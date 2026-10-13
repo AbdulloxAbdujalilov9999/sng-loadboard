@@ -156,3 +156,40 @@ export function formatTruckMessage(x, lang = 'en', { km = null } = {}) {
   if (x.contactTelegram) lines.push(`✈️ ${escapeHtml(x.contactTelegram)}`);
   return lines.join('\n');
 }
+
+/** A `trucks` table row (what the broadcaster reads) in the API's camelCase shape that formatTruckMessage expects. */
+export const truckRowToDto = (r) => ({
+  id: r.id, locCity: r.loc_city, destPref: r.dest_pref, equip: r.equip, capacityT: r.capacity_t, volumeM3: r.volume_m3,
+  availableFrom: r.available_from, availableTo: r.available_to, minRateUsd: r.min_rate_usd, hasTir: r.has_tir, hasAdr: r.has_adr,
+  hasGps: r.has_gps, sideLoading: r.side_loading, notes: r.notes, company: r.company_name, contactPhone: r.contact_phone, contactTelegram: r.contact_tg,
+});
+
+/** The saved "my truck" (profile.myTruck) as a card. Plates and driver are only ever shown to the member themselves. */
+export function formatMyTruck(m, lang = 'en') {
+  const lines = [`🛠 <b>${t(lang, 'mt_card_title')}</b>`, ''];
+  lines.push(`🔧 ${t(lang, `eq_${m.equip}`)}`, `⚖️ ${Number(m.capacityT)} t${m.volumeM3 ? ` · ${m.volumeM3} m³` : ''}`);
+  const flags = [m.hasTir && 'TIR', m.hasAdr && 'ADR', m.hasGps && 'GPS', m.sideLoading && t(lang, 'msg_side_loading')].filter(Boolean);
+  lines.push(`✅ ${flags.length ? flags.join(' · ') : '–'}`);
+  lines.push(`📍 ${m.locCity ? escapeHtml(m.locCity) : '–'}${m.destPref ? ` → ${escapeHtml(m.destPref)}` : ''}`);
+  const plates = [m.plate, m.trailerPlate].filter(Boolean).map(escapeHtml);
+  if (plates.length) lines.push(`🔢 ${plates.join(' / ')}`);
+  const driver = [m.driverName, m.driverPhone].filter(Boolean).map(escapeHtml);
+  if (driver.length) lines.push(`🧑‍✈️ ${driver.join(' · ')}`);
+  if (m.notes) lines.push(`📝 ${escapeHtml(m.notes)}`);
+  return lines.join('\n');
+}
+
+/** One numbered block per truck draft the AI read from a pasted post (the review before publishing). */
+export function formatTruckDraft(d, idx, lang = 'en') {
+  const mark = d.locCityId ? '' : '🚫 ';
+  const lines = [`<b>#${idx} ${mark}${escapeHtml(d.locCity || d.locText || '?')} → ${escapeHtml(d.destPref || t(lang, 'msg_anywhere'))}</b>`];
+  lines.push(`🔧 ${t(lang, `eq_${d.equip}`)} · ⚖️ ${Number(d.capacityT)} t${d.volumeM3 ? ` · ${d.volumeM3} m³` : ''} · 📅 ${d.availableFrom}${d.availableTo ? ` → ${d.availableTo}` : ''}`);
+  const flags = [d.hasTir && 'TIR', d.hasAdr && 'ADR', d.hasGps && 'GPS', d.sideLoading && t(lang, 'msg_side_loading')].filter(Boolean);
+  if (flags.length || d.minRateUsd) lines.push(`${flags.length ? `✅ ${flags.join(' · ')}` : ''}${d.minRateUsd ? `${flags.length ? ' · ' : ''}💰 ${t(lang, 'msg_truck_min')} $${Number(d.minRateUsd).toLocaleString('en-US')}` : ''}`);
+  if (d.notes) lines.push(`📝 ${escapeHtml(d.notes)}`);
+  const contact = [d.contactPhone, d.contactTelegram].filter(Boolean).map(escapeHtml);
+  if (contact.length) lines.push(`☎️ ${contact.join(' · ')}`);
+  const warn = (d.flags ?? []).map((f) => { const k = `trp_flag_${f}`; const x = t(lang, k); return x === k ? null : x; }).filter(Boolean);
+  if (warn.length) lines.push(`${d.locCityId ? '⚠️' : '🚫'} <i>${warn.join(' · ')}</i>`);
+  return lines.join('\n');
+}

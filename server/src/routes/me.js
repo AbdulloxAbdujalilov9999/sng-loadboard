@@ -1,6 +1,6 @@
-import { loginPhoneBody, pinBody, profileBody, signupBody } from '../lib/schemas.js';
+import { loginPhoneBody, myTruckBody, pinBody, profileBody, signupBody } from '../lib/schemas.js';
 import { memberDto } from '../lib/dto.js';
-import { conflict, forbidden, validationError } from '../lib/errors.js';
+import { badRequest, conflict, forbidden, validationError } from '../lib/errors.js';
 import { detail } from '../lib/validation.js';
 import { publicInfo, stateOf, trialEndFor } from '../lib/subscription.js';
 import { publicExpiry } from '../lib/expiry.js';
@@ -183,4 +183,25 @@ export default async function meRoutes(app, { pool, config }) {
     app.invalidateMember(row.email);
     return { profile: memberDto(row) };
   });
+
+  // "My truck": saved once, used as the starting point when searching for loads and when posting a truck.
+  app.put('/api/me/truck', { preHandler: app.guards.approved }, async (req) => {
+    const body = myTruckBody.parse(req.body);
+    const city = body.locCityId ? await app.cityById(body.locCityId) : null;
+    if (body.locCityId && !city) throw badRequest('Unknown city', [detail('locCityId', 'pick_city')]);
+    return saveMyTruck(req.member, { ...body, locCity: city?.label ?? '' }); // the label travels with it: forms and bot messages need no extra lookup
+  });
+
+  app.delete('/api/me/truck', { preHandler: app.guards.approved }, async (req) => saveMyTruck(req.member, null));
+
+  async function saveMyTruck(member, value) {
+    const row = await withTx(pool, async (db) => {
+      const { rows: [m] } = await db.query('UPDATE members SET my_truck = $2::jsonb, updated_at = now() WHERE id = $1 RETURNING *',
+        [member.id, value === null ? null : JSON.stringify(value)]);
+      await publish(db, { entity: 'me', email: m.email });
+      return m;
+    });
+    app.invalidateMember(row.email);
+    return { profile: memberDto(row) };
+  }
 }

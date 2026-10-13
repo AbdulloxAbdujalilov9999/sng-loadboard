@@ -71,6 +71,7 @@ const Account = (() => {
     prefillContacts();
     renderSecurity();
     renderSubscription();
+    MyTruck.refresh();
     Prefs.syncLanguage(); Prefs.syncCurrency();
     App.renderSidebarUser();
   }
