@@ -6,7 +6,7 @@ const Loads = (() => {
   const PAGE = window.APP_CONFIG.pageSize;
   const CAP = window.APP_CONFIG.maxRenderedRows;
   // First click on a column sorts the way users expect for that column.
-  const DEFAULT_DIR = { created: 'desc', pickup: 'asc', origin: 'asc', dest: 'asc', equip: 'asc', weight: 'desc', distance: 'asc', rate: 'desc', company: 'asc' };
+  const DEFAULT_DIR = { created: 'desc', pickup: 'asc', origin: 'asc', dest: 'asc', equip: 'asc', weight: 'desc', distance: 'asc', rate: 'desc', company: 'asc', nearest: 'asc' };
   const SORT_KEYS = Object.keys(DEFAULT_DIR);
 
   let tabs = [];
@@ -33,7 +33,7 @@ const Loads = (() => {
 
   // ---------------------------------------------------------------- tabs
   const defaultRadius = () => Number(U.store.get('sng.defaultDh', 100)) || 100;
-  const newTab = (n) => ({ id: Date.now() + Math.floor(Math.random() * 1000), n, origin: null, dho: defaultRadius(), dest: null, dhd: defaultRadius(), equip: '', fp: '', dateRange: '', sort: 'created', dir: 'desc' });
+  const newTab = (n) => ({ id: Date.now() + Math.floor(Math.random() * 1000), n, near: null, origin: null, dho: defaultRadius(), dest: null, dhd: defaultRadius(), equip: '', fp: '', dateRange: '', sort: 'created', dir: 'desc' });
   const active = () => tabs.find((tb) => tb.id === activeId) || tabs[0];
   const saveTabs = () => U.store.set(tabsKey(), { tabs, activeId });
 
@@ -46,6 +46,7 @@ const Loads = (() => {
 
   const shortName = (c) => (c.kind === 'country' ? String(c.text || c.label).split(' · ')[0] : c.label.split(',')[0]);
   function tabTitle(tab) {
+    if (tab.near && !tab.origin) return tab.dest ? `📍 → ${shortName(tab.dest)}` : `📍 ${t('geo_near_btn')}`;
     if (tab.origin && tab.dest) return `${shortName(tab.origin)} → ${shortName(tab.dest)}`;
     if (tab.origin) return `${shortName(tab.origin)} →`;
     if (tab.dest) return `→ ${shortName(tab.dest)}`;
@@ -67,7 +68,8 @@ const Loads = (() => {
 
   function fillForm(tab) {
     const set = (id, city) => (city ? Cities.set($(id), city) : Cities.clear($(id)));
-    set('filter-origin', tab.origin);
+    set('filter-origin', tab.near ? null : tab.origin);
+    if (tab.near) nearBar.show(tab.dho); else nearBar.hide();
     set('filter-dest', tab.dest);
     $('filter-dho').value = tab.dho;
     $('filter-dhd').value = tab.dhd;
@@ -104,6 +106,10 @@ const Loads = (() => {
       if (input.value.trim() && !city) ok = false;
     }
     if (!ok) { U.toast(t('err_pick_city'), 'error'); return false; }
+    if (origin) { // a picked city replaces "near me" (they answer the same question)
+      tab.near = null;
+      if (tab.sort === 'nearest') Object.assign(tab, { sort: 'created', dir: 'desc' });
+    }
     Object.assign(tab, {
       origin: origin && (Cities.isCountry(origin) ? { kind: 'country', country: origin.country, label: origin.label, text: origin.text } : { id: origin.id, label: origin.label, lat: origin.lat, lng: origin.lng }),
       dest: dest && (Cities.isCountry(dest) ? { kind: 'country', country: dest.country, label: dest.label, text: dest.text } : { id: dest.id, label: dest.label, lat: dest.lat, lng: dest.lng }),
@@ -114,6 +120,36 @@ const Loads = (() => {
     renderTabs();
     updateRadiusState();
     return true;
+  }
+
+  // ---- "Near me": the person's own position replaces the origin city, nearest loads first ----
+  let nearBar = null;
+  async function useNearMe() {
+    const pos = await Geo.locate();
+    if (!pos) return false;
+    Object.assign(active(), { near: pos, origin: null, dho: Geo.km(), sort: 'nearest', dir: 'asc' });
+    $('filter-dho').value = active().dho;
+    saveTabs(); renderTabs(); fillForm(active()); updateSortIcons(); reload();
+    return true;
+  }
+  function setNearMiles(mi) {
+    const tab = active();
+    tab.dho = Geo.miToKm(mi);
+    $('filter-dho').value = tab.dho;
+    saveTabs(); fillForm(tab); reload();
+  }
+  function clearNear() {
+    const tab = active();
+    tab.near = null;
+    if (tab.sort === 'nearest') Object.assign(tab, { sort: 'created', dir: 'desc' });
+    saveTabs(); renderTabs(); fillForm(tab); updateSortIcons(); reload();
+  }
+  /** A search left on "near me" must use where the person is NOW, not where they were yesterday. */
+  async function refreshNear() {
+    const tab = active();
+    if (!tab?.near) return;
+    const pos = await Geo.refresh();
+    if (pos && (pos.lat !== tab.near.lat || pos.lng !== tab.near.lng)) { tab.near = pos; saveTabs(); reload({ silent: true }); }
   }
 
   async function search() { if (await applyForm()) reload(); }
@@ -161,6 +197,8 @@ const Loads = (() => {
       equip: tab.equip || undefined, fp: tab.fp || undefined,
       dateFrom, dateTo: dateTo || dateFrom,
       sort: tab.sort, dir: tab.dir, limit: PAGE,
+      // "near me": loads that start within the radius of the person's own position (last, so its radius wins)
+      ...(tab.near ? { nearLat: tab.near.lat, nearLng: tab.near.lng, originRadius: tab.dho } : {}),
     };
   }
 
@@ -547,9 +585,10 @@ const Loads = (() => {
 
     $('load-filter-form').addEventListener('submit', (e) => { e.preventDefault(); search(); });
     for (const id of ['filter-equip', 'filter-fp']) $(id).addEventListener('change', searchSoon);
+    nearBar = Geo.nearBar('loads', { onUse: useNearMe, onMiles: setNearMiles, onClear: clearNear });
     for (const id of ['filter-dho', 'filter-dhd']) $(id).addEventListener('change', searchSoon);
     $('reset-filters-btn').addEventListener('click', () => {
-      Object.assign(active(), { origin: null, dest: null, dho: defaultRadius(), dhd: defaultRadius(), equip: '', fp: '', dateRange: '', sort: 'created', dir: 'desc' });
+      Object.assign(active(), { near: null, origin: null, dest: null, dho: defaultRadius(), dhd: defaultRadius(), equip: '', fp: '', dateRange: '', sort: 'created', dir: 'desc' });
       saveTabs(); renderTabs(); fillForm(active()); reload();
     });
 
@@ -644,6 +683,7 @@ const Loads = (() => {
     renderTabs();
     fillForm(active());
     reload();
+    refreshNear();
     loadMine();
   }
 
@@ -660,10 +700,10 @@ const Loads = (() => {
   }
 
   /** Called when the user navigates back to the Search tab. */
-  function onShow() { if (stale) reload({ silent: true }); }
+  function onShow() { if (stale) reload({ silent: true }); Geo.maybeBanner(useNearMe); }
 
   return {
-    init, enter, leave, onShow, render, renderTabs, renderMine, loadMine, closeEdit,
+    init, enter, leave, onShow, useNearMe, render, renderTabs, renderMine, loadMine, closeEdit,
     openDeepLinkedLoad, closeViewLoad, markStale() { stale = true; }, get stale() { return stale; },
   };
 })();

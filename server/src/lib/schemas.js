@@ -132,10 +132,22 @@ const csv = (allowed) => z.string().transform((s) => s.split(',').map((x) => x.t
 const limit = (def, max) => z.coerce.number().int().min(1).max(max).default(def);
 const dir = z.enum(['asc', 'desc']);
 
-export const LOAD_SORTS = ['created', 'pickup', 'origin', 'dest', 'equip', 'weight', 'distance', 'rate', 'company'];
+// a position needs both numbers, and it replaces the city filter (it is the same "around here" question)
+function nearPair(v, ctx, cityKey) {
+  const has = [v.nearLat, v.nearLng].filter((x) => x !== undefined).length;
+  if (has === 1) ctx.addIssue({ code: 'custom', path: ['nearLat'], message: 'invalid' });
+  if (has === 2 && (v.origin ?? v.loc) !== undefined) ctx.addIssue({ code: 'custom', path: ['nearLat'], message: 'invalid' });
+}
+export const LOAD_SORTS = ['created', 'pickup', 'origin', 'dest', 'equip', 'weight', 'distance', 'rate', 'company', 'nearest'];
+// "Near me": the person's own position (the browser / the bot sends it with the search). Rounded to ~1 km on arrival - enough for a radius search, and it
+// keeps the result cache effective and the position coarse.
+const lat = z.coerce.number().min(-90).max(90).transform((n) => Math.round(n * 100) / 100);
+const lng = z.coerce.number().min(-180).max(180).transform((n) => Math.round(n * 100) / 100);
 const cc = z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, 'invalid');
 export const loadQuery = z.object({
   origin: cityId.optional(),
+  nearLat: lat.optional(), // loads that start within originRadius km of this point (instead of `origin`)
+  nearLng: lng.optional(),
   originRadius: z.coerce.number().int().min(0).max(2000).default(100),
   dest: cityId.optional(),
   originCountry: cc.optional(), // a whole country as origin / destination ("UZ -> KZ")
@@ -154,11 +166,13 @@ export const loadQuery = z.object({
   dir: dir.default('desc'),
   limit: limit(50, 100),
   cursor: z.string().max(300).optional(),
-}).strict();
+}).strict().superRefine(nearPair);
 
-export const TRUCK_SORTS = ['created', 'available', 'loc', 'equip', 'capacity', 'rate'];
+export const TRUCK_SORTS = ['created', 'available', 'loc', 'equip', 'capacity', 'rate', 'nearest'];
 export const truckQuery = z.object({
   loc: cityId.optional(),
+  nearLat: lat.optional(), // trucks that are within locRadius km of this point (instead of `loc`)
+  nearLng: lng.optional(),
   locCountry: cc.optional(),
   locRadius: z.coerce.number().int().min(0).max(2000).default(150),
   dest: z.string().trim().max(60).optional(),
@@ -169,7 +183,7 @@ export const truckQuery = z.object({
   dir: dir.default('desc'),
   limit: limit(50, 100),
   cursor: z.string().max(300).optional(),
-}).strict();
+}).strict().superRefine(nearPair);
 
 export const directoryQuery = z.object({
   q: z.string().trim().max(60).optional(),

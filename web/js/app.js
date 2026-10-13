@@ -69,7 +69,7 @@ const App = (() => {
     else if (name === 'search-trucks') Trucks.onShow();
     else if (name === 'post-trucks') { Account.prefillContacts(); Trucks.loadMine(); }
     else if (name === 'directory') Directory.onShow();
-    else if (name === 'account-settings') Account.populate();
+    else if (name === 'account-settings') { Account.populate(); Geo.renderSettings(); }
     else if (name === 'approvals') Admin.onShow();
   }
 
@@ -171,7 +171,7 @@ const App = (() => {
 
   function boot() {
     I18N.init();
-    Account.init(); Session.init(); Loads.init(); AiImport.init(); Trucks.init(); AiTrucks.init(); Directory.init(); Admin.init();
+    Account.init(); Geo.init(); Session.init(); Loads.init(); AiImport.init(); Trucks.init(); AiTrucks.init(); Directory.init(); Admin.init();
 
     document.addEventListener('click', (e) => {
       const nav = e.target.closest('[data-view]');

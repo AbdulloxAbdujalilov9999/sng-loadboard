@@ -37,6 +37,12 @@ export default async function truckRoutes(app, { pool, config }) {
     const where = [`t.status = 'active'`, `t.expires_on >= current_date`];
     let dhoSql = 'NULL::int';
 
+    const near = q.nearLat !== undefined ? { lat: q.nearLat, lng: q.nearLng } : null;
+    if (near) { // "near me": trucks within locRadius km of the person's own position
+      const f = radiusFilter(b, { latCol: 't.loc_lat', lngCol: 't.loc_lng', city: near, radiusKm: q.locRadius });
+      where.push(...f.clauses);
+      dhoSql = `round(${f.distSql})::int`;
+    }
     if (q.loc) {
       const city = await app.cityById(q.loc);
       if (!city) throw badRequest('Unknown location city');
@@ -55,7 +61,10 @@ export default async function truckRoutes(app, { pool, config }) {
     const filterCount = b.params.length;
     const filterSql = where.join(' AND ');
 
-    const ks = keyset(b, { sorts: SORTS, sort: q.sort, dir: q.dir, cursor: q.cursor, idCol: 't.id' });
+    const hasCenter = Boolean(near || q.loc);
+    const sorts = hasCenter ? { ...SORTS, nearest: { col: dhoSql, cast: 'integer' } } : SORTS;
+    const sort = q.sort === 'nearest' && !hasCenter ? 'created' : q.sort;
+    const ks = keyset(b, { sorts, sort, dir: q.sort === 'nearest' && !hasCenter ? 'desc' : q.dir, cursor: q.cursor, idCol: 't.id' });
     if (ks.cursorClause) where.push(ks.cursorClause);
 
     const listSql = `SELECT ${LIST_COLS}, ${dhoSql} AS dho, ${ks.sortValueSql} AS _sv FROM trucks t

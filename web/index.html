@@ -357,6 +357,12 @@
                 </div>
             </header>
 
+            <div id="geo-banner" class="hidden bg-sky-50 border-b border-sky-200 text-sky-900 px-3 sm:px-4 py-2.5 flex-shrink-0 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+                <i data-lucide="locate-fixed" class="w-4 h-4 text-sky-600 flex-shrink-0"></i>
+                <div class="flex-1 min-w-[12rem]"><p class="font-bold" data-i18n="geo_banner_title">Show loads and trucks near you?</p><p class="text-sky-800/80 text-[11px]" data-i18n="geo_banner_sub">Allow your location and the board shows what is within 100 miles of you.</p></div>
+                <div class="flex gap-2"><button type="button" id="geo-banner-allow" class="bg-sky-600 hover:bg-sky-700 text-white font-bold px-3 py-1.5 rounded" data-i18n="geo_allow">Allow location</button><button type="button" id="geo-banner-later" class="bg-white hover:bg-sky-100 border border-sky-300 text-sky-800 font-semibold px-3 py-1.5 rounded" data-i18n="geo_later">Not now</button></div>
+            </div>
+
             <div id="sync-banner" role="alert" class="hidden bg-amber-50 border-b border-amber-300 text-amber-900 text-[11px] font-semibold px-4 py-2 flex-shrink-0"></div>
 
             <!-- ================= SEARCH LOADS ================= -->
@@ -370,6 +376,14 @@
                             <div class="flex">
                                 <input type="text" id="filter-origin" data-city-picker data-allow-country autocomplete="off" placeholder="e.g. Andijan, UZ" data-i18n-placeholder="ph_origin_eg" class="w-full border border-slate-300 rounded-l px-2 py-1.5 focus:border-blue-500 focus:outline-none text-xs">
                                 <input type="number" id="filter-dho" min="0" max="2000" value="100" data-i18n-title="tt_origin_radius" data-i18n-aria="aria_radius_origin" class="w-16 border-t border-b border-r border-slate-300 rounded-r px-1 py-1.5 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
+                            </div>
+                            <div class="mt-1 flex items-center gap-1.5 flex-wrap">
+                                <button type="button" id="loads-near-btn" class="inline-flex items-center gap-1 font-semibold px-2 py-1 rounded border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 text-[11px] transition"><i data-lucide="locate-fixed" class="w-3 h-3"></i><span data-i18n="geo_near_btn">Near me</span></button>
+                                <span id="loads-near-chip" class="hidden inline-flex items-center gap-1 bg-sky-600 text-white rounded-full pl-2 pr-1 py-0.5 text-[11px] font-bold">
+                                    <i data-lucide="locate-fixed" class="w-3 h-3"></i><span data-i18n="geo_near_chip">Near me</span>
+                                    <select id="loads-near-miles" data-i18n-aria="geo_radius" class="bg-sky-700 text-white rounded px-1 py-0 text-[11px] font-bold border-0"><option value="25">25 mi</option><option value="50">50 mi</option><option value="100">100 mi</option><option value="150">150 mi</option><option value="200">200 mi</option><option value="300">300 mi</option></select>
+                                    <button type="button" id="loads-near-clear" data-i18n-aria="geo_clear" class="w-5 h-5 rounded-full hover:bg-sky-800 flex items-center justify-center"><i data-lucide="x" class="w-3 h-3"></i></button>
+                                </span>
                             </div>
                         </div>
                         <div class="col-span-2 md:col-span-3 relative">
@@ -420,6 +434,7 @@
                         </div>
                         <div class="flex items-center space-x-2">
                             <select id="mobile-sort-select" data-i18n-aria="aria_sort" class="md:hidden border border-slate-300 rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 bg-white focus:outline-none">
+                                <option value="nearest-asc" data-i18n="sort_nearest">Nearest first</option>
                                 <option value="created-desc" data-i18n="sort_newest">Newest first</option>
                                 <option value="created-asc" data-i18n="sort_oldest">Oldest first</option>
                                 <option value="pickup-asc" data-i18n="sort_pickup_asc">Pickup date ↑</option>
@@ -617,6 +632,14 @@
                             <div class="flex">
                                 <input type="text" id="search-truck-loc" data-city-picker data-allow-country autocomplete="off" data-i18n-placeholder="ph_city" placeholder="Type a city" class="w-full border border-slate-300 rounded-l p-1.5 text-xs">
                                 <input type="number" id="search-truck-radius" min="0" max="2000" value="150" data-i18n-title="tt_radius" data-i18n-aria="aria_radius" class="w-14 border-t border-b border-r border-slate-300 rounded-r px-1 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
+                            </div>
+                            <div class="mt-1 flex items-center gap-1.5 flex-wrap">
+                                <button type="button" id="trucks-near-btn" class="inline-flex items-center gap-1 font-semibold px-2 py-1 rounded border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 text-[11px] transition"><i data-lucide="locate-fixed" class="w-3 h-3"></i><span data-i18n="geo_near_btn">Near me</span></button>
+                                <span id="trucks-near-chip" class="hidden inline-flex items-center gap-1 bg-sky-600 text-white rounded-full pl-2 pr-1 py-0.5 text-[11px] font-bold">
+                                    <i data-lucide="locate-fixed" class="w-3 h-3"></i><span data-i18n="geo_near_chip">Near me</span>
+                                    <select id="trucks-near-miles" data-i18n-aria="geo_radius" class="bg-sky-700 text-white rounded px-1 py-0 text-[11px] font-bold border-0"><option value="25">25 mi</option><option value="50">50 mi</option><option value="100">100 mi</option><option value="150">150 mi</option><option value="200">200 mi</option><option value="300">300 mi</option></select>
+                                    <button type="button" id="trucks-near-clear" data-i18n-aria="geo_clear" class="w-5 h-5 rounded-full hover:bg-sky-800 flex items-center justify-center"><i data-lucide="x" class="w-3 h-3"></i></button>
+                                </span>
                             </div>
                         </div>
                         <div>
@@ -851,6 +874,19 @@
                                 <div><label class="block font-semibold text-slate-700 mb-1" for="setting-contact-email" data-i18n="lbl_contact_email">Contact email</label><input type="email" id="setting-contact-email" name="contactEmail" maxlength="254" autocomplete="off" data-i18n-placeholder="ph_contact_email" placeholder="Leave empty to use your Google login email" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
                             </div>
                         </div>
+                        <div id="geo-card" class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
+                            <h4 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2"><i data-lucide="locate-fixed" class="w-4 h-4 text-sky-600"></i><span data-i18n="geo_card_title">Location</span></h4>
+                            <p class="text-slate-500" data-i18n="geo_card_sub">With your location the board can show loads and trucks around you (like "within 100 miles"). It stays in this browser and is only used for the search.</p>
+                            <p class="flex items-center gap-2 font-semibold text-slate-700"><span id="geo-status-dot" class="w-2 h-2 rounded-full bg-slate-300"></span><span id="geo-status"></span></p>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1" for="geo-miles" data-i18n="geo_default_radius">Default radius</label>
+                                <select id="geo-miles" class="w-full border border-slate-300 rounded p-2 text-xs bg-white"><option value="25">25 mi</option><option value="50">50 mi</option><option value="100">100 mi</option><option value="150">150 mi</option><option value="200">200 mi</option><option value="300">300 mi</option></select>
+                            </div>
+                            <div class="flex gap-2 flex-wrap">
+                                <button type="button" id="geo-allow-btn" class="bg-sky-600 hover:bg-sky-700 text-white font-bold px-3 py-2 rounded" data-i18n="geo_allow">Allow location</button>
+                                <button type="button" id="geo-forget-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded border border-slate-300" data-i18n="geo_forget">Forget my location</button>
+                            </div>
+                        </div>
                         <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
                             <h4 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2"><i data-lucide="sliders-horizontal" class="w-4 h-4 text-sky-600"></i><span data-i18n="lbl_preferences">Preferences</span></h4>
                             <div>
@@ -1076,6 +1112,7 @@
     <script type="module" src="/js/firebase.js?v=__BUILD__"></script>
     <script src="/js/session.js?v=__BUILD__"></script>
     <script src="/js/live.js?v=__BUILD__"></script>
+    <script src="/js/geo.js?v=__BUILD__"></script>
     <script src="/js/cities.js?v=__BUILD__"></script>
     <script src="/js/loads.js?v=__BUILD__"></script>
     <script src="/js/aiimport.js?v=__BUILD__"></script>

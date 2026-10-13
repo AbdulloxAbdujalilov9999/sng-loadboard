@@ -6,7 +6,7 @@ const Trucks = (() => {
   const PAGE = window.APP_CONFIG.pageSize;
   const CAP = window.APP_CONFIG.maxRenderedRows;
   const list = { items: [], cursor: null, total: null, capped: false, loading: false, done: false, error: null, ctrl: null };
-  let filters = { loc: null, radius: 150, dest: '', equip: '' };
+  let filters = { loc: null, near: null, radius: 150, dest: '', equip: '' };
   let mine = [];
   let observer = null;
   // On phones the whole search page scrolls (see styles.css); on desktop only the results box does.
@@ -20,7 +20,7 @@ const Trucks = (() => {
   let stale = false;
 
   function buildQuery() {
-    return { loc: Cities.isCountry(filters.loc) ? undefined : filters.loc?.id, locRadius: filters.loc && !Cities.isCountry(filters.loc) ? filters.radius : undefined, locCountry: Cities.isCountry(filters.loc) ? filters.loc.country : undefined, dest: filters.dest || undefined, equip: filters.equip || undefined, limit: PAGE };
+    return { loc: Cities.isCountry(filters.loc) ? undefined : filters.loc?.id, locRadius: filters.loc && !Cities.isCountry(filters.loc) ? filters.radius : undefined, locCountry: Cities.isCountry(filters.loc) ? filters.loc.country : undefined, dest: filters.dest || undefined, equip: filters.equip || undefined, limit: PAGE, ...(filters.near ? { nearLat: filters.near.lat, nearLng: filters.near.lng, locRadius: filters.radius, sort: 'nearest', dir: 'asc' } : {}) };
   }
 
   async function readFilters() {
@@ -28,9 +28,26 @@ const Trucks = (() => {
     const loc = input.value.trim() ? await Cities.resolve(input) : null;
     input.classList.toggle('field-invalid', Boolean(input.value.trim()) && !loc);
     if (input.value.trim() && !loc) { U.toast(t('err_pick_city'), 'error'); return false; }
-    filters = { loc, radius: Math.min(2000, Math.max(0, Math.round(Number($('search-truck-radius').value)) || 0)), dest: $('search-truck-dest').value.trim(), equip: $('search-truck-equip').value };
+    // a picked city replaces "near me" (they answer the same question)
+    filters = { loc, near: loc ? null : filters.near, radius: Math.min(2000, Math.max(0, Math.round(Number($('search-truck-radius').value)) || 0)), dest: $('search-truck-dest').value.trim(), equip: $('search-truck-equip').value };
+    syncNear();
     return true;
   }
+
+  // ---- "Near me": the person's own position replaces the location city, nearest trucks first ----
+  let nearBar = null;
+  function syncNear() { if (!nearBar) return; if (filters.near) nearBar.show(filters.radius); else nearBar.hide(); }
+  async function useNearMe() {
+    const pos = await Geo.locate();
+    if (!pos) return false;
+    Cities.clear($('search-truck-loc'));
+    filters = { ...filters, loc: null, near: pos, radius: Geo.km() };
+    $('search-truck-radius').value = filters.radius;
+    syncNear(); reload();
+    return true;
+  }
+  function setNearMiles(mi) { filters.radius = Geo.miToKm(mi); $('search-truck-radius').value = filters.radius; syncNear(); reload(); }
+  function clearNear() { filters = { ...filters, near: null }; syncNear(); reload(); }
 
   async function search() { if (await readFilters()) reload(); }
   const searchSoon = U.debounce(search, 250);
@@ -229,7 +246,7 @@ const Trucks = (() => {
       Cities.clear($('truck-post-loc'));
       Account.prefillContacts();
       // Clear the search filters so the truck just posted can't be hidden by an old search.
-      filters = { loc: null, radius: 150, dest: '', equip: '' };
+      filters = { loc: null, near: null, radius: 150, dest: '', equip: '' };
       Cities.clear($('search-truck-loc')); $('search-truck-dest').value = ''; $('search-truck-equip').value = ''; $('search-truck-radius').value = 150;
       loadMine();
       stale = true;
@@ -249,15 +266,16 @@ const Trucks = (() => {
 
   function init() {
     Cities.attach($('search-truck-loc'), { onPick: searchSoon });
+    nearBar = Geo.nearBar('trucks', { onUse: useNearMe, onMiles: setNearMiles, onClear: clearNear });
     Cities.attach($('truck-post-loc'));
     $('truck-filter-form').addEventListener('submit', (e) => { e.preventDefault(); search(); });
     $('search-truck-equip').addEventListener('change', searchSoon);
     $('search-truck-radius').addEventListener('change', searchSoon);
     $('search-truck-dest').addEventListener('input', U.debounce(search, 400));
     $('reset-truck-filters-btn').addEventListener('click', () => {
-      filters = { loc: null, radius: 150, dest: '', equip: '' };
+      filters = { loc: null, near: null, radius: 150, dest: '', equip: '' };
       Cities.clear($('search-truck-loc')); $('search-truck-dest').value = ''; $('search-truck-equip').value = ''; $('search-truck-radius').value = 150;
-      reload();
+      syncNear(); reload();
     });
     $('trucks-footer').addEventListener('click', (e) => { if (e.target.closest('[data-action="retry"]')) { list.error = null; list.items.length ? loadMore() : reload(); } });
     $('trucks-tbody').addEventListener('click', (e) => {
@@ -300,14 +318,14 @@ const Trucks = (() => {
     list.ctrl?.abort();
     Object.assign(list, { items: [], cursor: null, total: null, done: false, error: null, loading: false });
     mine = [];
-    filters = { loc: null, radius: 150, dest: '', equip: '' };
+    filters = { loc: null, near: null, radius: 150, dest: '', equip: '' };
     $('trucks-tbody').innerHTML = '';
     $('my-trucks-tbody').innerHTML = '';
     closeViewTruck();
   }
-  function onShow() { if (stale) reload({ silent: true }); }
+  function onShow() { if (stale) reload({ silent: true }); Geo.maybeBanner(useNearMe); }
 
-  return { init, enter, leave, onShow, render, renderMine, loadMine, closeViewTruck, markStale() { stale = true; } };
+  return { init, enter, leave, onShow, useNearMe, render, renderMine, loadMine, closeViewTruck, markStale() { stale = true; } };
 })();
 
 window.Trucks = Trucks;

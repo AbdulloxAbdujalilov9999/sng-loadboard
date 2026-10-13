@@ -28,6 +28,7 @@ const SORTS = {
   distance: { col: 'l.distance_km', cast: 'integer' },
   rate: { col: 'l.rate_usd', cast: 'numeric' },
   company: { col: 'l.company_name', cast: 'text' },
+  // 'nearest' (distance from the person) is added per request: its expression needs the person's position
 };
 
 async function getCities(db, ids) {
@@ -61,6 +62,12 @@ export default async function loadRoutes(app, { pool, config }) {
     let dhoSql = 'NULL::int';
     let dhdSql = 'NULL::int';
 
+    const near = q.nearLat !== undefined ? { lat: q.nearLat, lng: q.nearLng } : null;
+    if (near) { // "near me": the same radius search as a picked origin city, around the person's own position
+      const f = radiusFilter(b, { latCol: 'l.origin_lat', lngCol: 'l.origin_lng', city: near, radiusKm: q.originRadius });
+      where.push(...f.clauses);
+      dhoSql = `round(${f.distSql})::int`;
+    }
     for (const [key, prefix, radius, outKey] of [['origin', 'origin', q.originRadius, 'dho'], ['dest', 'dest', q.destRadius, 'dhd']]) {
       if (!q[key]) continue;
       const city = await app.cityById(q[key]);
@@ -86,7 +93,11 @@ export default async function loadRoutes(app, { pool, config }) {
     const filterCount = b.params.length;
     const filterSql = where.join(' AND ');
 
-    const ks = keyset(b, { sorts: SORTS, sort: q.sort, dir: q.dir, cursor: q.cursor, idCol: 'l.id' });
+    // nearest first only means something with a position (or a picked origin); without one it is the newest first
+    const hasCenter = Boolean(near || q.origin);
+    const sorts = hasCenter ? { ...SORTS, nearest: { col: dhoSql, cast: 'integer' } } : SORTS;
+    const sort = q.sort === 'nearest' && !hasCenter ? 'created' : q.sort;
+    const ks = keyset(b, { sorts, sort, dir: q.sort === 'nearest' && !hasCenter ? 'desc' : q.dir, cursor: q.cursor, idCol: 'l.id' });
     if (ks.cursorClause) where.push(ks.cursorClause);
 
     const listSql = `SELECT ${LIST_COLS}, ${dhoSql} AS dho, ${dhdSql} AS dhd, ${ks.sortValueSql} AS _sv
