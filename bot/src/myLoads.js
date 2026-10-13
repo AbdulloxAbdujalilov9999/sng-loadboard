@@ -10,7 +10,7 @@ export { parseEditValue } from './editor.js';
 
 const MAX_CARDS = 10;
 
-export function makeMyLoads({ apiClient, tokens }) {
+export function makeMyLoads({ apiClient, tokens, cleaner = null }) {
   const card = (l, lang) => formatLoadMessage(dtoToRow(l), lang);
   const route = (l) => `${l.originCity} → ${l.destCity}`;
 
@@ -37,9 +37,14 @@ export function makeMyLoads({ apiClient, tokens }) {
     let items;
     try { ({ items } = await apiClient.listMine(idToken)); } catch { await ctx.reply(t(ctx.lang, 'postload_unreachable')); return; }
     if (!items.length) { await ctx.reply(t(ctx.lang, 'myloads_empty')); return; }
-    await ctx.reply(t(ctx.lang, 'myloads_header', { count: items.length }));
-    for (const l of items.slice(0, MAX_CARDS)) await ctx.reply(card(l, ctx.lang), { parse_mode: 'HTML', ...loadKeyboard(ctx.lang, l.id) });
+    const header = await ctx.reply(t(ctx.lang, 'myloads_header', { count: items.length }));
+    const sent = [header?.message_id];
+    for (const l of items.slice(0, MAX_CARDS)) sent.push((await ctx.reply(card(l, ctx.lang), { parse_mode: 'HTML', ...loadKeyboard(ctx.lang, l.id) }))?.message_id);
     if (items.length > MAX_CARDS) await ctx.reply(t(ctx.lang, 'myloads_more', { n: items.length - MAX_CARDS }));
+    if (cleaner) { // «Clear from chat» on the last message: takes the list off the screen, the loads stay where they are
+      const token = cleaner.register({ userId: ctx.from.id, chatId: ctx.chat.id, msgIds: sent });
+      await ctx.reply('🧹', Markup.inlineKeyboard([[Markup.button.callback(t(ctx.lang, 'chat_clear_btn'), `chat:clear:${token}`)]]));
+    }
   }
 
   // One handler per button. The load is looked up fresh each time, so the card always shows what is on the board right now.

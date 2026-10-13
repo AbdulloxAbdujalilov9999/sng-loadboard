@@ -289,3 +289,71 @@ test('sign-up from the bot against the real API: account, Telegram link and a we
   assert.equal((await env.withToken(web.json.token).get('/api/me')).json.profile.contactName, 'Bot Person', 'the website session is that member');
   assert.equal((await env.anon().post('/api/auth/link-login', { code })).status, 401, 'the code works once');
 });
+
+test('the saved position lives in the database: shared, radius remembered, deleted - and it never changes the person\'s language', async () => {
+  const { makeStore } = await import('../src/store.js');
+  const { makeCrypto } = await import('../src/crypto.js');
+  const store = makeStore(env.pool, makeCrypto(Buffer.alloc(32, 5).toString('base64')));
+  const id = 880011;
+  assert.deepEqual(await store.getGeo(id), { lat: null, lng: null, at: null, miles: 100 }, 'nobody is on file by default');
+  await store.setGeo(id, { lat: 41.3, lng: 69.2405, language: 'uz' });
+  const g = await store.getGeo(id);
+  assert.equal(g.lat, 41.3); assert.equal(g.lng, 69.2405); assert.ok(g.at);
+  assert.equal(await store.getLanguage(id), 'uz', 'a row made by sharing a location carries the language the person is spoken to in');
+  await store.setLanguage(id, 'ru');
+  await store.setGeo(id, { lat: 40, lng: 70, language: 'uz' });
+  assert.equal(await store.getLanguage(id), 'ru', 'sharing again never overwrites their language choice');
+  await store.setGeoMiles(id, 200, 'ru');
+  assert.equal((await store.getGeo(id)).miles, 200);
+  await store.clearGeo(id);
+  const gone = await store.getGeo(id);
+  assert.deepEqual([gone.lat, gone.lng, gone.at, gone.miles], [null, null, null, 200], 'the position is gone, the radius preference stays');
+  await assert.rejects(env.pool.query('UPDATE telegram_users SET geo_lat = 10 WHERE telegram_user_id = $1', [id]), /geo_valid/, 'a half position is refused by the database');
+  await assert.rejects(env.pool.query('UPDATE telegram_users SET geo_miles = 5000 WHERE telegram_user_id = $1', [id]), /geo_valid/);
+  // new member with no row yet: radius first, language is still theirs
+  await store.setGeoMiles(880012, 50, 'en');
+  assert.equal(await store.getLanguage(880012), 'en');
+});
+
+test('a load cleared from the chat before it arrived is never sent to that chat, but still goes to the groups', async () => {
+  const sent = [];
+  const bot = { telegram: { sendMessage: async (chatId, text) => { sent.push({ chatId, text }); return { message_id: sent.length }; } } };
+  const store = {
+    listActiveChatIds: async () => [111], markChatRemoved: async () => {}, getTelegramUserIdByMemberId: async () => 999,
+    saveSentMessage: async () => {}, listSentMessages: async () => [], deleteSentMessages: async () => {}, getLanguage: async () => 'uz',
+  };
+  const hidden = new Set();
+  const broadcaster = makeBroadcaster({
+    config: { databaseUrl: env.config.databaseUrl, broadcastSpacingMs: 0, broadcastLang: 'uz', webBaseUrl: 'https://sng.example', webUrlIsPublic: true },
+    pool: env.pool, store, bot, log: { warn() {}, error() {} }, sleep: async () => {}, suppressOwner: (id) => hidden.has(id),
+  });
+  await broadcaster.start();
+  try {
+    const first = await env.as('poster@test.com').post('/api/loads', { ...validLoad(cityA, cityB), commodity: 'Visible' });
+    assert.ok(await waitFor(() => sent.filter((s) => s.chatId === 999).length === 1 && sent.filter((s) => s.chatId === 111).length === 1));
+    // the person cleared their chat; the next load was still on its way
+    const second = await env.as('poster@test.com').post('/api/loads', { ...validLoad(cityA, cityB), commodity: 'Cleared before arrival' });
+    hidden.add(second.json.id);
+    assert.ok(await waitFor(() => sent.filter((s) => s.chatId === 111 && /Cleared before arrival/.test(s.text)).length === 1), 'the group still gets it');
+    await sleep(200);
+    assert.equal(sent.filter((s) => s.chatId === 999 && /Cleared before arrival/.test(s.text)).length, 0, 'the cleared chat does not');
+    assert.ok(first.json.id);
+  } finally { await broadcaster.stop(); }
+});
+
+test('the bot\'s "near me" search against the real API: radius, nearest first, paging, trucks', async () => {
+  const token = tokenFor('viewer@test.com');
+  await env.as('poster@test.com').post('/api/loads', { ...validLoad(cityB, cityA), commodity: 'From Tashkent' }); // cityB = Tashkent
+  const tashkent = { nearLat: 41.3, nearLng: 69.24 };
+  const near = await api.searchLoads(token, { ...tashkent, originRadius: 161, sort: 'nearest', dir: 'asc', limit: 10 });
+  assert.ok(near.items.every((l) => typeof l.dho === 'number' && l.dho <= 161), 'every result is inside 100 miles');
+  assert.ok(near.items.some((l) => l.commodity === 'From Tashkent'), 'a load that starts in Tashkent is inside');
+  assert.deepEqual(near.items.map((l) => l.dho), [...near.items.map((l) => l.dho)].sort((a, b) => a - b), 'nearest first');
+  const tight = await api.searchLoads(token, { ...tashkent, originRadius: 1, limit: 10 });
+  assert.ok(tight.items.every((l) => l.originCity.startsWith('Tashkent')));
+  const empty = await api.searchLoads(token, { nearLat: -45, nearLng: 170, originRadius: 161, limit: 10 }); // the other side of the world
+  assert.deepEqual(empty.items, []);
+  const trucks = await api.searchTrucks(token, { ...tashkent, locRadius: 161, sort: 'nearest', dir: 'asc', limit: 10 });
+  assert.ok(Array.isArray(trucks.items));
+  await assert.rejects(api.searchLoads(token, { nearLat: 41.3 }), (e) => e instanceof ApiError && e.status === 400, 'half a position is refused');
+});

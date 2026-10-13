@@ -133,6 +133,28 @@ export function makeStore(pool, crypto) {
     return row?.language ?? null;
   }
 
+  // The position this person shared with the bot (Telegram's "share location" button) and the radius they like, in miles. Never creates a
+  // row with a made-up language: a new row gets the language the person is being spoken to in.
+  async function getGeo(telegramUserId) {
+    const { rows: [r] } = await pool.query('SELECT geo_lat, geo_lng, geo_at, geo_miles FROM telegram_users WHERE telegram_user_id = $1', [telegramUserId]);
+    if (!r) return { lat: null, lng: null, at: null, miles: 100 };
+    return { lat: r.geo_lat, lng: r.geo_lng, at: r.geo_at, miles: r.geo_miles };
+  }
+  async function setGeo(telegramUserId, { lat, lng, language }) {
+    await pool.query(
+      `INSERT INTO telegram_users (telegram_user_id, language, geo_lat, geo_lng, geo_at) VALUES ($1, $4, $2, $3, now())
+       ON CONFLICT (telegram_user_id) DO UPDATE SET geo_lat = $2, geo_lng = $3, geo_at = now(), updated_at = now()`,
+      [telegramUserId, lat, lng, language]);
+  }
+  async function clearGeo(telegramUserId) {
+    await pool.query('UPDATE telegram_users SET geo_lat = NULL, geo_lng = NULL, geo_at = NULL, updated_at = now() WHERE telegram_user_id = $1', [telegramUserId]);
+  }
+  async function setGeoMiles(telegramUserId, miles, language) {
+    await pool.query(
+      `INSERT INTO telegram_users (telegram_user_id, language, geo_miles) VALUES ($1, $3, $2)
+       ON CONFLICT (telegram_user_id) DO UPDATE SET geo_miles = $2, updated_at = now()`, [telegramUserId, miles, language]);
+  }
+
   async function setLanguage(telegramUserId, language) {
     await pool.query(
       `INSERT INTO telegram_users (telegram_user_id, language) VALUES ($1, $2)
@@ -144,6 +166,6 @@ export function makeStore(pool, crypto) {
   return {
     saveLink, getLinkByTelegramUserId, updateRefreshToken, removeLink, upsertChat, markChatRemoved,
     listActiveChatIds, listOwnerTelegramIds, countActiveChats, getLanguage, setLanguage,
-    getTelegramUserIdByMemberId, saveSentMessage, listSentMessages, deleteSentMessages, markBroadcasts, listUnsentBroadcasts,
+    getTelegramUserIdByMemberId, saveSentMessage, listSentMessages, deleteSentMessages, markBroadcasts, listUnsentBroadcasts, getGeo, setGeo, clearGeo, setGeoMiles,
   };
 }

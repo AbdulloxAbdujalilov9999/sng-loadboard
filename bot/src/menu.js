@@ -3,12 +3,13 @@
 import { Markup } from 'telegraf';
 import { LANGS, t } from './i18n.js';
 
-export const MENU_ACTIONS = ['ai', 'post', 'myloads', 'account', 'language', 'help'];
-const KEY = { ai: 'btn_menu_ai', post: 'btn_menu_post', myloads: 'btn_menu_myloads', account: 'btn_menu_account', language: 'btn_menu_language', help: 'btn_menu_help' };
+export const MENU_ACTIONS = ['ai', 'post', 'nearloads', 'neartrucks', 'myloads', 'account', 'language', 'help'];
+const KEY = { ai: 'btn_menu_ai', post: 'btn_menu_post', nearloads: 'btn_menu_nearloads', neartrucks: 'btn_menu_neartrucks', myloads: 'btn_menu_myloads', account: 'btn_menu_account', language: 'btn_menu_language', help: 'btn_menu_help' };
 
 /** The persistent keyboard in one language (private chats only - a group has no use for it). */
 export const mainKeyboard = (lang) => Markup.keyboard([
   [t(lang, KEY.ai), t(lang, KEY.post)],
+  [t(lang, KEY.nearloads), t(lang, KEY.neartrucks)],
   [t(lang, KEY.myloads), t(lang, KEY.account)],
   [t(lang, KEY.language), t(lang, KEY.help)],
 ]).resize().persistent();

@@ -16,6 +16,8 @@ import { makeMyLoads } from './myLoads.js';
 import { makeEditor } from './editor.js';
 import { MENU_TEXTS, mainKeyboard, menuAction } from './menu.js';
 import { makeSignupScene, sendWebLogin } from './signupScene.js';
+import { makeChatCleaner } from './chatCleaner.js';
+import { makeNearby } from './nearby.js';
 import { t, LANGS, LANG_NAMES } from './i18n.js';
 
 const BROADCAST_CHAT_TYPES = new Set(['group', 'supergroup', 'channel']);
@@ -25,8 +27,11 @@ const loginOf = (identity) => (/^p\d+@phone\.sng$/.test(identity) ? `+${identity
 export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   const bot = new Telegraf(config.botToken);
   const lang = makeLangManager({ store });
-  const pasteFlow = makePasteFlow({ apiClient, tokens, config });
-  const myLoads = makeMyLoads({ apiClient, tokens });
+  const cleaner = makeChatCleaner({ store, sleep: config.sleep, gapMs: config.cleanGapMs ?? 60 });
+  bot.chatCleaner = cleaner; // the broadcaster asks it whether a load's copy for the poster's chat was cleared before it arrived
+  const nearby = makeNearby({ apiClient, tokens, store, config });
+  const pasteFlow = makePasteFlow({ apiClient, tokens, config, cleaner });
+  const myLoads = makeMyLoads({ apiClient, tokens, cleaner });
   const editor = makeEditor({ apiClient, tokens, draftAdapter: pasteFlow.draftAdapter });
 
   bot.use(session());
@@ -267,11 +272,22 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   const MENU_HANDLERS = {
     ai: (ctx) => ctx.reply(t(ctx.lang, 'paste_howto')),
     post: startPostload,
+    nearloads: (ctx) => nearby.start(ctx, 'loads'),
+    neartrucks: (ctx) => nearby.start(ctx, 'trucks'),
     myloads: (ctx) => myLoads.list(ctx),
     account: openAccount,
     language: openLanguage,
     help: sendWelcome,
   };
+  bot.command('nearloads', (ctx) => nearby.start(ctx, 'loads'));
+  bot.command('neartrucks', (ctx) => nearby.start(ctx, 'trucks'));
+  bot.on('location', (ctx) => (isPrivate(ctx) ? nearby.onLocation(ctx) : undefined)); // a location sent any time (button or paperclip) is a search "around me"
+  bot.action(/^near:more:(loads|trucks)$/, (ctx) => nearby.more(ctx, ctx.match[1]));
+  bot.action(/^near:mi:(loads|trucks):(\d+)$/, (ctx) => nearby.setRadius(ctx, ctx.match[1], Number(ctx.match[2])));
+  bot.action(/^near:upd:(loads|trucks)$/, (ctx) => nearby.update(ctx, ctx.match[1]));
+  bot.action('near:del', (ctx) => nearby.forget(ctx));
+  bot.action(/^chat:clear:([0-9a-f]+)$/, (ctx) => cleaner.clear(ctx, ctx.match[1]));
+  bot.hears(['❌ Cancel', '❌ Отмена', '❌ Bekor qilish'], (ctx) => (isPrivate(ctx) ? nearby.cancel(ctx) : undefined));
   bot.hears(MENU_TEXTS, (ctx) => (isPrivate(ctx) ? MENU_HANDLERS[menuAction(ctx.message.text)](ctx) : undefined));
   bot.action(/^paste:confirm:([0-9a-f-]+)$/, (ctx) => pasteFlow.handleConfirm(ctx, ctx.match[1]));
   bot.action(/^paste:contact:([0-9a-f-]+):(mine|keep|back)$/, (ctx) => pasteFlow.handleContactChoice(ctx, ctx.match[1], ctx.match[2]));

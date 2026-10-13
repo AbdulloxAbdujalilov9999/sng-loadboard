@@ -63,6 +63,19 @@ function setup({ taken = false, debounce = 0, count = 0, flood = 0, bulk = null,
     id: 7, originCity: 'Perm, RU', destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 22, volumeM3: 120, pickupDate: '2026-10-12', deliveryDate: null,
     distanceKm: 2675, rateUsd: 0, commodity: 'Ламинат', notes: 'Без перегруза · Срочно 🚀', company: 'Abdulloh', contactName: 'Abdulloh', contactPhone: '+998938747080', contactEmail: '', contactTelegram: '@Abdujalilov_077',
   }];
+  // a pretend board around the person: 12 loads / 3 trucks, nearest first, 10 per page
+  const near = { total: 12, trucks: 3, page(params, kind) {
+    const total = kind === 'trucks' ? near.trucks : near.total;
+    const start = params.cursor ? Number(params.cursor) : 0;
+    const end = Math.min(total, start + (params.limit ?? 50));
+    const items = Array.from({ length: end - start }, (_, k) => {
+      const i = start + k;
+      return kind === 'trucks'
+        ? { id: 500 + i, locCity: `Truckville ${i}`, destPref: 'Anywhere', equip: 'T', capacityT: 20, volumeM3: null, availableFrom: '2026-10-14', availableTo: null, minRateUsd: 0, hasTir: true, hasAdr: false, hasGps: false, sideLoading: false, notes: '', company: 'Fleet Co', contactPhone: '+998901112233', contactTelegram: '@fleet_co', dho: 5 + i * 3 }
+        : { id: 300 + i, originCity: `Near ${i}, UZ`, destCity: 'Moscow, RU', equip: 'T', fp: 'Full', weightT: 20, volumeM3: null, pickupDate: '2026-10-14', deliveryDate: null, distanceKm: 3000, rateUsd: 900, commodity: `Cargo ${i}`, notes: '', company: 'Near Co', contactName: 'Bek', contactPhone: '+998901112233', contactEmail: '', contactTelegram: '@near_co', dho: 5 + i * 3 };
+    });
+    return { items, total, nextCursor: end < total ? String(end) : null };
+  } };
   const apiClient = {
     listMine: async () => ({ items: loads }),
     updateLoad: async (_t, id, patch) => { calls.push(['update', id, patch]); if (patch.rateUsd === 999999) { const { ApiError } = await import('../src/apiClient.js'); throw new ApiError(400, 'validation_error', 'bad', [{ path: 'rateUsd', code: 'too_big' }]); } loads = loads.map((l) => (l.id === id ? { ...l, ...patch } : l)); return loads.find((l) => l.id === id); },
@@ -72,6 +85,8 @@ function setup({ taken = false, debounce = 0, count = 0, flood = 0, bulk = null,
     phoneRegister: async (body) => { calls.push(['register', body]); return { token: 'sess', expiresAt: '2099-01-01' }; },
     pinLogin: async () => ({ token: 'own-session', expiresAt: '2099-01-01' }),
     createLoginLink: async () => ({ code: 'CODE_ABC', expiresAt: '2099-01-01' }),
+    searchLoads: async (_t, params) => { calls.push(['searchLoads', params]); return near.page(params, 'loads'); },
+    searchTrucks: async (_t, params) => { calls.push(['searchTrucks', params]); return near.page(params, 'trucks'); },
     searchCities: async (_t, q) => (/^tom/i.test(q) ? { items: [{ id: 5, label: 'Tomsk, RU' }, { id: 6, label: 'Tomsk Oblast, RU' }] } : { items: [] }),
     getMe: async () => ({ profile: { id: 1, status: 'approved', company: 'Abdulloh', phone: '+998938747080', contactName: 'Abdulloh' } }),
     parseLoads: async (_t, text) => { parsed.push(text); if (parse) await parse(text, parsed.length); if (count) return { truncated: false, loads: Array.from({ length: count }, (_, i) => ({ originCityId: 1, originCity: 'Perm, RU', destCityId: 2, destCity: 'Andijan, UZ', equip: 'T', fp: 'Full', weightT: 20, volumeM3: null, pickupDate: '2026-10-12', rateUsd: 100 + i, commodity: `Yuk ${i + 1}`, notes: '', contactPhone: blankEvery && i % blankEvery === 0 ? '' : (foreignPhone ?? '+998938747080'), contactTelegram: '', contactName: blankEvery && i % blankEvery === 0 ? '' : (foreignPhone ? 'Karim' : ''), flags: [] })) }; return ({ truncated: false, loads: [
@@ -80,9 +95,15 @@ function setup({ taken = false, debounce = 0, count = 0, flood = 0, bulk = null,
     ] }); },
     createLoadsBulk: async (_t, bodies) => { calls.push(['bulk', bodies]); if (bulk) await bulk(bodies, calls.filter((c) => c[0] === 'bulk').length); return { items: bodies.map((b, i) => ({ id: 100 + i, originCity: 'x', destCity: 'y', pickupDate: b.pickupDate, rateUsd: b.rateUsd })) }; },
   };
-  const config = { botToken: '123:test', broadcastLang: 'uz', joinChannel: '', joinGroup: '', aiMaxPerMin: 600, pendingTtlMin: 15, pasteDebounceMs: debounce, draftGapMs: 0, sleep: async () => {}, webBaseUrl: 'https://x', webUrlIsPublic: true };
-  const state = { link: null, removed: 0, lang: null, saved: null };
-  const store = { getLanguage: async () => state.lang, setLanguage: async (_id, l) => { state.lang = l; }, getLinkByTelegramUserId: async () => state.link, removeLink: async () => { state.removed += 1; return true; }, saveLink: async (l) => { state.saved = l; } };
+  const config = { botToken: '123:test', broadcastLang: 'uz', joinChannel: '', joinGroup: '', aiMaxPerMin: 600, pendingTtlMin: 15, pasteDebounceMs: debounce, draftGapMs: 0, nearGapMs: 0, cleanGapMs: 0, sleep: async () => {}, webBaseUrl: 'https://x', webUrlIsPublic: true };
+  const state = { link: null, removed: 0, lang: null, saved: null, geo: { lat: null, lng: null, at: null, miles: 100 }, sentRows: {}, deletedRows: [] };
+  const store = { getLanguage: async () => state.lang, setLanguage: async (_id, l) => { state.lang = l; }, getLinkByTelegramUserId: async () => state.link, removeLink: async () => { state.removed += 1; return true; }, saveLink: async (l) => { state.saved = l; },
+    getGeo: async () => ({ ...state.geo }),
+    setGeo: async (_id, g) => { state.geo = { ...state.geo, lat: g.lat, lng: g.lng, at: new Date(), language: g.language }; },
+    clearGeo: async () => { state.geo = { lat: null, lng: null, at: null, miles: state.geo.miles }; },
+    setGeoMiles: async (_id, mi) => { state.geo = { ...state.geo, miles: mi }; },
+    listSentMessages: async (loadId) => state.sentRows[loadId] ?? [],
+    deleteSentMessages: async (loadId) => { state.deletedRows.push(loadId); delete state.sentRows[loadId]; } };
   const bot = makeBot({ config, firebaseAuth: {}, apiClient, tokens: { getIdToken: async () => 'tok', invalidate() {} }, store });
   bot.botInfo = { id: 123, is_bot: true, first_name: 'sng', username: 'sng_test_bot' };
   let sends = 0; let floods = 0;
@@ -95,17 +116,19 @@ function setup({ taken = false, debounce = 0, count = 0, flood = 0, bulk = null,
   const say = (text) => bot.handleUpdate({ update_id: ++n, message: { message_id: n, date: 0, text, from, chat: { id: 77, type: 'private' }, ...(text.startsWith('/') ? { entities: [{ type: 'bot_command', offset: 0, length: text.split(/\s/)[0].length }] } : {}) } });
   const press = (data) => bot.handleUpdate({ update_id: ++n, callback_query: { id: String(n), from, chat_instance: 'x', data, message: { message_id: 50, date: 0, chat: { id: 77, type: 'private' }, text: 'card' } } });
   const last = (method) => sent.filter((s) => s.method === method).at(-1);
+  const lastCard = () => sent.filter((s) => s.method === 'sendMessage' && /Perm, RU → Andijan/.test(s.text)).at(-1);
   const buttons = (s) => (s?.reply_markup?.inline_keyboard ?? []).flat().map((b) => b.callback_data);
   const keyboardOf = (m) => (m?.reply_markup?.keyboard ?? []).map((row) => row.map((b) => b.text ?? b));
   const deleted = () => sent.filter((x) => x.method === 'deleteMessage');
   const share = (phone) => bot.handleUpdate({ update_id: ++n, message: { message_id: n, date: 0, contact: { phone_number: phone, user_id: 77, first_name: 'Bek' }, from, chat: { id: 77, type: 'private' } } });
-  return { say, share, press, last, calls, sent, buttons, state, keyboardOf, parsed, deleted, floods: () => floods };
+  const location = (latitude, longitude) => bot.handleUpdate({ update_id: ++n, message: { message_id: n, date: 0, location: { latitude, longitude }, from, chat: { id: 77, type: 'private' } } });
+  return { say, share, location, near, press, last, lastCard, calls, sent, buttons, state, keyboardOf, parsed, deleted, floods: () => floods };
 }
 
 test('/myloads shows the whole load with Edit, Renew and Delete buttons', async () => {
-  const { say, last, buttons } = setup();
+  const { say, lastCard, buttons } = setup();
   await say('/myloads');
-  const card = last('sendMessage');
+  const card = lastCard();
   assert.match(card.text, /Perm, RU → Andijan, UZ/);
   assert.match(card.text, /Ламинат/);
   assert.match(card.text, /22 t · 120 m³/);
@@ -245,15 +268,15 @@ test('a pasted post: every load is its own message with Edit / Remove; fixes and
 });
 
 test('the bottom menu: /start brings it, every button does what its command did, in the person\'s language', async () => {
-  const { say, last, keyboardOf, sent, state, press, buttons } = setup();
+  const { say, last, lastCard, keyboardOf, sent, state, press, buttons } = setup();
   await say('/start');
   const welcome = last('sendMessage');
-  assert.deepEqual(keyboardOf(welcome), [['📋 AI bilan joylash', '✍️ Bosqichma-bosqich'], ['📦 Mening yuklarim', '👤 Hisobim'], ['🌐 Til', 'ℹ️ Yordam']]);
+  assert.deepEqual(keyboardOf(welcome), [['📋 AI bilan joylash', '✍️ Bosqichma-bosqich'], ['📍 Yaqin yuklar', '🚚 Yaqin mashinalar'], ['📦 Mening yuklarim', '👤 Hisobim'], ['🌐 Til', 'ℹ️ Yordam']]);
   assert.equal(welcome.reply_markup.is_persistent, true, 'it stays at the bottom of the chat');
   assert.doesNotMatch(welcome.text, /\/link|\/postload|\/myloads/, 'the welcome talks about buttons, not commands');
 
   await say('📦 Mening yuklarim');
-  assert.match(last('sendMessage').text, /Perm, RU → Andijan, UZ/, 'My loads lists the load cards');
+  assert.match(lastCard().text, /Perm, RU → Andijan, UZ/, 'My loads lists the load cards');
   await say('📋 AI bilan joylash');
   assert.match(last('sendMessage').text, /Yuk postini shu yerga joylang/);
   await say('ℹ️ Yordam');
@@ -276,17 +299,17 @@ test('the bottom menu: /start brings it, every button does what its command did,
   // language: the labels change with it
   await say('🌐 Til');
   await press('lang:ru');
-  assert.deepEqual(keyboardOf(last('sendMessage')), [['📋 Через AI', '✍️ По шагам'], ['📦 Мои грузы', '👤 Мой аккаунт'], ['🌐 Язык', 'ℹ️ Помощь']]);
+  assert.deepEqual(keyboardOf(last('sendMessage')), [['📋 Через AI', '✍️ По шагам'], ['📍 Грузы рядом', '🚚 Машины рядом'], ['📦 Мои грузы', '👤 Мой аккаунт'], ['🌐 Язык', 'ℹ️ Помощь']]);
   await say('📦 Мои грузы'); // the Russian label works too
-  assert.match(sent.filter((s) => s.method === 'sendMessage').at(-1).text, /Perm, RU/);
+  assert.match(lastCard().text, /Perm, RU/);
 });
 
 test('a menu button ends a dialogue that is open: it is never taken as the answer to its question', async () => {
-  const { say, press, last, calls } = setup();
+  const { say, press, last, lastCard, calls } = setup();
   await say('✍️ Bosqichma-bosqich'); // starts the step-by-step posting: asks for the pickup city
   assert.match(last('sendMessage').text, /QAYERDAN/);
   await say('📦 Mening yuklarim');
-  assert.match(last('sendMessage').text, /Perm, RU → Andijan, UZ/, 'the wizard did not swallow the tap');
+  assert.match(lastCard().text, /Perm, RU → Andijan, UZ/, 'the wizard did not swallow the tap');
   await say('1500'); // no dialogue is open any more: this is just text
   assert.ok(!last('sendMessage').text.includes('QAYERGA'), 'the posting dialogue is closed');
 
@@ -471,7 +494,7 @@ test('a post with SOMEONE ELSE\'s contact: the bot asks whose contact the loads 
   assert.deepEqual([...new Set(kept.map((b) => b.contactPhone))], ['+998901112233'], 'all four carry the sender\'s number, including the one that had none');
   assert.ok(kept.every((b) => b.contactName === 'Karim'));
   assert.match(sent.filter((s) => s.method === 'editMessageText').at(-1).text, /4 ta yuk joylandi/);
-  assert.ok(!buttons({ reply_markup: sent.filter((s) => s.method === 'editMessageText' && /joylandi/.test(s.text)).at(-1).reply_markup }).length, 'the Post button is gone from the bottom message too');
+  assert.ok(!buttons({ reply_markup: sent.filter((s) => s.method === 'editMessageText' && /joylandi/.test(s.text)).at(-1).reply_markup }).some((b) => b.startsWith('paste:')), 'the Post button is gone from the bottom message too (only «clear from chat» is left)');
 });
 
 test('"replace with mine": every load shows the member\'s own contact', async () => {
@@ -557,7 +580,7 @@ test('sign up: a number that already has an account is turned away kindly; /canc
   const m = setup();
   await m.say('👤 Hisobim'); await m.press('acct:signup'); await m.say('Karim');
   await m.say('📦 Mening yuklarim'); // a menu button ends the sign-up
-  assert.match(m.last('sendMessage').text, /Perm, RU/);
+  assert.match(m.lastCard().text, /Perm, RU/);
   await m.say('90 123 45 67');
   assert.equal(m.calls.filter((x) => x[0] === 'register').length, 0);
 
@@ -575,4 +598,115 @@ test('"open the website" from My account makes a fresh one-time link', async () 
   const m = last('sendMessage');
   assert.match(m.text, /15 daqiqa/);
   assert.equal(m.reply_markup.inline_keyboard[0][0].url, 'https://x/?login=CODE_ABC');
+});
+
+const cards = (sent, re) => sent.filter((x) => x.method === 'sendMessage' && re.test(x.text ?? ''));
+
+test('near me in Telegram: share the location once, then loads within 100 miles, nearest first, each as its own message', async () => {
+  const { say, location, press, last, calls, sent, state, buttons, keyboardOf } = setup();
+  await say('📍 Yaqin yuklar');
+  const ask = last('sendMessage');
+  assert.match(ask.text, /joylashuvingiz kerak/);
+  assert.ok(JSON.stringify(ask.reply_markup).includes('request_location'), 'Telegram\'s own "share location" button');
+  assert.equal(calls.filter((c) => c[0] === 'searchLoads').length, 0, 'nothing is searched before the person shares');
+
+  await location(41.30004, 69.24049);
+  assert.equal(state.geo.lat, 41.3, 'the position is rounded (about 10 m) and saved');
+  assert.equal(state.geo.language, 'uz', 'a new row is created in the person\'s own language, not a default one');
+  assert.ok(keyboardOf(sent.filter((x) => x.method === 'sendMessage' && x.reply_markup?.keyboard).at(-1)).flat().includes('📍 Yaqin yuklar'), 'the share keyboard is replaced by the menu again');
+  const search = calls.find((c) => c[0] === 'searchLoads')[1];
+  assert.deepEqual([search.nearLat, search.nearLng, search.originRadius, search.sort, search.dir, search.limit], [41.3, 69.2405, 161, 'nearest', 'asc', 10], '100 miles = 161 km, nearest first, 10 per page');
+
+  const header = sent.filter((x) => x.method === 'sendMessage' && /Sizdan 100 mil ichidagi yuklar: 12 ta/.test(x.text)).at(-1);
+  assert.ok(header, 'the header says how many there are');
+  assert.deepEqual(buttons(header), ['near:mi:loads:25', 'near:mi:loads:50', 'near:mi:loads:100', 'near:mi:loads:200', 'near:mi:loads:300', 'near:upd:loads', 'near:del']);
+  assert.match(header.reply_markup.inline_keyboard[0][2].text, /^✓ 100/, 'the current radius is marked');
+  const found = cards(sent, /Near \d+, UZ → Moscow/);
+  assert.equal(found.length, 10, 'ten loads, each its own message');
+  assert.match(found[0].text, /📍 sizdan 5 km \(3 mil\)/);
+  assert.match(found[1].text, /📍 sizdan 8 km/);
+  assert.deepEqual(found[0].reply_markup.inline_keyboard[0].map((b) => b.url), ['https://t.me/near_co', 'https://x/?load=300'], 'contact on Telegram + the load on the board');
+  const more = last('sendMessage');
+  assert.match(more.text, /yana 2 ta/);
+  assert.deepEqual(buttons(more), ['near:more:loads']);
+
+  await press('near:more:loads');
+  assert.equal(calls.filter((c) => c[0] === 'searchLoads').at(-1)[1].cursor, '10', 'the next page continues where the first stopped');
+  assert.equal(cards(sent, /Near \d+, UZ → Moscow/).length, 12);
+
+  // a different radius searches again with it, and is remembered
+  await press('near:mi:loads:25');
+  assert.equal(calls.filter((c) => c[0] === 'searchLoads').at(-1)[1].originRadius, 40);
+  assert.equal(state.geo.miles, 25);
+  // the next time no question: the saved position is used
+  await say('📍 Yaqin yuklar');
+  assert.equal(calls.filter((c) => c[0] === 'searchLoads').at(-1)[1].nearLat, 41.3);
+});
+
+test('near me: trucks use the same position with locRadius; nothing found offers a bigger radius; the position can be deleted', async () => {
+  const { say, location, press, last, calls, sent, state, buttons, near } = setup();
+  await say('🚚 Yaqin mashinalar');
+  assert.match(last('sendMessage').text, /mashinalarni/);
+  await location(41.3, 69.24);
+  const q = calls.find((c) => c[0] === 'searchTrucks')[1];
+  assert.deepEqual([q.locRadius, q.originRadius, q.sort], [161, undefined, 'nearest']);
+  const truck = cards(sent, /Truckville 0/)[0];
+  assert.match(truck.text, /🚚 <b>Truckville 0<\/b> → Istalgan joy/, '"Anywhere" is shown in Uzbek');
+  assert.match(truck.text, /📍 sizdan 5 km/);
+  assert.match(truck.text, /TIR/);
+
+  near.trucks = 0;
+  await press('near:mi:trucks:50');
+  assert.match(last('sendMessage').text, /50 mil ichida mashina yoʻq/);
+  assert.ok(buttons(last('sendMessage')).includes('near:mi:trucks:300'), 'a bigger radius is one tap away');
+
+  await press('near:del');
+  assert.equal(state.geo.lat, null, 'the position is gone');
+  assert.match(last('sendMessage').text, /Joylashuvingiz oʻchirildi/);
+  await say('🚚 Yaqin mashinalar');
+  assert.match(last('sendMessage').text, /joylashuvingiz kerak/, 'asks again');
+  await say('❌ Bekor qilish');
+  assert.match(last('sendMessage').text, /Bekor qilindi/);
+});
+
+test('a location sent any time is a "near me" search (and a group never gets one)', async () => {
+  const { location, calls } = setup();
+  await location(41.3, 69.24);
+  assert.equal(calls.filter((c) => c[0] === 'searchLoads').length, 1, 'loads by default');
+});
+
+test('«Clear from chat»: removes the review, the copies and the pasted posts from the chat - never the loads', async () => {
+  const { say, press, last, calls, sent, state, buttons } = setup({ count: 3 });
+  state.sentRows = { 100: [{ chat_id: 77, message_id: 9001 }], 101: [{ chat_id: 77, message_id: 9002 }, { chat_id: -555, message_id: 7 }] }; // the copies the broadcaster sent (ids 100.. from the fake API)
+  await say('Perm Andijan Ламинат 22 тонн +998938747080');
+  const confirm = buttons(sent.filter((x) => x.method === 'sendMessage' && buttons(x).some((b) => b.startsWith('paste:confirm'))).at(-1))[0];
+  await press(confirm);
+  const summary = sent.filter((x) => x.method === 'editMessageText').at(-1);
+  assert.match(summary.text, /3 ta yuk joylandi/);
+  const clear = buttons({ reply_markup: summary.reply_markup }).find((b) => b.startsWith('chat:clear:'));
+  assert.ok(clear, '«Chatdan tozalash» comes with the confirmation');
+  assert.match(summary.reply_markup.inline_keyboard[0][0].text, /Chatdan tozalash/);
+
+  await press(clear);
+  const deleted = sent.filter((x) => x.method === 'deleteMessage').map((x) => x.message_id);
+  assert.ok(deleted.length >= 5, `${deleted.length} messages removed (3 loads + their copies + the pasted post)`);
+  assert.ok(deleted.includes(9001) && deleted.includes(9002), 'the copies of the loads in this chat');
+  assert.ok(!deleted.includes(7), 'never a message in another chat');
+  assert.ok(sent.filter((x) => x.method === 'deleteMessage').every((x) => x.chat_id === 77));
+  assert.equal(calls.filter((c) => c[0] === 'delete').length, 0, 'NO load was deleted - they stay on the board, in the groups and in My loads');
+  assert.deepEqual(state.deletedRows.sort(), [100, 101, 102], 'the bot forgets the removed chat messages (it must not try again)');
+  assert.match(sent.filter((x) => x.method === 'editMessageText').at(-1).text, /Chat tozalandi[\s\S]*Mening yuklarim/);
+  await press(clear);
+  assert.match(sent.filter((x) => x.method === 'editMessageText').at(-1).text, /tozalaydigan narsa qolmadi/, 'a second tap does nothing');
+});
+
+test('/myloads: the list can be cleared from the chat too - the loads stay', async () => {
+  const { say, press, calls, sent, buttons } = setup();
+  await say('/myloads');
+  const tail = sent.filter((x) => x.method === 'sendMessage').at(-1);
+  const clear = buttons(tail).find((b) => b.startsWith('chat:clear:'));
+  assert.ok(clear);
+  await press(clear);
+  assert.ok(sent.filter((x) => x.method === 'deleteMessage').length >= 2, 'header + the card');
+  assert.equal(calls.filter((c) => c[0] === 'delete').length, 0);
 });

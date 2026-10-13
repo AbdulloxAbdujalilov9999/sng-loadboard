@@ -40,6 +40,10 @@ export function makeApiClient({ baseUrl }) {
   const createLoadsBulk = (idToken, loads) => request(idToken, 'POST', '/api/loads/bulk', { loads });
   const parseLoads = (idToken, text) => request(idToken, 'POST', '/api/ai/parse-loads', { text });
   // Used by /myloads (bot.js): everything this member has posted, so they can delete one from the chat.
+  // Searching the board from Telegram: the same endpoints the website uses, with the person's position ("near me", nearest first).
+  const query = (params) => { const q = new URLSearchParams(); for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== '') q.set(k, v); return q.toString(); };
+  const searchLoads = (idToken, params) => request(idToken, 'GET', `/api/loads?${query(params)}`);
+  const searchTrucks = (idToken, params) => request(idToken, 'GET', `/api/trucks?${query(params)}`);
   const listMine = (idToken) => request(idToken, 'GET', '/api/loads/mine');
   // Soft-close (server/src/routes/loads.js DELETE route) - the same call the web app's "Remove" button
   // makes. Publishes a 'loads'/'delete' event, which broadcaster.js uses to pull the load's messages
@@ -59,5 +63,5 @@ export function makeApiClient({ baseUrl }) {
   // Trades a still-valid PIN session for a fresh one, so a linked member never has to /link again just because time passed.
   const refreshSession = (token) => request(token, 'POST', '/api/auth/refresh', {});
 
-  return { getMe, searchCities, createLoad, createLoadsBulk, parseLoads, listMine, deleteLoad, updateLoad, renewLoad, phoneRegister, phoneCheck, createLoginLink, pinLogin, refreshSession };
+  return { getMe, searchCities, createLoad, createLoadsBulk, parseLoads, listMine, deleteLoad, updateLoad, renewLoad, searchLoads, searchTrucks, phoneRegister, phoneCheck, createLoginLink, pinLogin, refreshSession };
 }

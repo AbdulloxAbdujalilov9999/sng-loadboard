@@ -20,7 +20,7 @@ async function main() {
   const store = makeStore(pool, crypto);
   const tokens = makeTokenManager({ store, firebaseAuth, apiClient });
   const bot = makeBot({ config, firebaseAuth, apiClient, tokens, store });
-  const broadcaster = makeBroadcaster({ config, pool, store, bot });
+  const broadcaster = makeBroadcaster({ config, pool, store, bot, suppressOwner: (loadId) => bot.chatCleaner.isHidden(loadId) });
 
   await broadcaster.start();
   await publishBotProfile(bot.telegram);

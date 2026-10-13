@@ -115,6 +115,10 @@ Privacy/safety: pasted text (including phone numbers) is sent to Google's Gemini
 
 Everything accepts Cyrillic: pasted posts, notes, company names, free-text search. Search is case-insensitive for Cyrillic regardless of the database locale (migration `009_text_fold.sql` adds `sng_fold()`; the database must be UTF8 - the migration refuses to run otherwise). City boxes understand Russian names and endings ("в Москве"), a country typed after the name ("ташкент уз"), nicknames ("Питер"), regions ("Хоразм") and text typed with the wrong keyboard layout ("Vjcrdf" -> Москва). Phones and tablets (under 1200px) use the card layout and the drawer menu.
 
+### Near me
+
+The board can search around the person: «📍 Near me» next to the origin of the loads search and the location of the trucks search, and «📍 Nearby loads / 🚚 Nearby trucks» in the Telegram bot. Everyone is asked once (a banner on the search pages, the browser's own permission box, or Telegram's share-location button); the position stays in the browser / in the bot's own record, can be forgotten any time (Settings → Location, or the bot's «delete my location» button) and is used only for the search. The API takes `nearLat` / `nearLng` (rounded to ~1 km on arrival) with `originRadius` (loads) / `locRadius` (trucks) in km; the screens speak miles (default 100 mi = 161 km, 25-300 mi) and `sort=nearest` lists the closest first with the distance (`dho`).
+
 ### Loads remove themselves
 
 A load leaves the board 14 days after it was posted (most people never set a load date, and nobody posts freight further ahead), so old freight never piles up. The owner can switch this off or change the number of days (1-30) on the Members page ("Automatic removal of loads"); a shorter limit is applied at once. A background job (every minute, safe to run on many workers at once) closes the expired loads; members can press **Renew** on a load that is still available to start its clock again (the removal time is not shown). Closed posts are purged from the database after 90 days.

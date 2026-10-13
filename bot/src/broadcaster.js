@@ -14,7 +14,7 @@ const CHANNEL = 'sng_events';
 
 const defaultSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export function makeBroadcaster({ config, pool, store, bot, log = console, sleep = defaultSleep }) {
+export function makeBroadcaster({ config, pool, store, bot, log = console, sleep = defaultSleep, suppressOwner = () => false }) {
   let listener = null; // the currently-live LISTEN client, or null while reconnecting
   let closed = false;
   let retryMs = 500;
@@ -91,6 +91,7 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     if (batch[0].own) {
       // The poster's own chat: tracked, so closing the load later pulls its message back out (see handleDelete).
       const [item] = batch;
+      if (suppressOwner(item.loadId)) return; // cleared from the chat while it was still on its way
       const lang = (await store.getLanguage?.(chatId)) ?? config.broadcastLang;
       await pace(chatId, config.broadcastOwnerGapMs);
       const sent = await sendWithRetry(chatId, item.text + groupSuffix(), loadKeyboard(lang, item.loadId));

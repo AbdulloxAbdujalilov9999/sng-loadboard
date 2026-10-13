@@ -133,3 +133,26 @@ export function formatPostedLine(row, lang, webBaseUrl, webUrlIsPublic) {
   const link = `${webBaseUrl}/?load=${row.id}`;
   return `• <a href="${escapeHtml(link)}">${base}</a>`;
 }
+
+/** "📍 12 km (7 mi) from you" - how far a search result is from the person's own position. */
+export const distanceLine = (km, lang = 'en') => (km == null ? null : t(lang, 'near_km_line', { km, mi: Math.round(km / 1.609344) }));
+
+/** An available truck (the API's camelCase shape, GET /api/trucks) as a card. */
+export function formatTruckMessage(x, lang = 'en', { km = null } = {}) {
+  const dest = String(x.destPref ?? '').replace(/\bany(?:where|\s+direction)\b/gi, () => t(lang, 'msg_anywhere'));
+  const lines = [`🚚 <b>${escapeHtml(x.locCity)}</b> → ${escapeHtml(dest)}`];
+  const away = distanceLine(km, lang);
+  if (away) lines.push(away);
+  lines.push('', `🔧 ${t(lang, `eq_${x.equip}`)}`, `⚖️ ${Number(x.capacityT)} t${x.volumeM3 ? ` · ${x.volumeM3} m³` : ''}`);
+  lines.push(`📅 ${x.availableTo ? t(lang, 'msg_truck_free_range', { from: x.availableFrom, to: x.availableTo }) : t(lang, 'msg_truck_free', { date: x.availableFrom })}`);
+  lines.push(`💰 ${x.minRateUsd ? `${t(lang, 'msg_truck_min')} $${Number(x.minRateUsd).toLocaleString('en-US')}` : t(lang, 'msg_negotiable')}`);
+  const flags = [x.hasTir && 'TIR', x.hasAdr && 'ADR', x.hasGps && 'GPS', x.sideLoading && t(lang, 'msg_side_loading')].filter(Boolean);
+  if (flags.length) lines.push(`✅ ${flags.join(' · ')}`);
+  const notes = formatNotes(x.notes, lang);
+  if (notes.length) lines.push('', ...notes);
+  lines.push('');
+  if (x.company) lines.push(`👤 ${escapeHtml(x.company)}`);
+  if (x.contactPhone) lines.push(`📞 ${escapeHtml(x.contactPhone)}`);
+  if (x.contactTelegram) lines.push(`✈️ ${escapeHtml(x.contactTelegram)}`);
+  return lines.join('\n');
+}

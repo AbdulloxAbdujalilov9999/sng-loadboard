@@ -137,7 +137,7 @@ export function applyDraftPatch(draft, patch) {
 const batchOf = (nonce) => nonce.slice(0, 8);
 const routeOf = (d) => `${d.originCity || d.originText || '?'} → ${d.destCity || d.destText || '?'}`;
 
-export function makePasteFlow({ apiClient, tokens, config, log = console }) {
+export function makePasteFlow({ apiClient, tokens, config, cleaner = null, log = console }) {
   const rateLimiter = makeRateLimiter(config.aiMaxPerMin);
   // telegramUserId -> (batch -> { nonce, drafts, member, createdAt, chatId, msgIds[], footerMsgId }). A person can have several open
   // reviews at once (the Post button of an earlier paste keeps working when they paste again); the oldest is dropped past MAX_OPEN.
@@ -329,17 +329,18 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
   function handleText(ctx, textOverride) {
     if (ctx.chat.type !== 'private') return undefined; // never read group chatter, only this member's own DM
     const text = (textOverride ?? ctx.message.text).trim();
-    if (debounceMs <= 0) return readPaste(ctx, text);
+    if (debounceMs <= 0) return readPaste(ctx, text, [ctx.message?.message_id]);
     const userId = ctx.from.id;
-    const c = collecting.get(userId) ?? { texts: [], since: Date.now(), timer: null };
+    const c = collecting.get(userId) ?? { texts: [], ids: [], since: Date.now(), timer: null };
     collecting.set(userId, c);
     c.texts.push(text);
+    c.ids.push(ctx.message?.message_id);
     c.ctx = ctx;
     clearTimeout(c.timer);
     const wait = Math.min(debounceMs, Math.max(0, MAX_COLLECT_MS - (Date.now() - c.since)));
     c.timer = setTimeout(() => {
       collecting.delete(userId);
-      readPaste(c.ctx, c.texts.join('\n\n').slice(0, MAX_PASTE_CHARS)).catch((err) => {
+      readPaste(c.ctx, c.texts.join('\n\n').slice(0, MAX_PASTE_CHARS), c.ids).catch((err) => {
         log.error?.(`paste failed: ${err.message}`);
         c.ctx.reply(t(c.ctx.lang, 'generic_error')).catch(() => {});
       });
@@ -347,9 +348,9 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     return undefined;
   }
 
-  const readPaste = (ctx, text) => serial(ctx.from.id, () => readPasteNow(ctx, text));
+  const readPaste = (ctx, text, sourceIds = []) => serial(ctx.from.id, () => readPasteNow(ctx, text, sourceIds));
 
-  async function readPasteNow(ctx, text) {
+  async function readPasteNow(ctx, text, sourceIds = []) {
     if (text.length < MIN_PASTE_CHARS) return ctx.reply(t(ctx.lang, 'paste_too_short')); // not a load post: say how it works instead of staying silent
 
     let idToken, member;
@@ -389,6 +390,7 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
       addEntry(ctx.from.id, entry);
     }
     entry.member = member;
+    entry.sourceMsgIds = [...(entry.sourceMsgIds ?? []), ...sourceIds.filter(Boolean)]; // the pasted posts themselves: «Clear from chat» removes them too
     entry.contactChoice = null; // new posts may carry a new contact: ask again at Post
     const room = Math.max(0, MAX_BATCH - entry.drafts.length);
     const incoming = loads.slice(0, room);
@@ -444,7 +446,7 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     const mine = [entry.member.phone, entry.member.telegram].filter(Boolean).join(' · ') || '-';
     const list = foreign.slice(0, 5).map((c) => `• ${escapeHtml([c.contactName, c.contactPhone, c.contactTelegram].filter(Boolean).join(' · '))} - ${t(ctx.lang, 'paste_contact_count', { n: c.count })}`).join('\n');
     const nonce = entry.nonce;
-    return ctx.reply(t(ctx.lang, 'paste_contact_ask', { list, mine: escapeHtml(mine) }), {
+    const question = await ctx.reply(t(ctx.lang, 'paste_contact_ask', { list, mine: escapeHtml(mine) }), {
       parse_mode: 'HTML',
       ...Markup.inlineKeyboard([
         [Markup.button.callback(t(ctx.lang, 'paste_contact_btn_mine'), `paste:contact:${nonce}:mine`)],
@@ -452,6 +454,8 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
         [Markup.button.callback(t(ctx.lang, 'paste_btn_cancel'), `paste:contact:${nonce}:back`)],
       ]),
     });
+    entry.questionMsgIds = [...(entry.questionMsgIds ?? []), question?.message_id].filter(Boolean);
+    return question;
   }
 
   async function handleContactChoice(ctx, nonce, choice) {
@@ -513,6 +517,7 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
           const { items } = await apiClient.createLoadsBulk(idToken, postable.map((d) => toLoadBody(d, member, { contactMode: entry.contactChoice, common })));
           postable.forEach((d) => { d.posted = true; });
           postedCount += items.length;
+          entry.postedIds = [...(entry.postedIds ?? []), ...items.map((i) => i.id)];
           postable = [];
         } catch (err) {
           const bad = err instanceof ApiError && err.status === 400 ? failingIndexes(err) : new Map();
@@ -544,7 +549,16 @@ export function makePasteFlow({ apiClient, tokens, config, log = console }) {
     dropEntry(ctx.from.id, entry);
     const skipped = live.length - postedCount;
     if (skipped > 0) lines.push(t(ctx.lang, 'paste_skip_note', { count: skipped }).trim());
-    return showResult(ctx, entry, lines.join('\n\n'), null);
+    // «Clear from chat»: removes everything of this paste from the chat (review, copies of the loads, the pasted posts) and nothing else.
+    let keyboard = null;
+    if (cleaner) {
+      const token = cleaner.register({
+        userId: ctx.from.id, chatId: entry.chatId, loadIds: entry.postedIds ?? [],
+        msgIds: [...entry.msgIds, entry.footerMsgId, ...(entry.sourceMsgIds ?? []), ...(entry.questionMsgIds ?? [])],
+      });
+      keyboard = Markup.inlineKeyboard([[Markup.button.callback(t(ctx.lang, 'chat_clear_btn'), `chat:clear:${token}`)]]);
+    }
+    return showResult(ctx, entry, lines.join('\n\n'), keyboard);
   }
 
   async function handleCancel(ctx, nonce) {
