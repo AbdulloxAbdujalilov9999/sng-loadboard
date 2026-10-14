@@ -63,7 +63,9 @@ test('security headers are set; Google popup sign-in is not broken by COOP', asy
   assert.equal(res.headers['x-content-type-options'], 'nosniff');
   assert.equal(res.headers['cross-origin-opener-policy'], 'same-origin-allow-popups');
   assert.ok(res.headers['content-security-policy-report-only'], 'CSP ships in report-only until CSP_ENFORCE=true');
-  assert.match(res.headers['content-security-policy-report-only'], /frame-ancestors 'none'/);
+  // Not 'none': the Telegram Mini App build allows web.telegram.org to frame the page (Telegram Web's own
+  // embedding), nothing else - see cspDirectives() in server/src/app.js.
+  assert.match(res.headers['content-security-policy-report-only'], /frame-ancestors https:\/\/web\.telegram\.org/);
   assert.match(res.headers['content-security-policy-report-only'], /script-src[^;]*recaptcha/, 'phone sign-in needs reCAPTCHA');
   assert.equal(res.headers['x-powered-by'], undefined);
 });

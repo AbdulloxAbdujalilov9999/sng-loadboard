@@ -1,15 +1,20 @@
 # One-click deploy on Render (https://render.com): New + > Blueprint > pick this repository.
 # Creates a PostgreSQL database, the web service, and the Telegram bot worker, and wires them together.
 # You will be asked for the secrets marked "sync: false". Check Render's current plan names and prices.
+#
+# This is the sng-miniapp TEST deployment: its own database, its own service names, fully isolated
+# from the sng-one / sng-loadboard production deployment (see that repo's render.yaml). Nothing here
+# shares data with the live site. The ingest bot (a separate, optional service in the main deployment)
+# is intentionally left out - copy it over from sng-loadboard/render.yaml if you want it here too.
 databases:
-  - name: sng-db
+  - name: sng-miniapp-db
     plan: basic-256mb
-    databaseName: sng
-    user: sng
+    databaseName: sng_miniapp
+    user: sng_miniapp
 
 services:
   - type: web
-    name: sng-one
+    name: sng-miniapp
     runtime: docker
     plan: starter            # always-on (a free web service sleeps, which would drop live connections)
     healthCheckPath: /healthz
@@ -18,7 +23,7 @@ services:
         value: production
       - key: DATABASE_URL
         fromDatabase:
-          name: sng-db
+          name: sng-miniapp-db
           property: connectionString
       - key: TRUST_PROXY
         value: "true"
@@ -28,11 +33,17 @@ services:
         sync: false          # e.g. abdujalilov7707@gmail.com
       - key: GEMINI_API_KEY
         sync: false          # from https://aistudio.google.com/apikey (use a NEW key, not one shared in chat)
+      - key: AUTH_SECRET
+        sync: false          # 32+ random bytes: openssl rand -base64 48 - required in production (phone+PIN
+                             # sign-in AND Telegram Mini App sign-in both depend on this)
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false          # same token as the bot worker below - needed here too, to verify the signed
+                             # data a Telegram Mini App sends on launch
 
-  # The Telegram bot: links members by e-mail+password, posts /postload loads through the API
-  # above, and broadcasts every new load to every group/channel it has been added to.
+  # The Telegram bot: links members by phone+PIN, posts /postload loads through the API above,
+  # broadcasts new loads to groups, and launches the Mini App (/app, and the chat menu button).
   - type: worker
-    name: sng-one-telegram-bot
+    name: sng-miniapp-telegram-bot
     runtime: docker
     dockerCommand: node bot/src/index.js
     plan: starter
@@ -41,54 +52,20 @@ services:
         value: production
       - key: DATABASE_URL
         fromDatabase:
-          name: sng-db
+          name: sng-miniapp-db
           property: connectionString
       - key: API_BASE_URL
-        sync: false           # the sng-one web service's Render-internal address, e.g. http://sng-one:10000
+        sync: false           # the sng-miniapp web service's Render-internal address, e.g. http://sng-miniapp:10000
                                # (Render shows this under that service -> Connect -> Internal; confirm the port it prints)
       - key: PUBLIC_WEB_URL
-        sync: false           # the sng-one service's PUBLIC address (e.g. https://sng-one.onrender.com or your
-                               # domain) - used to build each load's "view on the loadboard" link; must be
-                               # reachable from a browser, unlike API_BASE_URL above
+        value: https://sng-miniapp.onrender.com   # update if Render gave the service a different URL
+      - key: MINIAPP_URL
+        value: https://sng-miniapp.onrender.com   # same address: the web service also serves the Mini App's web/
       - key: TELEGRAM_BOT_TOKEN
-        sync: false           # from @BotFather on Telegram
+        sync: false           # from @BotFather on Telegram - the same value you set on sng-miniapp above
       - key: FIREBASE_WEB_API_KEY
         value: AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg   # public by design - see web/js/config.js
       - key: BOT_ENCRYPTION_KEY
         sync: false           # 32 random bytes, base64: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
       - key: BOT_BROADCAST_LANG
         value: uz              # en/ru/uz - language used for messages broadcast to groups
-      - key: BOT_JOIN_CHANNEL
-        value: sngOne_yuklar   # our own channel, invited in bot messages - optional
-      - key: BOT_JOIN_GROUP
-        value: sngOne_yuklarr  # our own group, invited in bot messages - optional
-
-  # The Telegram INGEST bot: a separate bot added to big public freight-posting groups (not your
-  # own broadcast chats above). Reads every message, runs it through the same AI parser the web
-  # app's "paste from Telegram" screen uses, and posts matching loads automatically. See
-  # bot/README.md "Ingestion bot" before enabling - needs a second @BotFather bot with privacy mode
-  # disabled, and a dedicated member account you sign up and approve on the web app first.
-  - type: worker
-    name: sng-one-telegram-ingest
-    runtime: docker
-    dockerCommand: node bot/src/ingestIndex.js
-    plan: starter
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        fromDatabase:
-          name: sng-db
-          property: connectionString
-      - key: API_BASE_URL
-        sync: false           # same internal address as the broadcast bot's API_BASE_URL above
-      - key: TELEGRAM_INGEST_BOT_TOKEN
-        sync: false           # a SECOND @BotFather bot - run /setprivacy -> Disable on it first
-      - key: FIREBASE_WEB_API_KEY
-        value: AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg   # public by design - see web/js/config.js
-      - key: INGEST_SERVICE_EMAIL
-        sync: false           # the dedicated member account's e-mail (sign up + approve it first)
-      - key: INGEST_SERVICE_PASSWORD
-        sync: false           # that account's password
-      - key: INGEST_ADMIN_TG_IDS
-        sync: false           # your Telegram user id (from @userinfobot), comma-separated if more than one

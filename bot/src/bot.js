@@ -83,6 +83,11 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   bot.start(sendWelcome);
   bot.help(sendWelcome);
 
+  bot.command('app', async (ctx) => {
+    if (!config.miniAppUrl) { await ctx.reply(t(ctx.lang, 'app_not_configured')); return; }
+    await ctx.reply(t(ctx.lang, 'app_open'), Markup.inlineKeyboard([Markup.button.webApp(t(ctx.lang, 'app_open'), config.miniAppUrl)]));
+  });
+
   const openLanguage = (ctx) => ctx.reply(t(ctx.lang, 'language_prompt'), Markup.inlineKeyboard(
     LANGS.map((code) => [Markup.button.callback(LANG_NAMES[code], `lang:${code}`)]),
   ));

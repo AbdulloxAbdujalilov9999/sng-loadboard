@@ -15,6 +15,7 @@ import { buildCityIndex } from './lib/ai/cities.js';
 import publicRoutes from './routes/public.js';
 import meRoutes from './routes/me.js';
 import pinRoutes from './routes/pin.js';
+import telegramAuthRoutes from './routes/telegramAuth.js';
 import adminRoutes from './routes/admin.js';
 import cityRoutes from './routes/cities.js';
 import loadRoutes from './routes/loads.js';
@@ -29,7 +30,7 @@ function cspDirectives(config) {
   const fb = `https://${config.firebaseProjectId}.firebaseapp.com`;
   return {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", 'https://www.gstatic.com', 'https://apis.google.com', 'https://www.google.com', 'https://www.recaptcha.net'], // google.com/recaptcha: phone sign-in check
+    scriptSrc: ["'self'", 'https://www.gstatic.com', 'https://apis.google.com', 'https://www.google.com', 'https://www.recaptcha.net', 'https://telegram.org'], // google.com/recaptcha: phone sign-in check; telegram.org: Mini App SDK
     scriptSrcAttr: ["'unsafe-inline'"], // the UI uses inline onclick handlers
     styleSrc: ["'self'", "'unsafe-inline'"],
     imgSrc: ["'self'", 'data:', 'https://*.googleusercontent.com'],
@@ -37,7 +38,9 @@ function cspDirectives(config) {
     frameSrc: [fb, 'https://accounts.google.com', 'https://*.firebaseapp.com', 'https://www.google.com', 'https://www.recaptcha.net'],
     objectSrc: ["'none'"],
     baseUri: ["'self'"],
-    frameAncestors: ["'none'"],
+    // 'none' would also block Telegram Web (web.telegram.org), which renders a Mini App inside an iframe;
+    // the Telegram mobile/desktop apps use a native webview and are not affected either way.
+    frameAncestors: ["https://web.telegram.org", 'https://*.web.telegram.org'],
     formAction: ["'self'"],
   };
 }
@@ -150,6 +153,7 @@ export async function buildApp({ config, pool, verifyToken, hub: providedHub, lo
   await app.register(publicRoutes, opts);
   await app.register(meRoutes, opts);
   await app.register(pinRoutes, opts);
+  await app.register(telegramAuthRoutes, opts);
   await app.register(adminRoutes, opts);
   await app.register(cityRoutes, opts);
   await app.register(loadRoutes, opts);

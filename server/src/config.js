@@ -42,6 +42,9 @@ export function loadConfig(env = process.env) {
     workers: env.WEB_CONCURRENCY === 'auto' ? os.availableParallelism() : Number(env.WEB_CONCURRENCY || 1),
     // Secret for phone + PIN sign-in (hashes and session tokens). Required in production; without it PIN sign-in is simply off.
     authSecret: env.AUTH_SECRET || (isProd ? '' : 'dev-only-auth-secret-not-for-production'),
+    // Same token as the bot's TELEGRAM_BOT_TOKEN: needed here too, to verify the signed initData a
+    // Telegram Mini App sends on launch (see lib/telegramAuth.js). Telegram sign-in is simply off without it.
+    telegramBotToken: env.TELEGRAM_BOT_TOKEN || '',
     registerPerHour: Number(env.REGISTER_RATE_PER_HOUR || 20), // new phone accounts per IP per hour
     pinLoginPerMin: Number(env.PIN_LOGIN_RATE_PER_MIN || 12), // per IP; the per-phone lockout is separate
     devAuth: truthy(env.DEV_FAKE_AUTH, false),
