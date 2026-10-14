@@ -63,10 +63,10 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     if (!BROADCAST_CHAT_TYPES.has(upd.chat.type)) return;
     const status = upd.new_chat_member.status;
     if (status === 'member' || status === 'administrator') {
-      await store.upsertChat({ chatId: upd.chat.id, chatType: upd.chat.type, title: upd.chat.title || '', addedBy: upd.from?.id });
+      await store.upsertChat({ chatId: upd.chat.id, chatType: upd.chat.type, title: upd.chat.title || '', addedBy: upd.from?.id, botId: config.botId });
       await ctx.telegram.sendMessage(upd.chat.id, t(config.broadcastLang, 'group_connected')).catch(() => {});
     } else if (status === 'left' || status === 'kicked') {
-      await store.markChatRemoved(upd.chat.id);
+      await store.markChatRemoved(upd.chat.id, config.botId);
     }
   });
 

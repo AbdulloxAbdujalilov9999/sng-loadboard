@@ -252,7 +252,7 @@ test('a load some group never received (restart, failed send) is sent by the cat
   const { makeStore } = await import('../src/store.js');
   const { makeCrypto } = await import('../src/crypto.js');
   const store = makeStore(env.pool, makeCrypto(Buffer.alloc(32, 3).toString('base64')));
-  await env.pool.query("INSERT INTO telegram_chats (chat_id, chat_type, title, created_at) VALUES (4242, 'supergroup', 'Test group', now() - interval '1 day') ON CONFLICT DO NOTHING");
+  await env.pool.query("INSERT INTO telegram_chats (chat_id, chat_type, title, bot_id, created_at) VALUES (4242, 'supergroup', 'Test group', 999001, now() - interval '1 day') ON CONFLICT DO NOTHING");
   const posted = await env.as('poster@test.com').post('/api/loads', { ...validLoad(cityA, cityB), commodity: 'Catch me up' }); // no broadcaster is running: nobody sends it
   assert.equal(posted.status, 201);
   await env.pool.query("UPDATE loads SET created_at = now() - interval '5 minutes' WHERE id = $1", [posted.json.id]);
@@ -260,7 +260,7 @@ test('a load some group never received (restart, failed send) is sent by the cat
   let failNext = true; const got = [];
   const bot = { telegram: { sendMessage: async (chatId, text) => { if (failNext) { failNext = false; throw Object.assign(new Error('Bad Gateway'), { response: { error_code: 502 } }); } got.push({ chatId, text }); return { message_id: 1 }; } } };
   const broadcaster = makeBroadcaster({
-    config: { databaseUrl: env.config.databaseUrl, broadcastSpacingMs: 0, broadcastLang: 'uz', webBaseUrl: 'https://sng.example', webUrlIsPublic: true },
+    config: { databaseUrl: env.config.databaseUrl, broadcastSpacingMs: 0, broadcastLang: 'uz', webBaseUrl: 'https://sng.example', webUrlIsPublic: true, botId: 999001 },
     pool: env.pool, store, bot, log: { warn() {}, error() {}, info() {} }, sleep: async () => {},
   });
   await broadcaster._catchUp();
@@ -275,6 +275,27 @@ test('a load some group never received (restart, failed send) is sent by the cat
   await sleep(150);
   assert.equal(got.filter((g) => /Catch me up/.test(g.text)).length, 1, 'and only once');
   assert.equal((await env.pool.query('SELECT count(*)::int AS n FROM telegram_broadcasts WHERE load_id = $1 AND chat_id = 4242', [posted.json.id])).rows[0].n, 1);
+});
+
+test('two bot processes (e.g. migrating off an old token) never reach into each other\'s chats', async () => {
+  const { makeStore } = await import('../src/store.js');
+  const { makeCrypto } = await import('../src/crypto.js');
+  const store = makeStore(env.pool, makeCrypto(Buffer.alloc(32, 4).toString('base64')));
+  const OLD = 111222333; const NEW = 444555666;
+  await store.upsertChat({ chatId: 5001, chatType: 'group', title: 'Old bot group', addedBy: 1, botId: OLD });
+  await store.upsertChat({ chatId: 5002, chatType: 'group', title: 'New bot group', addedBy: 1, botId: NEW });
+
+  assert.deepEqual(await store.listActiveChatIds(OLD), [5001]);
+  assert.deepEqual(await store.listActiveChatIds(NEW), [5002]);
+
+  // The new bot process tries (and fails) to reach the old bot's chat - must not deregister it.
+  await store.markChatRemoved(5001, NEW);
+  assert.deepEqual(await store.listActiveChatIds(OLD), [5001], 'the old bot\'s chat survives a stray removal from the new bot');
+
+  // The old bot really did leave its own chat - only its own row is affected.
+  await store.markChatRemoved(5001, OLD);
+  assert.deepEqual(await store.listActiveChatIds(OLD), []);
+  assert.deepEqual(await store.listActiveChatIds(NEW), [5002], 'unaffected');
 });
 
 test('sign-up from the bot against the real API: account, Telegram link and a website link that signs in once', async () => {

@@ -52,21 +52,24 @@ export function makeStore(pool, crypto) {
     return rowCount > 0;
   }
 
-  async function upsertChat({ chatId, chatType, title, addedBy }) {
+  // `botId` scopes every row to the bot process that is actually a member of that chat (migration
+  // 023) - two bot processes (e.g. an old token being retired alongside its replacement) can share
+  // this table without one's broadcaster reaching into a chat only the other belongs to.
+  async function upsertChat({ chatId, chatType, title, addedBy, botId }) {
     await pool.query(
-      `INSERT INTO telegram_chats (chat_id, chat_type, title, added_by, status)
-       VALUES ($1, $2, $3, $4, 'active')
-       ON CONFLICT (chat_id) DO UPDATE SET chat_type = $2, title = $3, status = 'active', updated_at = now()`,
-      [chatId, chatType, title.slice(0, 255), addedBy ?? null],
+      `INSERT INTO telegram_chats (chat_id, chat_type, title, added_by, bot_id, status)
+       VALUES ($1, $2, $3, $4, $5, 'active')
+       ON CONFLICT (chat_id, bot_id) DO UPDATE SET chat_type = $2, title = $3, status = 'active', updated_at = now()`,
+      [chatId, chatType, title.slice(0, 255), addedBy ?? null, botId],
     );
   }
 
-  async function markChatRemoved(chatId) {
-    await pool.query(`UPDATE telegram_chats SET status = 'removed', updated_at = now() WHERE chat_id = $1`, [chatId]);
+  async function markChatRemoved(chatId, botId) {
+    await pool.query(`UPDATE telegram_chats SET status = 'removed', updated_at = now() WHERE chat_id = $1 AND bot_id = $2`, [chatId, botId]);
   }
 
-  async function listActiveChatIds() {
-    const { rows } = await pool.query(`SELECT chat_id FROM telegram_chats WHERE status = 'active' ORDER BY id`);
+  async function listActiveChatIds(botId) {
+    const { rows } = await pool.query(`SELECT chat_id FROM telegram_chats WHERE status = 'active' AND bot_id = $1 ORDER BY id`, [botId]);
     return rows.map((r) => r.chat_id);
   }
 
@@ -77,8 +80,8 @@ export function makeStore(pool, crypto) {
     return rows.map((r) => r.telegram_user_id);
   }
 
-  async function countActiveChats() {
-    const { rows: [{ n }] } = await pool.query(`SELECT count(*)::int AS n FROM telegram_chats WHERE status = 'active'`);
+  async function countActiveChats(botId) {
+    const { rows: [{ n }] } = await pool.query(`SELECT count(*)::int AS n FROM telegram_chats WHERE status = 'active' AND bot_id = $1`, [botId]);
     return n;
   }
 
@@ -108,13 +111,15 @@ export function makeStore(pool, crypto) {
 
   // Active loads from the last two hours that some active group has not received yet (and that the group could have received:
   // it joined before the load was posted). Loads younger than `minAgeSec` are left alone - the normal path is still sending them.
-  async function listUnsentBroadcasts({ minAgeSec = 90, limit = 500 } = {}) {
+  // Scoped to this process's own bot_id, same reason as listActiveChatIds above - otherwise this would also try to catch up
+  // chats that belong to a different bot process entirely.
+  async function listUnsentBroadcasts(botId, { minAgeSec = 90, limit = 500 } = {}) {
     const { rows } = await pool.query(
       `SELECT l.id AS load_id, c.chat_id FROM loads l
-         JOIN telegram_chats c ON c.status = 'active' AND c.created_at <= l.created_at
-        WHERE l.status = 'active' AND l.created_at > now() - interval '2 hours' AND l.created_at < now() - make_interval(secs => $1::int)
+         JOIN telegram_chats c ON c.status = 'active' AND c.bot_id = $1 AND c.created_at <= l.created_at
+        WHERE l.status = 'active' AND l.created_at > now() - interval '2 hours' AND l.created_at < now() - make_interval(secs => $2::int)
           AND NOT EXISTS (SELECT 1 FROM telegram_broadcasts b WHERE b.load_id = l.id AND b.chat_id = c.chat_id)
-        ORDER BY l.id LIMIT $2`, [minAgeSec, limit]);
+        ORDER BY l.id LIMIT $3`, [botId, minAgeSec, limit]);
     return rows;
   }
 

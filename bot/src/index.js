@@ -24,7 +24,7 @@ async function main() {
 
   await broadcaster.start();
   await publishBotProfile(bot.telegram);
-  const chats = await store.countActiveChats();
+  const chats = await store.countActiveChats(config.botId);
   // bot.launch() only returns when the bot stops, so the "running" line goes in its start-up callback
   bot.launch(() => console.log(`sng-one telegram bot running (AI paste-import + /paste on) - broadcasting to ${chats} chat(s)`))
     .catch((err) => { console.error('Telegram polling stopped:', err.message); process.exit(1); });

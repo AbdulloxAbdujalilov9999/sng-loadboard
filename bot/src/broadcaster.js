@@ -56,7 +56,7 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     const code = err?.response?.error_code;
     const gone = /chat not found|kicked|not a member|deactivated/i.test(err?.response?.description ?? err.message ?? '');
     // 403 = bot was removed/blocked without us hearing a my_chat_member update; stop posting there.
-    if (code === 403 || (code === 400 && gone)) await store.markChatRemoved(chatId).catch(() => {});
+    if (code === 403 || (code === 400 && gone)) await store.markChatRemoved(chatId, config.botId).catch(() => {});
     else log.warn?.(`broadcast to ${chatId} failed: ${err.message}`) ?? console.warn(`broadcast to ${chatId} failed: ${err.message}`);
   }
 
@@ -176,7 +176,7 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
   // After a restart or a failed send: send what some group never got (migration 019). Runs once at start and then every minute.
   async function catchUp() {
     if (closed || typeof store.listUnsentBroadcasts !== 'function') return;
-    const rows = await store.listUnsentBroadcasts();
+    const rows = await store.listUnsentBroadcasts(config.botId);
     const byLoad = new Map();
     for (const { load_id: id, chat_id: chatId } of rows) {
       if (inFlight.has(`${id}:${chatId}`)) continue;
@@ -234,7 +234,7 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     if (evt?.entity === 'trucks' && evt.op === 'insert' && evt.id && config.broadcastTrucks !== false) {
       const row = await fetchTruck(evt.id);
       if (!row || row.status !== 'active') return;
-      try { await broadcastTruck(row, await store.listActiveChatIds()); } catch (err) {
+      try { await broadcastTruck(row, await store.listActiveChatIds(config.botId)); } catch (err) {
         log.error?.(`truck broadcast failed: ${err.message}`) ?? console.error(`truck broadcast failed: ${err.message}`);
       }
       return;
@@ -251,7 +251,7 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     const row = await fetchLoad(evt.id);
     if (!row || row.status !== 'active') return; // closed/edited away again before we got to it
     try {
-      await broadcastLoad(row, await store.listActiveChatIds(), { owner: true });
+      await broadcastLoad(row, await store.listActiveChatIds(config.botId), { owner: true });
     } catch (err) {
       log.error?.(`broadcast failed: ${err.message}`) ?? console.error(`broadcast failed: ${err.message}`);
     }

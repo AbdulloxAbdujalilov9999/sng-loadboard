@@ -92,6 +92,38 @@ services:
       BOT_JOIN_CHANNEL: ${BOT_JOIN_CHANNEL:-sngOne_yuklar}
       BOT_JOIN_GROUP: ${BOT_JOIN_GROUP:-sngOne_yuklarr}
 
+  # Temporary bridge during a bot-token migration: the OLD bot identity, kept running alongside
+  # `bot` above (which now uses the new token) so people who only know the old @username, or groups
+  # only the old bot was ever added to, keep working while everyone moves over. Same image, same
+  # code, same database - just a different token, in its own env var so it can never collide with
+  # `bot`'s TELEGRAM_BOT_TOKEN. telegram_chats is scoped per bot_id (see migration 023), so the two
+  # processes never reach into each other's chats. Retire this service (and TELEGRAM_BOT_TOKEN_OLD)
+  # once nobody needs the old bot anymore - start with: docker compose --profile bot_old up -d
+  bot_old:
+    build:
+      context: ..
+    command: ["node", "bot/src/index.js"]
+    restart: unless-stopped
+    profiles: ["bot_old"]
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    healthcheck:
+      disable: true
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://sng:${POSTGRES_PASSWORD}@db:5432/sng
+      API_BASE_URL: http://api:8080
+      PUBLIC_WEB_URL: https://${SITE_ADDRESS}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN_OLD:-}
+      FIREBASE_WEB_API_KEY: ${FIREBASE_WEB_API_KEY:-AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg}
+      BOT_ENCRYPTION_KEY: ${BOT_ENCRYPTION_KEY:-}     # MUST match `bot` above - both decrypt the same telegram_links rows
+      BOT_BROADCAST_LANG: ${BOT_BROADCAST_LANG:-uz}
+      BOT_JOIN_CHANNEL: ${BOT_JOIN_CHANNEL:-sngOne_yuklar}
+      BOT_JOIN_GROUP: ${BOT_JOIN_GROUP:-sngOne_yuklarr}
+
 volumes:
   pgdata:
   caddy_data:

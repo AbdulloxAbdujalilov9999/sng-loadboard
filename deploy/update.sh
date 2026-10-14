@@ -29,6 +29,10 @@ fi
 
 PROFILES=()
 grep -q '^TELEGRAM_BOT_TOKEN=.\+' .env && grep -q '^BOT_ENCRYPTION_KEY=.\+' .env && PROFILES+=(--profile bot)
+# Temporary bridge during a bot-token migration (see deploy/compose.yaml's bot_old) - set
+# TELEGRAM_BOT_TOKEN_OLD in .env to keep the retiring bot running alongside the new one; unset it
+# and run `docker compose rm -sf bot_old` once nobody needs it anymore.
+grep -q '^TELEGRAM_BOT_TOKEN_OLD=.\+' .env && grep -q '^BOT_ENCRYPTION_KEY=.\+' .env && PROFILES+=(--profile bot_old)
 docker compose "${PROFILES[@]}" up -d --build --remove-orphans
 docker image prune -f >/dev/null
 # pick up changes to Caddyfile / sites/*.caddy without restarting the proxy

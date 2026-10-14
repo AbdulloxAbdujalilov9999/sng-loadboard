@@ -93,6 +93,18 @@ Docker: `docker compose --profile bot up --build` (needs `TELEGRAM_BOT_TOKEN` an
 `BOT_ENCRYPTION_KEY` set in the shell or an `.env` file next to `docker-compose.yml`). On Render,
 `render.yaml` defines it as a second (worker) service.
 
+### Migrating to a new bot token without losing the old one
+
+Changing `TELEGRAM_BOT_TOKEN` is a different Telegram bot identity, not a rename: anyone who only
+knows the old `@username`, and any group/channel only the old bot was ever added to, stops working
+the moment the token changes. To bridge that, run the *old* token as a second process at the same
+time (`deploy/compose.yaml`'s `bot_old` service, `TELEGRAM_BOT_TOKEN_OLD` in `.env` - see
+`deploy/env.example`). Both processes share the same database and the same `BOT_ENCRYPTION_KEY`;
+`telegram_chats` is scoped per bot (`bot_id`, the numeric half of a token - see migration `023`),
+so each one only ever broadcasts to the chats it is actually a member of. Retire the bridge once
+nobody needs the old bot anymore: remove `TELEGRAM_BOT_TOKEN_OLD` from `.env` and run
+`docker compose rm -sf bot_old`.
+
 ## Ingestion bot: auto-importing loads from source groups
 
 A **second, separate process** (`bot/src/ingestIndex.js`, `npm run ingest`) that joins the big

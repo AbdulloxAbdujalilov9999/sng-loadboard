@@ -9,6 +9,11 @@ export function loadBotConfig(env = process.env) {
   const apiBaseUrl = (env.API_BASE_URL || 'http://127.0.0.1:8080').replace(/\/+$/, '');
   const cfg = {
     botToken: env.TELEGRAM_BOT_TOKEN || '',
+    // A Telegram bot token is "<numeric bot id>:<secret>" - the id half, so telegram_chats can be
+    // scoped per bot (see migration 023). Lets two bot processes (e.g. an old token being retired
+    // and a new one taking over) run against the same database without each one's broadcaster
+    // trying - and failing, and wrongly deregistering - a chat only the OTHER bot is a member of.
+    botId: Number((env.TELEGRAM_BOT_TOKEN || '').split(':')[0]) || 0,
     apiBaseUrl,
     // The address a person's browser can actually reach, used to build "view this load" links.
     // Defaults to apiBaseUrl (true for a self-hosted single-domain setup); on a platform where the
