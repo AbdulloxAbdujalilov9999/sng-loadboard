@@ -65,7 +65,7 @@ const App = (() => {
     // share one tab (e.g. post-loads and post-trucks both light up "Post"), so this matches by data-view
     // rather than reusing the sidebar's one-id-per-view lookup above.
     document.querySelectorAll('#mobile-tabbar [data-view]').forEach((btn) => {
-      const on = btn.dataset.view === name || (btn.dataset.view === 'post-loads' && name === 'post-trucks');
+      const on = btn.dataset.view === name || (btn.dataset.view === 'post-trucks' && name === 'post-loads');
       btn.classList.toggle('mobile-tab-active', on);
     });
     $('page-title').textContent = t(TITLES[name]);
