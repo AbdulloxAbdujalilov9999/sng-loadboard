@@ -61,6 +61,13 @@ const App = (() => {
       m.classList.toggle('text-slate-400', v !== name);
       m.toggleAttribute('aria-current', v === name);
     }
+    // The Mini App's bottom tab bar (mobile-tabbar): fewer destinations than the sidebar, several views
+    // share one tab (e.g. post-loads and post-trucks both light up "Post"), so this matches by data-view
+    // rather than reusing the sidebar's one-id-per-view lookup above.
+    document.querySelectorAll('#mobile-tabbar [data-view]').forEach((btn) => {
+      const on = btn.dataset.view === name || (btn.dataset.view === 'post-loads' && name === 'post-trucks');
+      btn.classList.toggle('mobile-tab-active', on);
+    });
     $('page-title').textContent = t(TITLES[name]);
     document.title = `${t(TITLES[name])} — SNG ONE`;
     toggleSidebar(false);

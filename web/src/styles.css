@@ -10,6 +10,39 @@
 
 /* ---------- navigation / tabs ---------- */
 .tab-active { background-color: #1e293b; color: #38bdf8; border-left: 4px solid #38bdf8; }
+
+/* ---------- Telegram Mini App: bottom tab bar replaces the sidebar ----------
+   .tg-miniapp is set on <html> by telegram-miniapp.js only when running inside Telegram; the regular
+   website is completely unaffected (#mobile-tabbar stays display:none and nothing else here applies). */
+#mobile-tabbar { display: none; }
+.tg-miniapp {
+  --sng-tabbar-h: calc(56px + env(safe-area-inset-bottom));
+}
+.tg-miniapp #main-sidebar, .tg-miniapp #sidebar-open, .tg-miniapp #sidebar-backdrop { display: none !important; }
+.tg-miniapp #app-workspace { height: calc(100vh - var(--sng-tabbar-h)); }
+.tg-miniapp #mobile-tabbar {
+  display: flex;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  height: var(--sng-tabbar-h);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.mobile-tab { padding: 0.375rem 0 0.25rem; color: #94a3b8; }
+.mobile-tab i { width: 1.375rem; height: 1.375rem; }
+.mobile-tab span { font-size: 10px; }
+.mobile-tab-active { color: #0066cc; }
+.dark .tg-miniapp #mobile-tabbar { background: #0a192f; border-color: #1c2740; }
+.dark .mobile-tab { color: #64748b; }
+.dark .mobile-tab-active { color: #38bdf8; }
+
+/* Elements that exist only to simplify the Mini App for non-technical drivers (e.g. the "More filters"
+   disclosure) - invisible on the real website, where dispatchers see every field at once as before. */
+.tg-miniapp-only { display: none; }
+.tg-miniapp .tg-miniapp-only { display: flex; }
+.tg-miniapp #load-advanced-fields { display: none; }
+.tg-miniapp #load-advanced-fields.show-advanced { display: contents; }
+.tg-miniapp .truck-advanced-group { display: none; }
+.tg-miniapp .truck-advanced-group.contents.show-advanced { display: contents; }
+.tg-miniapp fieldset.truck-advanced-group.show-advanced { display: block; }
 .sortable-th { cursor: pointer; user-select: none; transition: background-color 0.15s; }
 .sortable-th:hover { background-color: #1a3a5c; }
 .search-tab-active { background-color: #ffffff; color: #0066cc; border-bottom: 2px solid #0066cc; font-weight: 700; }
