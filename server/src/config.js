@@ -48,7 +48,9 @@ export function loadConfig(env = process.env) {
     registerPerHour: Number(env.REGISTER_RATE_PER_HOUR || 20), // new phone accounts per IP per hour
     pinLoginPerMin: Number(env.PIN_LOGIN_RATE_PER_MIN || 12), // per IP; the per-phone lockout is separate
     devAuth: truthy(env.DEV_FAKE_AUTH, false),
-    cspEnforce: truthy(env.CSP_ENFORCE, false),
+    // On by default in production: X-Frame-Options is disabled (see app.js), so CSP's frame-ancestors is the
+    // only thing stopping arbitrary sites from framing this page - it must not be silently left in report-only.
+    cspEnforce: truthy(env.CSP_ENFORCE, isProd),
     // Default is resolved from this file, not the process cwd, so the server works from any launch directory.
     webRoot: env.WEB_ROOT || fileURLToPath(new URL('../../web/dist', import.meta.url)),
   };

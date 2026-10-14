@@ -71,6 +71,10 @@ export async function buildApp({ config, pool, verifyToken, hub: providedHub, lo
     // Firebase's Google sign-in popup needs window.opener; the default COOP would break it.
     crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     crossOriginEmbedderPolicy: false,
+    // X-Frame-Options only supports DENY/SAMEORIGIN - too blunt now that web.telegram.org must be able to
+    // frame this page as a Mini App. CSP's frame-ancestors (above) replaces it and allows exactly that one
+    // extra origin; it's the enforced header whenever cspEnforce is on (see config.js: on by default in prod).
+    frameguard: false,
     hsts: config.isProd ? undefined : false,
   });
   await app.register(cors, {
