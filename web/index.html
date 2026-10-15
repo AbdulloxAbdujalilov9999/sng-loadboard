@@ -274,6 +274,10 @@
             </div>
 
             <nav class="flex-1 py-3 px-2 space-y-1 overflow-y-auto text-xs font-medium">
+                <!-- Home only exists as a view inside the Telegram Mini App (see #mobile-tabbar); the sidebar
+                     (desktop/website) has no Home destination, but setView() looks up every VIEWS entry by id,
+                     so this stays in the DOM, just never shown here. -->
+                <button data-view="home" id="menu-home" class="hidden" aria-hidden="true" tabindex="-1"></button>
                 <div class="px-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider" data-i18n="nav_operations">Freight Operations</div>
 
                 <button data-view="search-loads" id="menu-search-loads" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition tab-active">
@@ -365,8 +369,38 @@
 
             <div id="sync-banner" role="alert" class="hidden bg-amber-50 border-b border-amber-300 text-amber-900 text-[11px] font-semibold px-4 py-2 flex-shrink-0"></div>
 
+            <!-- ================= HOME (Telegram Mini App landing view) ================= -->
+            <section id="view-home" class="hidden flex-1 overflow-y-auto p-3 space-y-3">
+                <div>
+                    <h2 class="text-xl font-extrabold text-slate-900" data-i18n="tg_home_title">What are you looking for?</h2>
+                    <p class="text-sm text-slate-500" data-i18n="tg_home_sub">Find a load, or say your truck is free</p>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <button type="button" data-view="search-loads" class="tg-home-tile" style="background:linear-gradient(135deg,#29b6f6,#0a6fc2)">
+                        <i data-lucide="package-search" class="tg-home-tile-icon"></i>
+                        <strong data-i18n="tg_home_find_loads">Find loads</strong>
+                        <span data-i18n="tg_home_find_loads_sub">Cargo by route</span>
+                    </button>
+                    <button type="button" data-view="search-trucks" class="tg-home-tile" style="background:linear-gradient(135deg,#34d399,#047857)">
+                        <i data-lucide="truck" class="tg-home-tile-icon"></i>
+                        <strong data-i18n="tg_home_find_trucks">Find trucks</strong>
+                        <span data-i18n="tg_home_find_trucks_sub">Carriers nearby</span>
+                    </button>
+                    <button type="button" data-view="post-trucks" class="tg-home-tile" style="background:linear-gradient(135deg,#fb923c,#c2410c)">
+                        <i data-lucide="plus-circle" class="tg-home-tile-icon"></i>
+                        <strong data-i18n="tg_home_post_truck">Post my truck</strong>
+                        <span data-i18n="tg_home_post_truck_sub">I'm available</span>
+                    </button>
+                    <a href="https://t.me/sngOne_yuklar" target="_blank" rel="noopener" class="tg-home-tile" style="background:linear-gradient(135deg,#0f172a,#1e293b)">
+                        <i data-lucide="send" class="tg-home-tile-icon"></i>
+                        <strong data-i18n="tg_home_community">Telegram group</strong>
+                        <span data-i18n="tg_home_community_sub">Loads &amp; trucks feed</span>
+                    </a>
+                </div>
+            </section>
+
             <!-- ================= SEARCH LOADS ================= -->
-            <section id="view-search-loads" class="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <section id="view-search-loads" class="hidden flex-1 flex flex-col min-h-0 overflow-hidden">
                 <div class="bg-slate-200/90 px-3 pt-1.5 border-b border-slate-300 flex items-center space-x-1 flex-shrink-0 z-30 overflow-x-auto select-none" id="multi-search-tabs-bar" role="tablist"></div>
 
                 <div class="bg-white p-2.5 border-b border-slate-200 shadow-sm flex-shrink-0 relative z-30">
@@ -1091,17 +1125,21 @@
 
     <!-- ================= MOBILE TAB BAR: Telegram Mini App only (see tg-miniapp class, telegram-miniapp.js) =========== -->
     <nav id="mobile-tabbar" class="justify-around items-stretch bg-white border-t border-slate-200" aria-label="Main navigation">
+        <button type="button" data-view="home" class="mobile-tab flex-1 flex flex-col items-center justify-center gap-0.5">
+            <i data-lucide="home" class="w-5 h-5"></i>
+            <span class="text-[10px] font-semibold" data-i18n="nav_home_short">Home</span>
+        </button>
         <button type="button" data-view="search-loads" class="mobile-tab flex-1 flex flex-col items-center justify-center gap-0.5">
             <i data-lucide="search" class="w-5 h-5"></i>
             <span class="text-[10px] font-semibold" data-i18n="nav_loads_short">Loads</span>
         </button>
+        <button type="button" data-view="post-trucks" class="mobile-tab flex-1 flex flex-col items-center justify-center gap-0.5">
+            <i data-lucide="plus" class="w-5 h-5"></i>
+            <span class="text-[10px] font-semibold" data-i18n="nav_post_short">Post</span>
+        </button>
         <button type="button" data-view="search-trucks" class="mobile-tab flex-1 flex flex-col items-center justify-center gap-0.5">
             <i data-lucide="truck" class="w-5 h-5"></i>
             <span class="text-[10px] font-semibold" data-i18n="nav_trucks_short">Trucks</span>
-        </button>
-        <button type="button" data-view="post-trucks" class="mobile-tab flex-1 flex flex-col items-center justify-center gap-0.5">
-            <i data-lucide="plus-circle" class="w-5 h-5"></i>
-            <span class="text-[10px] font-semibold" data-i18n="nav_post_short">Post</span>
         </button>
         <button type="button" data-view="account-settings" class="mobile-tab flex-1 flex flex-col items-center justify-center gap-0.5">
             <i data-lucide="user" class="w-5 h-5"></i>

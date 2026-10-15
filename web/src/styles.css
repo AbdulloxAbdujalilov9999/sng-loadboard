@@ -27,12 +27,95 @@
   padding-bottom: env(safe-area-inset-bottom);
 }
 .mobile-tab { padding: 0.375rem 0 0.25rem; color: #94a3b8; }
-.mobile-tab i { width: 1.375rem; height: 1.375rem; }
+.mobile-tab svg { width: 1.375rem; height: 1.375rem; }
 .mobile-tab span { font-size: 10px; }
 .mobile-tab-active { color: #0066cc; }
 .dark .tg-miniapp #mobile-tabbar { background: #0a192f; border-color: #1c2740; }
 .dark .mobile-tab { color: #64748b; }
 .dark .mobile-tab-active { color: #38bdf8; }
+
+/* ---------- Mini App visual design: soft blue-gray canvas, white rounded cards, a gradient accent ----------
+   Reskins the existing screens for the Mini App only (desktop/website keeps its current look). Tuned to the
+   look of comparable CIS freight Mini Apps: generous rounding, a single strong blue accent, a raised "Post"
+   button, and filled (borderless) form fields - built from scratch here, not copied assets or code. */
+.tg-miniapp {
+  --sng-blue-1: #29b6f6;
+  --sng-blue-2: #0d8ef0;
+  --sng-blue-3: #0a6fc2;
+  --sng-bg: #eef2f7;
+  --sng-r-lg: 20px;
+  --sng-r-md: 14px;
+}
+.tg-miniapp #app-workspace, .tg-miniapp .bg-slate-100 { background: var(--sng-bg); }
+.tg-miniapp #app-workspace header.bg-white {
+  background: var(--sng-bg);
+  border-bottom: none;
+  border-radius: 0 0 var(--sng-r-lg) var(--sng-r-lg);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
+}
+.tg-miniapp #page-title { font-size: 1.15rem; font-weight: 800; color: #0f172a; letter-spacing: -0.01em; }
+.tg-miniapp #sync-banner, .tg-miniapp .bg-white.border-b.border-slate-200.shadow-sm {
+  background: transparent; border: none; box-shadow: none;
+}
+
+/* bottom nav: white sheet, soft shadow, rounded top, the Post tab raised as a filled circle */
+.tg-miniapp #mobile-tabbar {
+  background: #fff;
+  border-top: none;
+  border-radius: var(--sng-r-lg) var(--sng-r-lg) 0 0;
+  box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.08);
+}
+.tg-miniapp .mobile-tab-active { color: var(--sng-blue-2); }
+.tg-miniapp .mobile-tab[data-view="post-trucks"] { margin-top: -22px; }
+.tg-miniapp .mobile-tab[data-view="post-trucks"] svg {
+  width: 2.75rem; height: 2.75rem; padding: 0.7rem; box-sizing: border-box;
+  background: linear-gradient(135deg, var(--sng-blue-1), var(--sng-blue-3));
+  color: #fff; border-radius: 999px; stroke-width: 2.5;
+  box-shadow: 0 6px 16px rgba(13, 142, 240, 0.45), 0 0 0 4px #fff;
+}
+.tg-miniapp .mobile-tab[data-view="post-trucks"] span { color: var(--sng-blue-2); font-weight: 700; }
+.dark.tg-miniapp #mobile-tabbar { background: #0a192f; }
+.dark.tg-miniapp .mobile-tab[data-view="post-trucks"] svg { box-shadow: 0 6px 16px rgba(13, 142, 240, 0.5), 0 0 0 4px #0a192f; }
+
+/* listing rows -> rounded cards with a touch more room to breathe */
+.tg-miniapp .responsive-table tr.data-row {
+  border-radius: var(--sng-r-md);
+  border-color: transparent;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.tg-miniapp .responsive-table td.cell-heading { background: transparent; font-size: 1rem; }
+.dark.tg-miniapp .responsive-table tr.data-row { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
+
+/* primary actions: the same gradient as the Post button, pill-rounded */
+.tg-miniapp [class*="#0066cc"] {
+  background: linear-gradient(135deg, var(--sng-blue-1), var(--sng-blue-3));
+  border-radius: var(--sng-r-md);
+  box-shadow: 0 4px 10px rgba(13, 142, 240, 0.3);
+  border: none;
+}
+
+/* form fields: filled, borderless, rounded (matches the big touch-friendly inputs drivers expect) */
+.tg-miniapp input[type="text"], .tg-miniapp input[type="number"], .tg-miniapp input[type="tel"],
+.tg-miniapp input[type="date"], .tg-miniapp input[type="email"], .tg-miniapp input[type="password"],
+.tg-miniapp select, .tg-miniapp textarea {
+  background: #f1f4f8; border-color: transparent; border-radius: var(--sng-r-md);
+}
+.dark.tg-miniapp input[type="text"], .dark.tg-miniapp input[type="number"], .dark.tg-miniapp input[type="tel"],
+.dark.tg-miniapp input[type="date"], .dark.tg-miniapp select, .dark.tg-miniapp textarea { background: #0f1b30; }
+
+/* segmented filters / tabs: pill container, white+blue-bordered active pill */
+.tg-miniapp .search-tab-active { border-radius: var(--sng-r-md); border: 2px solid var(--sng-blue-2); box-shadow: none; }
+.tg-miniapp .search-tab-inactive { border-radius: var(--sng-r-md); background: #fff; }
+
+/* cards on the Home dashboard (see index.html's #tg-home) */
+.tg-home-tile {
+  position: relative; display: flex; flex-direction: column; justify-content: flex-end;
+  border-radius: var(--sng-r-lg); padding: 14px; min-height: 128px; overflow: hidden;
+  color: #fff; text-align: left; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+}
+.tg-home-tile svg.tg-home-tile-icon { position: absolute; top: 12px; right: 12px; width: 28px; height: 28px; opacity: 0.85; }
+.tg-home-tile strong { font-size: 1rem; font-weight: 800; }
+.tg-home-tile span { font-size: 11px; opacity: 0.9; font-weight: 600; }
 
 /* Elements that exist only to simplify the Mini App for non-technical drivers (e.g. the "More filters"
    disclosure) - invisible on the real website, where dispatchers see every field at once as before. */

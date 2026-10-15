@@ -1,8 +1,8 @@
 // Application shell: navigation, language/currency, sidebar drawer, stats badges, and wiring everything together.
 const App = (() => {
   const { $, esc } = U;
-  const VIEWS = ['search-loads', 'post-loads', 'search-trucks', 'post-trucks', 'directory', 'account-settings', 'approvals'];
-  const TITLES = { 'search-loads': 'nav_search_loads', 'post-loads': 'nav_post_loads', 'search-trucks': 'nav_search_trucks', 'post-trucks': 'nav_post_trucks', directory: 'nav_directory', 'account-settings': 'title_account', approvals: 'nav_approvals' };
+  const VIEWS = ['home', 'search-loads', 'post-loads', 'search-trucks', 'post-trucks', 'directory', 'account-settings', 'approvals'];
+  const TITLES = { home: 'nav_home_short', 'search-loads': 'nav_search_loads', 'post-loads': 'nav_post_loads', 'search-trucks': 'nav_search_trucks', 'post-trucks': 'nav_post_trucks', directory: 'nav_directory', 'account-settings': 'title_account', approvals: 'nav_approvals' };
   let view = 'search-loads';
   let entered = false;
   let config = null;
@@ -87,7 +87,10 @@ const App = (() => {
   function startModules() {
     modulesOn = true;
     Loads.enter(); AiImport.enter(); Trucks.enter(); AiTrucks.enter(); Directory.enter(); Admin.enter();
-    setView(U.store.get('sng.view', 'search-loads'));
+    // Inside Telegram a first-time visitor lands on the Home dashboard, like the site's own bookmark; the
+    // regular website still opens straight on the load board, where returning dispatchers want to be.
+    const landingView = document.documentElement.classList.contains('tg-miniapp') ? 'home' : 'search-loads';
+    setView(U.store.get('sng.view', landingView));
     setTimeout(refreshStats, 0);
     statsTimer = setInterval(refreshStats, 45000 + Math.random() * 30000);
     openDeepLinkFromUrl();
