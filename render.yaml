@@ -2,10 +2,9 @@
 # Creates a PostgreSQL database, the web service, and the Telegram bot worker, and wires them together.
 # You will be asked for the secrets marked "sync: false". Check Render's current plan names and prices.
 #
-# This is the sng-miniapp TEST deployment: its own database, its own service names, fully isolated
-# from the sng-one / sng-loadboard production deployment (see that repo's render.yaml). Nothing here
-# shares data with the live site. The ingest bot (a separate, optional service in the main deployment)
-# is intentionally left out - copy it over from sng-loadboard/render.yaml if you want it here too.
+# sng-miniapp's own database is the live one: loads, trucks and members posted here are real, not test
+# data. The ingest bot (a separate, optional service in the main sng-loadboard deployment) is
+# intentionally left out - copy it over from sng-loadboard/render.yaml if you want it here too.
 databases:
   - name: sng-miniapp-db
     plan: basic-256mb
