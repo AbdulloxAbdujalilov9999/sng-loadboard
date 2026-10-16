@@ -121,7 +121,7 @@ services:
       API_BASE_URL: http://api:8080
       PUBLIC_WEB_URL: https://${SITE_ADDRESS}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN_SNGONE:?set TELEGRAM_BOT_TOKEN_SNGONE in .env}
-      MINIAPP_URL: https://${SITE_ADDRESS}
+      MINIAPP_URL: https://${SITE_ADDRESS}/miniapp/
       BOT_VARIANT: lite
       BOT_SEND_SEARCH_ALERTS: "1"
       BOT_SEND_UPDATES_DIGEST: "1"
