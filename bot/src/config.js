@@ -22,7 +22,10 @@ export function loadBotConfig(env = process.env) {
     // The Mini App's public https:// URL (Telegram refuses anything else), e.g. https://sng-miniapp.onrender.com.
     // Leave blank to run the bot without a Mini App: /app just explains it is not set up yet, and the chat menu
     // button is left alone.
-    miniAppUrl: (env.MINIAPP_URL || '').replace(/\/+$/, ''),
+    // No trailing-slash stripping: this can point at a subdirectory (e.g. /miniapp/), where the slash
+    // is load-bearing for the page's own relative asset paths (even though web/miniapp/index.html now
+    // uses absolute paths specifically so this can never matter again either way).
+    miniAppUrl: env.MINIAPP_URL || '',
     // 'full' (default): the whole menu. 'lite' (sngonebot): just the Mini App + account + updates buttons - see menu.js.
     variant: env.BOT_VARIANT === 'lite' ? 'lite' : 'full',
     // Only one bot process should DM people about their saved searches - whichever one hosts the Mini App
