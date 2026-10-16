@@ -5,7 +5,7 @@ import { Scenes, Markup } from 'telegraf';
 import { ApiError } from './apiClient.js';
 import { escapeHtml } from './format.js';
 import { normalizePhone, performLink } from './linkScene.js';
-import { mainKeyboard } from './menu.js';
+import { mainKeyboard, liteKeyboard } from './menu.js';
 import { t } from './i18n.js';
 
 /** Asks the server for a one-time website link and answers with the button that opens it (or the plain link where Telegram refuses a button). */
@@ -28,13 +28,15 @@ export async function sendWebLogin(ctx, { apiClient, tokens, config, intro }) {
 
 export function makeSignupScene({ apiClient, store, tokens, config }) {
   const scene = new Scenes.BaseScene('signup');
+  // sngonebot (lite) has no button menu to speak of - just the Mini App; sng_loadboard_bot keeps the full one.
+  const keyboardFor = (lang) => (config.variant === 'lite' ? liteKeyboard(lang, config.miniAppUrl) : mainKeyboard(lang));
 
   scene.enter(async (ctx) => {
     ctx.scene.state.step = 'name';
     await ctx.reply(t(ctx.lang, 'signup_ask_name'), Markup.removeKeyboard());
   });
 
-  const finish = (ctx, message, extra = {}) => ctx.reply(message, { parse_mode: 'HTML', ...mainKeyboard(ctx.lang), ...extra }).then(() => ctx.scene.leave());
+  const finish = (ctx, message, extra = {}) => ctx.reply(message, { parse_mode: 'HTML', ...keyboardFor(ctx.lang), ...extra }).then(() => ctx.scene.leave());
   scene.command('cancel', (ctx) => finish(ctx, t(ctx.lang, 'signup_cancelled')));
 
   async function askPhone(ctx) {
@@ -50,7 +52,7 @@ export function makeSignupScene({ apiClient, store, tokens, config }) {
     } catch { /* the register call below reports an unreachable server */ }
     ctx.scene.state.phone = phone;
     ctx.scene.state.step = 'pin';
-    return ctx.reply(t(ctx.lang, 'signup_ask_pin'), mainKeyboard(ctx.lang));
+    return ctx.reply(t(ctx.lang, 'signup_ask_pin'), keyboardFor(ctx.lang));
   }
 
   // "Share my number": only the person's OWN Telegram number is accepted.
@@ -75,9 +77,14 @@ export function makeSignupScene({ apiClient, store, tokens, config }) {
     const linked = await performLink({ apiClient, store, tokens, from: ctx.from, phone, pin });
     await ctx.scene.leave();
     const intro = t(ctx.lang, 'signup_done', { name: escapeHtml(name), phone: escapeHtml(phone) });
-    if (!linked.ok) { await ctx.reply(intro, { parse_mode: 'HTML', ...mainKeyboard(ctx.lang) }); return undefined; }
-    await ctx.reply(t(ctx.lang, 'menu_ready'), mainKeyboard(ctx.lang));
-    return sendWebLogin(ctx, { apiClient, tokens, config, intro });
+    if (!linked.ok) { await ctx.reply(intro, { parse_mode: 'HTML', ...keyboardFor(ctx.lang) }); return undefined; }
+    await ctx.reply(t(ctx.lang, 'menu_ready'), keyboardFor(ctx.lang));
+    await sendWebLogin(ctx, { apiClient, tokens, config, intro });
+    // sngonebot: this one account now works everywhere (platform, both bots) - say so, and hand over the Mini App directly.
+    if (config.variant === 'lite' && config.miniAppUrl) {
+      await ctx.reply(t(ctx.lang, 'signup_shared_note'), Markup.inlineKeyboard([[Markup.button.webApp(t(ctx.lang, 'app_open'), config.miniAppUrl)]]));
+    }
+    return undefined;
   }
 
   scene.on('text', async (ctx) => {

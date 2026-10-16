@@ -124,6 +124,7 @@ services:
       MINIAPP_URL: https://${SITE_ADDRESS}
       BOT_VARIANT: lite
       BOT_SEND_SEARCH_ALERTS: "1"
+      BOT_SEND_UPDATES_DIGEST: "1"
       FIREBASE_WEB_API_KEY: ${FIREBASE_WEB_API_KEY:-AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg}
       BOT_ENCRYPTION_KEY: ${BOT_ENCRYPTION_KEY:-}     # MUST match `bot` above - both decrypt the same telegram_links rows
       BOT_BROADCAST_LANG: ${BOT_BROADCAST_LANG:-uz}

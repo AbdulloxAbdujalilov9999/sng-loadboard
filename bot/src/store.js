@@ -80,6 +80,18 @@ export function makeStore(pool, crypto) {
     return rows.map((r) => r.telegram_user_id);
   }
 
+  // Every approved member's Telegram DM, for the sngonebot updates digest (updatesDigest.js). Two
+  // identity paths exist and must both be covered: telegram_links (the /link-style bot connection)
+  // and members.telegram_user_id (Mini App sign-in, migration 024) - a Mini-App-only member may never
+  // have gone through telegram_links at all.
+  async function listAllTelegramUserIds() {
+    const { rows } = await pool.query(`
+      SELECT l.telegram_user_id FROM telegram_links l JOIN members m ON m.id = l.member_id WHERE m.status = 'approved'
+      UNION
+      SELECT telegram_user_id FROM members WHERE telegram_user_id IS NOT NULL AND status = 'approved'`);
+    return rows.map((r) => r.telegram_user_id);
+  }
+
   async function countActiveChats(botId) {
     const { rows: [{ n }] } = await pool.query(`SELECT count(*)::int AS n FROM telegram_chats WHERE status = 'active' AND bot_id = $1`, [botId]);
     return n;
@@ -170,7 +182,7 @@ export function makeStore(pool, crypto) {
 
   return {
     saveLink, getLinkByTelegramUserId, updateRefreshToken, removeLink, upsertChat, markChatRemoved,
-    listActiveChatIds, listOwnerTelegramIds, countActiveChats, getLanguage, setLanguage,
+    listActiveChatIds, listOwnerTelegramIds, listAllTelegramUserIds, countActiveChats, getLanguage, setLanguage,
     getTelegramUserIdByMemberId, saveSentMessage, listSentMessages, deleteSentMessages, markBroadcasts, listUnsentBroadcasts, getGeo, setGeo, clearGeo, setGeoMiles,
   };
 }

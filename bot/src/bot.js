@@ -82,7 +82,16 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   const keyboard = (lang) => (config.variant === 'lite' ? liteKeyboard(lang, config.miniAppUrl) : mainKeyboard(lang));
   // The menu keyboard comes with the welcome message (and stays at the bottom of the chat from then on).
   const sendWelcome = (ctx) => ctx.reply(welcomeText(ctx.lang), isPrivate(ctx) ? keyboard(ctx.lang) : {});
-  bot.start(sendWelcome);
+  // sngonebot only (it has nothing useful to do without an account - no buttons, just the Mini App):
+  // a first-time /start with no linked account goes straight into signup instead of the welcome menu.
+  bot.start(async (ctx) => {
+    if (config.variant === 'lite' && isPrivate(ctx) && !(await store.getLinkByTelegramUserId(ctx.from.id))) {
+      await ctx.reply(t(ctx.lang, 'welcome_gate'), Markup.removeKeyboard());
+      await ctx.scene.enter('signup');
+      return;
+    }
+    return sendWelcome(ctx);
+  });
   bot.help(sendWelcome);
 
   bot.command('app', async (ctx) => {

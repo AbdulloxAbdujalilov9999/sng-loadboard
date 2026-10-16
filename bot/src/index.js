@@ -8,6 +8,7 @@ import { makeTokenManager } from './tokens.js';
 import { makeBot } from './bot.js';
 import { makeBroadcaster } from './broadcaster.js';
 import { publishBotProfile } from './profile.js';
+import { startUpdatesDigest } from './updatesDigest.js';
 
 async function main() {
   const config = loadBotConfig();
@@ -37,6 +38,8 @@ async function main() {
       .catch((err) => console.warn('Could not reset the menu button:', err.message));
   }
   const chats = await store.countActiveChats(config.botId);
+  const updatesDigest = config.sendUpdatesDigest ? startUpdatesDigest({ bot, apiClient, tokens, store, config }) : null;
+  updatesDigest?.start();
   // bot.launch() only returns when the bot stops, so the "running" line goes in its start-up callback
   bot.launch(() => console.log(`sng-one telegram bot running (AI paste-import + /paste on) - broadcasting to ${chats} chat(s)`))
     .catch((err) => { console.error('Telegram polling stopped:', err.message); process.exit(1); });
@@ -44,6 +47,7 @@ async function main() {
   const shutdown = async (signal) => {
     console.log(`${signal}: shutting down`);
     bot.stop(signal);
+    updatesDigest?.stop();
     await broadcaster.stop();
     await pool.end();
     process.exit(0);
