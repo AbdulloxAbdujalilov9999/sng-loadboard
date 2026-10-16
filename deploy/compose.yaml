@@ -86,8 +86,37 @@ services:
       API_BASE_URL: http://api:8080
       PUBLIC_WEB_URL: https://${SITE_ADDRESS}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      MINIAPP_URL: https://${SITE_ADDRESS}       # same site serves the Mini App; sets this bot's menu button + /app
       FIREBASE_WEB_API_KEY: ${FIREBASE_WEB_API_KEY:-AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg}
       BOT_ENCRYPTION_KEY: ${BOT_ENCRYPTION_KEY:-}
+      BOT_BROADCAST_LANG: ${BOT_BROADCAST_LANG:-uz}
+      BOT_JOIN_CHANNEL: ${BOT_JOIN_CHANNEL:-sngOne_yuklar}
+      BOT_JOIN_GROUP: ${BOT_JOIN_GROUP:-sngOne_yuklarr}
+
+  # @sngonebot: a second front door onto the exact same platform/database (button-driven UX, no Mini
+  # App launcher - MINIAPP_URL is intentionally left unset here). Start with:
+  # docker compose --profile sngonebot up -d
+  sngonebot:
+    build:
+      context: ..
+    command: ["node", "bot/src/index.js"]
+    restart: unless-stopped
+    profiles: ["sngonebot"]
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    healthcheck:
+      disable: true
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://sng:${POSTGRES_PASSWORD}@db:5432/sng
+      API_BASE_URL: http://api:8080
+      PUBLIC_WEB_URL: https://${SITE_ADDRESS}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN_SNGONE:?set TELEGRAM_BOT_TOKEN_SNGONE in .env}
+      FIREBASE_WEB_API_KEY: ${FIREBASE_WEB_API_KEY:-AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg}
+      BOT_ENCRYPTION_KEY: ${BOT_ENCRYPTION_KEY:-}     # MUST match `bot` above - both decrypt the same telegram_links rows
       BOT_BROADCAST_LANG: ${BOT_BROADCAST_LANG:-uz}
       BOT_JOIN_CHANNEL: ${BOT_JOIN_CHANNEL:-sngOne_yuklar}
       BOT_JOIN_GROUP: ${BOT_JOIN_GROUP:-sngOne_yuklarr}

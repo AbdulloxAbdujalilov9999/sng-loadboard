@@ -38,5 +38,8 @@
     "flatpickr": "^4.6.13",
     "lucide": "^1.52.0",
     "tailwindcss": "^3.4.19"
+  },
+  "allowScripts": {
+    "@embedded-postgres/darwin-x64@18.4.0-beta.17": true
   }
 }

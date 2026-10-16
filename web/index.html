@@ -274,6 +274,10 @@
             </div>
 
             <nav class="flex-1 py-3 px-2 space-y-1 overflow-y-auto text-xs font-medium">
+                <!-- Home only exists as a view inside the Telegram Mini App (see #mobile-tabbar); the sidebar
+                     (desktop/website) has no Home destination, but setView() looks up every VIEWS entry by id,
+                     so this stays in the DOM, just never shown here. -->
+                <button data-view="home" id="menu-home" class="hidden" aria-hidden="true" tabindex="-1"></button>
                 <div class="px-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider" data-i18n="nav_operations">Freight Operations</div>
 
                 <button data-view="search-loads" id="menu-search-loads" class="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md hover:bg-slate-800 hover:text-white transition tab-active">
@@ -365,8 +369,38 @@
 
             <div id="sync-banner" role="alert" class="hidden bg-amber-50 border-b border-amber-300 text-amber-900 text-[11px] font-semibold px-4 py-2 flex-shrink-0"></div>
 
+            <!-- ================= HOME (Telegram Mini App landing view) ================= -->
+            <section id="view-home" class="hidden flex-1 overflow-y-auto p-3 space-y-3">
+                <div>
+                    <h2 class="text-xl font-extrabold text-slate-900" data-i18n="tg_home_title">What are you looking for?</h2>
+                    <p class="text-sm text-slate-500" data-i18n="tg_home_sub">Find a load, or say your truck is free</p>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <button type="button" data-view="search-loads" class="tg-home-tile" style="background:linear-gradient(135deg,#29b6f6,#0a6fc2)">
+                        <i data-lucide="package-search" class="tg-home-tile-icon"></i>
+                        <strong data-i18n="tg_home_find_loads">Find loads</strong>
+                        <span data-i18n="tg_home_find_loads_sub">Cargo by route</span>
+                    </button>
+                    <button type="button" data-view="search-trucks" class="tg-home-tile" style="background:linear-gradient(135deg,#34d399,#047857)">
+                        <i data-lucide="truck" class="tg-home-tile-icon"></i>
+                        <strong data-i18n="tg_home_find_trucks">Find trucks</strong>
+                        <span data-i18n="tg_home_find_trucks_sub">Carriers nearby</span>
+                    </button>
+                    <button type="button" data-view="post-trucks" class="tg-home-tile" style="background:linear-gradient(135deg,#fb923c,#c2410c)">
+                        <i data-lucide="plus-circle" class="tg-home-tile-icon"></i>
+                        <strong data-i18n="tg_home_post_truck">Post my truck</strong>
+                        <span data-i18n="tg_home_post_truck_sub">I'm available</span>
+                    </button>
+                    <a href="https://t.me/sngOne_yuklar" target="_blank" rel="noopener" class="tg-home-tile" style="background:linear-gradient(135deg,#0f172a,#1e293b)">
+                        <i data-lucide="send" class="tg-home-tile-icon"></i>
+                        <strong data-i18n="tg_home_community">Telegram group</strong>
+                        <span data-i18n="tg_home_community_sub">Loads &amp; trucks feed</span>
+                    </a>
+                </div>
+            </section>
+
             <!-- ================= SEARCH LOADS ================= -->
-            <section id="view-search-loads" class="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <section id="view-search-loads" class="hidden flex-1 flex flex-col min-h-0 overflow-hidden">
                 <div class="bg-slate-200/90 px-3 pt-1.5 border-b border-slate-300 flex items-center space-x-1 flex-shrink-0 z-30 overflow-x-auto select-none" id="multi-search-tabs-bar" role="tablist"></div>
 
                 <div class="bg-white p-2.5 border-b border-slate-200 shadow-sm flex-shrink-0 relative z-30">
@@ -393,30 +427,36 @@
                                 <input type="number" id="filter-dhd" min="0" max="2000" value="100" data-i18n-title="tt_dest_radius" data-i18n-aria="aria_radius_dest" class="w-16 border-t border-b border-r border-slate-300 rounded-r px-1 py-1.5 text-slate-700 font-semibold bg-slate-50 text-center text-xs">
                             </div>
                         </div>
-                        <div class="col-span-1 md:col-span-2">
-                            <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-equip" data-i18n="filter_type">Trailer Type</label>
-                            <select id="filter-equip" class="w-full border border-slate-300 rounded px-2 py-1.5 focus:border-blue-500 text-xs">
-                                <option value="" data-i18n="opt_all_types">All Types</option>
-                                <option value="T" data-i18n="eq_T">T</option><option value="R" data-i18n="eq_R">R</option>
-                                <option value="F" data-i18n="eq_F">F</option><option value="V" data-i18n="eq_V">V</option>
-                                <option value="AC" data-i18n="eq_AC">AC</option>
-                            </select>
-                        </div>
-                        <div class="col-span-1 md:col-span-1">
-                            <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-fp">F/P</label>
-                            <select id="filter-fp" class="w-full border border-slate-300 rounded px-1 py-1.5 focus:border-blue-500 text-xs">
-                                <option value="" data-i18n="opt_both">Both</option>
-                                <option value="Full" data-i18n="opt_full">Full</option>
-                                <option value="Partial" data-i18n="opt_partial">Partial</option>
-                            </select>
-                        </div>
-                        <div class="col-span-2 md:col-span-2">
-                            <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-date-range" data-i18n="filter_date_range">Pickup Date Range</label>
-                            <div class="relative">
-                                <input type="text" id="filter-date-range" readonly data-i18n-placeholder="ph_date_range" placeholder="Select Date or Range" class="w-full border border-slate-300 rounded px-2 py-1.5 focus:border-blue-500 text-xs bg-white cursor-pointer pr-7">
-                                <i data-lucide="calendar" class="w-3.5 h-3.5 absolute right-2 top-2 text-slate-400 pointer-events-none"></i>
+                        <div id="load-advanced-fields" class="contents">
+                            <div class="col-span-1 md:col-span-2">
+                                <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-equip" data-i18n="filter_type">Trailer Type</label>
+                                <select id="filter-equip" class="w-full border border-slate-300 rounded px-2 py-1.5 focus:border-blue-500 text-xs">
+                                    <option value="" data-i18n="opt_all_types">All Types</option>
+                                    <option value="T" data-i18n="eq_T">T</option><option value="R" data-i18n="eq_R">R</option>
+                                    <option value="F" data-i18n="eq_F">F</option><option value="V" data-i18n="eq_V">V</option>
+                                    <option value="AC" data-i18n="eq_AC">AC</option>
+                                </select>
+                            </div>
+                            <div class="col-span-1 md:col-span-1">
+                                <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-fp">F/P</label>
+                                <select id="filter-fp" class="w-full border border-slate-300 rounded px-1 py-1.5 focus:border-blue-500 text-xs">
+                                    <option value="" data-i18n="opt_both">Both</option>
+                                    <option value="Full" data-i18n="opt_full">Full</option>
+                                    <option value="Partial" data-i18n="opt_partial">Partial</option>
+                                </select>
+                            </div>
+                            <div class="col-span-2 md:col-span-2">
+                                <label class="block font-semibold text-slate-600 mb-0.5 text-[11px]" for="filter-date-range" data-i18n="filter_date_range">Pickup Date Range</label>
+                                <div class="relative">
+                                    <input type="text" id="filter-date-range" readonly data-i18n-placeholder="ph_date_range" placeholder="Select Date or Range" class="w-full border border-slate-300 rounded px-2 py-1.5 focus:border-blue-500 text-xs bg-white cursor-pointer pr-7">
+                                    <i data-lucide="calendar" class="w-3.5 h-3.5 absolute right-2 top-2 text-slate-400 pointer-events-none"></i>
+                                </div>
                             </div>
                         </div>
+                        <!-- Mini App only: the fields above start collapsed behind this (see styles.css, loads.js init) -->
+                        <button type="button" id="load-filters-toggle" class="tg-miniapp-only col-span-2 items-center justify-center gap-1 text-slate-500 font-semibold text-xs py-1">
+                            <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i><span data-i18n="btn_more_filters">More filters</span>
+                        </button>
                         <div class="col-span-2 md:col-span-1 flex items-end">
                             <button type="submit" class="w-full bg-[#0066cc] hover:bg-blue-700 text-white font-bold py-1.5 px-2 rounded flex items-center justify-center space-x-1 shadow transition text-xs">
                                 <i data-lucide="filter" class="w-3.5 h-3.5"></i><span data-i18n="btn_search">Search</span>
@@ -747,16 +787,22 @@
                                 <label class="block font-semibold text-slate-700 mb-1" for="truck-post-date" data-i18n="lbl_avail_from">Available From Date</label>
                                 <input type="date" id="truck-post-date" name="availableFrom" required class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
                             </div>
-                            <div>
-                                <label class="block font-semibold text-slate-700 mb-1" for="truck-post-date-end" data-i18n="lbl_avail_until">Available Until (Optional)</label>
-                                <input type="date" id="truck-post-date-end" name="availableTo" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
-                            </div>
-                            <div>
-                                <label class="block font-semibold text-slate-700 mb-1" for="truck-post-vol" data-i18n="lbl_vol_cube">Volume (m³)</label>
-                                <input type="number" id="truck-post-vol" name="volumeM3" min="1" max="200" placeholder="92" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                            <div class="truck-advanced-group contents">
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1" for="truck-post-date-end" data-i18n="lbl_avail_until">Available Until (Optional)</label>
+                                    <input type="date" id="truck-post-date-end" name="availableTo" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1" for="truck-post-vol" data-i18n="lbl_vol_cube">Volume (m³)</label>
+                                    <input type="number" id="truck-post-vol" name="volumeM3" min="1" max="200" placeholder="92" class="w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500">
+                                </div>
                             </div>
                         </div>
-                        <fieldset class="bg-slate-50 p-3 rounded border border-slate-200 space-y-2">
+                        <!-- Mini App only: the group above starts collapsed, and this reveals it (see styles.css, trucks.js init) -->
+                        <button type="button" id="truck-filters-toggle" class="tg-miniapp-only items-center justify-center gap-1 text-slate-500 font-semibold text-xs py-1 w-full">
+                            <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i><span data-i18n="btn_more_options">More options</span>
+                        </button>
+                        <fieldset class="truck-advanced-group bg-slate-50 p-3 rounded border border-slate-200 space-y-2">
                             <legend class="font-bold text-slate-700 text-[11px] px-1" data-i18n="lbl_trailer_features">Equipment Features & Permissions:</legend>
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-slate-700">
                                 <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="truck-feat-tir" name="hasTir" checked class="rounded text-blue-600"><span data-i18n="feat_tir">TIR Carnet</span></label>
@@ -1077,6 +1123,30 @@
         </div>
     </div>
 
+    <!-- ================= MOBILE TAB BAR: Telegram Mini App only (see tg-miniapp class, telegram-miniapp.js) =========== -->
+    <nav id="mobile-tabbar" class="justify-around items-stretch bg-white border-t border-slate-200" data-i18n-aria="aria_nav">
+        <button type="button" data-view="home" class="mobile-tab flex-1 flex flex-col items-center justify-center gap-0.5">
+            <i data-lucide="home" class="w-5 h-5"></i>
+            <span class="text-[10px] font-semibold" data-i18n="nav_home_short">Home</span>
+        </button>
+        <button type="button" data-view="search-loads" class="mobile-tab flex-1 flex flex-col items-center justify-center gap-0.5">
+            <i data-lucide="search" class="w-5 h-5"></i>
+            <span class="text-[10px] font-semibold" data-i18n="nav_loads_short">Loads</span>
+        </button>
+        <button type="button" data-view="post-trucks" class="mobile-tab flex-1 flex flex-col items-center justify-center gap-0.5">
+            <i data-lucide="plus" class="w-5 h-5"></i>
+            <span class="text-[10px] font-semibold" data-i18n="nav_post_short">Post</span>
+        </button>
+        <button type="button" data-view="search-trucks" class="mobile-tab flex-1 flex flex-col items-center justify-center gap-0.5">
+            <i data-lucide="truck" class="w-5 h-5"></i>
+            <span class="text-[10px] font-semibold" data-i18n="nav_trucks_short">Trucks</span>
+        </button>
+        <button type="button" data-view="account-settings" class="mobile-tab flex-1 flex flex-col items-center justify-center gap-0.5">
+            <i data-lucide="user" class="w-5 h-5"></i>
+            <span class="text-[10px] font-semibold" data-i18n="nav_account_short">Account</span>
+        </button>
+    </nav>
+
     <!-- ================= EDIT LOAD MODAL ================= -->
     <div id="modal-edit-load" class="hidden fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="edit-title">
         <div class="bg-white rounded-lg shadow-2xl border border-slate-200 max-w-xl w-full p-4 sm:p-6 space-y-4 text-xs max-h-[92vh] overflow-y-auto">
@@ -1155,6 +1225,9 @@
     <script src="/vendor/flatpickr-uz.js?v=__BUILD__"></script>
     <script src="/js/config.js?v=__BUILD__"></script>
     <script src="/js/util.js?v=__BUILD__"></script>
+    <!-- No-op outside Telegram; inside a Telegram Mini App it signs the member in automatically. -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="/js/telegram-miniapp.js?v=__BUILD__"></script>
     <script src="/js/i18n.js?v=__BUILD__"></script>
     <script src="/js/api.js?v=__BUILD__"></script>
     <script type="module" src="/js/firebase.js?v=__BUILD__"></script>

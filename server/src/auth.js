@@ -5,6 +5,7 @@ import { loadExpirySettings } from './lib/expiry.js';
 import { TtlCache } from './lib/ttl.js';
 import { phoneIdentity } from './lib/identity.js';
 import { isOwnToken, verifySession } from './lib/pin.js';
+import { verifyTelegramSession } from './lib/telegramSession.js';
 
 const FIREBASE_JWKS = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 
@@ -52,15 +53,23 @@ export function createFirebaseVerifier({ projectId, keySet }) {
  * The owner is defined by the OWNER_EMAILS env var (never by client data) and is auto-provisioned.
  */
 export function registerAuth(app, { config, pool, verifyToken: verifyExternal, hub }) {
-  // Two kinds of sessions: Firebase ID tokens (Google / e-mail / SMS code) and the ones this server issues after a
-  // phone + PIN sign-in (see lib/pin.js). A token is routed by its signing algorithm; neither can pass as the other.
+  // Three kinds of sessions: Firebase ID tokens (Google / e-mail / SMS code), the ones this server issues after a
+  // phone + PIN sign-in (see lib/pin.js), and the ones it issues after a Telegram Mini App sign-in (see
+  // lib/telegramSession.js). A Firebase token is routed by its signing algorithm (RS256 vs our own HS256); the two
+  // kinds of HS256 session share an algorithm but use different JWT audiences, so a failed PIN-audience check falls
+  // through to the Telegram one.
   const verifyToken = async (token) => {
     if (!isOwnToken(token)) return verifyExternal(token);
-    if (!config.authSecret) throw new Error('PIN sign-in is not enabled');
-    const s = await verifySession({ secret: config.authSecret, token });
-    if (!/^\+\d{8,15}$/.test(s.phone)) throw new Error('bad session token');
-    // The identity is whichever member owns that sign-in phone (a phone-only member, or a Google member who added one).
-    return { uid: `pin:${s.identity}`, email: s.identity, loginEmail: '', phone: s.phone, provider: 'pin', name: '', picture: '', iat: s.iat, purpose: s.purpose };
+    if (!config.authSecret) throw new Error('Session sign-in is not enabled');
+    try {
+      const s = await verifySession({ secret: config.authSecret, token });
+      if (!/^\+\d{8,15}$/.test(s.phone)) throw new Error('bad session token');
+      // The identity is whichever member owns that sign-in phone (a phone-only member, or a Google member who added one).
+      return { uid: `pin:${s.identity}`, email: s.identity, loginEmail: '', phone: s.phone, provider: 'pin', name: '', picture: '', iat: s.iat, purpose: s.purpose };
+    } catch {
+      const s = await verifyTelegramSession({ secret: config.authSecret, token });
+      return { uid: `tg:${s.identity}`, email: s.identity, loginEmail: '', phone: '', provider: 'telegram', name: '', picture: '', iat: s.iat, telegramUserId: s.telegramUserId };
+    }
   };
   app.decorateRequest('user', null);
   app.decorateRequest('member', null);

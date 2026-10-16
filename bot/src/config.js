@@ -19,6 +19,10 @@ export function loadBotConfig(env = process.env) {
     // Defaults to apiBaseUrl (true for a self-hosted single-domain setup); on a platform where the
     // bot talks to the API over an internal address (e.g. Render), set this to the public URL.
     webBaseUrl: (env.PUBLIC_WEB_URL || apiBaseUrl).replace(/\/+$/, ''),
+    // The Mini App's public https:// URL (Telegram refuses anything else), e.g. https://sng-miniapp.onrender.com.
+    // Leave blank to run the bot without a Mini App: /app just explains it is not set up yet, and the chat menu
+    // button is left alone.
+    miniAppUrl: (env.MINIAPP_URL || '').replace(/\/+$/, ''),
     databaseUrl: env.DATABASE_URL,
     databaseSsl: truthy(env.DATABASE_SSL, false),
     firebaseApiKey: env.FIREBASE_WEB_API_KEY || '',
@@ -59,6 +63,9 @@ export function loadBotConfig(env = process.env) {
   cfg.webUrlIsPublic = !/^https?:\/\/(localhost|127\.|0\.0\.0\.0|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|[^./:]+(:\d+)?(\/|$))/i.test(cfg.webBaseUrl);
   if (env.NODE_ENV === 'production' && !cfg.webUrlIsPublic) {
     console.warn(`PUBLIC_WEB_URL is not set to a public address (using ${cfg.webBaseUrl}): "view this load" links will be left out. Set PUBLIC_WEB_URL to your site's https:// address.`);
+  }
+  if (cfg.miniAppUrl && !/^https:\/\//i.test(cfg.miniAppUrl)) {
+    console.warn(`MINIAPP_URL (${cfg.miniAppUrl}) is not an https:// address: Telegram will refuse to open it as a Mini App.`);
   }
   if (!cfg.botToken) problems.push('TELEGRAM_BOT_TOKEN is required (create a bot with @BotFather and paste its token)');
   if (!cfg.databaseUrl) problems.push('DATABASE_URL is required (same database as the API)');

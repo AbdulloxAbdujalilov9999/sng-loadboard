@@ -270,6 +270,11 @@ const Trucks = (() => {
     nearBar = Geo.nearBar('trucks', { onUse: useNearMe, onMiles: setNearMiles, onClear: clearNear });
     Cities.attach($('truck-post-loc'));
     $('truck-filter-form').addEventListener('submit', (e) => { e.preventDefault(); search(); });
+    $('truck-filters-toggle').addEventListener('click', () => {
+      const on = !document.querySelector('.truck-advanced-group').classList.contains('show-advanced');
+      document.querySelectorAll('.truck-advanced-group').forEach((el) => el.classList.toggle('show-advanced', on));
+      $('truck-filters-toggle').querySelector('span').textContent = t(on ? 'btn_fewer_options' : 'btn_more_options');
+    });
     $('search-truck-equip').addEventListener('change', searchSoon);
     $('search-truck-radius').addEventListener('change', searchSoon);
     $('search-truck-dest').addEventListener('input', U.debounce(search, 400));

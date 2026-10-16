@@ -138,7 +138,7 @@ const Account = (() => {
     const me = Session.me;
     const p = me?.profile;
     const pinOn = Boolean(Session.config?.pinLogin);
-    const googleLike = Boolean(me) && !me.isOwner && (me.provider === 'google.com' || me.provider === 'password');
+    const googleLike = Boolean(me) && !me.isOwner && ['google.com', 'password', 'telegram'].includes(me.provider);
     const hasLoginPhone = Boolean(p?.loginPhone);
     // Google / e-mail members can add "phone + password" as a second way in; phone members change their password here.
     $('phone-login-card').classList.toggle('hidden', !(pinOn && googleLike && !hasLoginPhone));

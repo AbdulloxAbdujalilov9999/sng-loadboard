@@ -29,6 +29,9 @@ fi
 
 PROFILES=()
 grep -q '^TELEGRAM_BOT_TOKEN=.\+' .env && grep -q '^BOT_ENCRYPTION_KEY=.\+' .env && PROFILES+=(--profile bot)
+# @sngonebot: a second, permanent bot on the same platform/database (see deploy/compose.yaml's sngonebot) -
+# set TELEGRAM_BOT_TOKEN_SNGONE in .env to start it.
+grep -q '^TELEGRAM_BOT_TOKEN_SNGONE=.\+' .env && grep -q '^BOT_ENCRYPTION_KEY=.\+' .env && PROFILES+=(--profile sngonebot)
 # Temporary bridge during a bot-token migration (see deploy/compose.yaml's bot_old) - set
 # TELEGRAM_BOT_TOKEN_OLD in .env to keep the retiring bot running alongside the new one; unset it
 # and run `docker compose rm -sf bot_old` once nobody needs it anymore.

@@ -39,6 +39,7 @@ export default async function meRoutes(app, { pool, config }) {
     if (req.member) throw conflict(`You already have an account (${req.member.status})`, `already_${req.member.status}`);
     const body = signupBody.parse(req.body);
     const bySms = req.user.provider === 'phone';
+    const byTelegram = req.user.provider === 'telegram';
     const phone = body.phone || (bySms ? req.user.phone : '');
     if (!phone && !body.telegram) throw validationError([detail('phone', 'contact_required'), detail('telegram', 'contact_required')]);
 
@@ -50,12 +51,13 @@ export default async function meRoutes(app, { pool, config }) {
     }
     const row = await withTx(pool, async (db) => {
       const { rows: [created] } = await db.query(
-        `INSERT INTO members (email, firebase_uid, company, contact_name, phone, telegram, contact_email, status, pin_hash, pin_changed_at, login_phone, works_with_company, trial_ends_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'approved', $8, CASE WHEN $8::text IS NULL THEN NULL ELSE now() END, $9, $10, $11)
+        `INSERT INTO members (email, firebase_uid, company, contact_name, phone, telegram, contact_email, status, pin_hash, pin_changed_at, login_phone, works_with_company, trial_ends_at, telegram_user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'approved', $8, CASE WHEN $8::text IS NULL THEN NULL ELSE now() END, $9, $10, $11, $12)
          ON CONFLICT (email) DO NOTHING
          RETURNING *`,
-        [req.user.email, req.user.uid, body.company || body.contactName, body.contactName, phone, body.telegram,
-          req.user.loginEmail ? '' : body.contactEmail, pinHash, bySms ? req.user.phone : null, Boolean(body.company), trialEndFor(await app.subscriptionSettings())],
+        [req.user.email, byTelegram ? null : req.user.uid, body.company || body.contactName, body.contactName, phone, body.telegram,
+          req.user.loginEmail ? '' : body.contactEmail, pinHash, bySms ? req.user.phone : null, Boolean(body.company), trialEndFor(await app.subscriptionSettings()),
+          byTelegram ? req.user.telegramUserId : null],
       );
       if (created) {
         await publish(db, { entity: 'members', op: 'insert', id: created.id });
@@ -97,15 +99,16 @@ export default async function meRoutes(app, { pool, config }) {
     return { ok: true, hasPin: true, ...(fresh ? { token: fresh.token, expiresAt: fresh.expiresAt } : {}) };
   });
 
-  // A Google / e-mail member adds a phone number + a 4-6 digit password (no SMS): from then on "phone + password" signs in to
-  // this same account, next to Google. The owner cannot do this (the owner's sign-in stays Google).
+  // A Google / e-mail / Telegram member adds a phone number + a 4-6 digit password (no SMS): from then on
+  // "phone + password" signs in to this same account too (and the Telegram bot's /link can use it). The
+  // owner cannot do this (the owner's sign-in stays Google).
   app.post('/api/me/login-phone', {
     preHandler: app.guards.approved,
     config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
   }, async (req) => {
     if (!config.authSecret) throw forbidden('PIN sign-in is not enabled on this server', 'pin_disabled');
     const body = loginPhoneBody.parse(req.body);
-    if (req.member.role === 'owner' || (req.user.provider !== 'google.com' && req.user.provider !== 'password')) throw forbidden('Not available for this account', 'pin_not_for_provider');
+    if (req.member.role === 'owner' || !['google.com', 'password', 'telegram'].includes(req.user.provider)) throw forbidden('Not available for this account', 'pin_not_for_provider');
     const hash = await hashPin({ secret: config.authSecret, identity: req.member.email, pin: body.pin });
     const row = await withTx(pool, async (db) => {
       const { rows: [taken] } = await db.query('SELECT 1 FROM members WHERE login_phone = $1 AND id <> $2', [body.phone, req.member.id]);
@@ -122,7 +125,7 @@ export default async function meRoutes(app, { pool, config }) {
   });
 
   app.delete('/api/me/login-phone', { preHandler: app.guards.approved }, async (req) => {
-    if (req.member.role === 'owner' || (req.user.provider !== 'google.com' && req.user.provider !== 'password')) throw forbidden('Not available for this account', 'pin_not_for_provider');
+    if (req.member.role === 'owner' || !['google.com', 'password', 'telegram'].includes(req.user.provider)) throw forbidden('Not available for this account', 'pin_not_for_provider');
     const row = await withTx(pool, async (db) => {
       // Clearing the PIN also ends every PIN session (web + Telegram bot) that used it.
       const { rows: [m] } = await db.query(

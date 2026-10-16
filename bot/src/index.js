@@ -24,6 +24,12 @@ async function main() {
 
   await broadcaster.start();
   await publishBotProfile(bot.telegram);
+  if (config.miniAppUrl) {
+    // Best-effort: the persistent button next to the message box, everyone gets it without asking.
+    // /app (bot.js) still works as a fallback if this call fails or the URL changes later.
+    await bot.telegram.setChatMenuButton({ menuButton: { type: 'web_app', text: 'App', web_app: { url: config.miniAppUrl } } })
+      .catch((err) => console.warn('Could not set the Mini App menu button:', err.message));
+  }
   const chats = await store.countActiveChats(config.botId);
   // bot.launch() only returns when the bot stops, so the "running" line goes in its start-up callback
   bot.launch(() => console.log(`sng-one telegram bot running (AI paste-import + /paste on) - broadcasting to ${chats} chat(s)`))

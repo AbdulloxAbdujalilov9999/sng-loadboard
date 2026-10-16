@@ -607,6 +607,10 @@ const Loads = (() => {
     I18N.onChange(() => { datePicker.set('locale', I18N.flatpickrLocale()); });
 
     $('load-filter-form').addEventListener('submit', (e) => { e.preventDefault(); search(); });
+    $('load-filters-toggle').addEventListener('click', () => {
+      const on = $('load-advanced-fields').classList.toggle('show-advanced');
+      $('load-filters-toggle').querySelector('span').textContent = t(on ? 'btn_fewer_filters' : 'btn_more_filters');
+    });
     for (const id of ['filter-equip', 'filter-fp']) $(id).addEventListener('change', searchSoon);
     $('filter-equip').addEventListener('change', () => { const tab = active(); if (tab.truck && $('filter-equip').value !== MyTruck.mine()?.equip) tab.truck = false; });
     $('mytruck-use-btn').addEventListener('click', useMyTruck);
