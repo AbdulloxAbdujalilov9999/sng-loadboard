@@ -99,15 +99,16 @@ export default async function meRoutes(app, { pool, config }) {
     return { ok: true, hasPin: true, ...(fresh ? { token: fresh.token, expiresAt: fresh.expiresAt } : {}) };
   });
 
-  // A Google / e-mail member adds a phone number + a 4-6 digit password (no SMS): from then on "phone + password" signs in to
-  // this same account, next to Google. The owner cannot do this (the owner's sign-in stays Google).
+  // A Google / e-mail / Telegram member adds a phone number + a 4-6 digit password (no SMS): from then on
+  // "phone + password" signs in to this same account too (and the Telegram bot's /link can use it). The
+  // owner cannot do this (the owner's sign-in stays Google).
   app.post('/api/me/login-phone', {
     preHandler: app.guards.approved,
     config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
   }, async (req) => {
     if (!config.authSecret) throw forbidden('PIN sign-in is not enabled on this server', 'pin_disabled');
     const body = loginPhoneBody.parse(req.body);
-    if (req.member.role === 'owner' || (req.user.provider !== 'google.com' && req.user.provider !== 'password')) throw forbidden('Not available for this account', 'pin_not_for_provider');
+    if (req.member.role === 'owner' || !['google.com', 'password', 'telegram'].includes(req.user.provider)) throw forbidden('Not available for this account', 'pin_not_for_provider');
     const hash = await hashPin({ secret: config.authSecret, identity: req.member.email, pin: body.pin });
     const row = await withTx(pool, async (db) => {
       const { rows: [taken] } = await db.query('SELECT 1 FROM members WHERE login_phone = $1 AND id <> $2', [body.phone, req.member.id]);
@@ -124,7 +125,7 @@ export default async function meRoutes(app, { pool, config }) {
   });
 
   app.delete('/api/me/login-phone', { preHandler: app.guards.approved }, async (req) => {
-    if (req.member.role === 'owner' || (req.user.provider !== 'google.com' && req.user.provider !== 'password')) throw forbidden('Not available for this account', 'pin_not_for_provider');
+    if (req.member.role === 'owner' || !['google.com', 'password', 'telegram'].includes(req.user.provider)) throw forbidden('Not available for this account', 'pin_not_for_provider');
     const row = await withTx(pool, async (db) => {
       // Clearing the PIN also ends every PIN session (web + Telegram bot) that used it.
       const { rows: [m] } = await db.query(
