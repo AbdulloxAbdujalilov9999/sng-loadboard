@@ -9,7 +9,7 @@ import { publish } from '../events.js';
  * saved search" and "would show up in a live search with those filters" are always the same thing.
  * Delivery happens elsewhere: this just publishes a 'savedSearchAlert' event on the usual
  * sng_events channel (lib/events.js); only the bot process with BOT_SEND_SEARCH_ALERTS set
- * (sng_loadboard_bot - see bot/src/broadcaster.js) actually sends the Telegram message.
+ * (the bot process hosting the Mini App, currently @sngonebot - see bot/src/broadcaster.js) actually sends the Telegram message.
  * The poster's own saved searches never fire for their own load (member_id != load.ownerId).
  */
 export async function notifyMatchingSearches(app, pool, load) {

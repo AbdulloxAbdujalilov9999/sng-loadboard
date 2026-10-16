@@ -25,8 +25,9 @@ export function loadBotConfig(env = process.env) {
     miniAppUrl: (env.MINIAPP_URL || '').replace(/\/+$/, ''),
     // 'full' (default): the whole menu. 'lite' (sngonebot): just the Mini App + account + updates buttons - see menu.js.
     variant: env.BOT_VARIANT === 'lite' ? 'lite' : 'full',
-    // Only one bot process should DM people about their saved searches (sng_loadboard_bot - the Mini App's own
-    // bot, guaranteed to already have a chat open with anyone who saved a search through it); see broadcaster.js.
+    // Only one bot process should DM people about their saved searches - whichever one hosts the Mini App
+    // (currently sngonebot), since it's guaranteed to already have a chat open with anyone who saved a
+    // search through it. See broadcaster.js.
     sendSearchAlerts: truthy(env.BOT_SEND_SEARCH_ALERTS, false),
     databaseUrl: env.DATABASE_URL,
     databaseSsl: truthy(env.DATABASE_SSL, false),

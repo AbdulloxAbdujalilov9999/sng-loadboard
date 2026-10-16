@@ -29,6 +29,12 @@ async function main() {
     // /app (bot.js) still works as a fallback if this call fails or the URL changes later.
     await bot.telegram.setChatMenuButton({ menuButton: { type: 'web_app', text: 'App', web_app: { url: config.miniAppUrl } } })
       .catch((err) => console.warn('Could not set the Mini App menu button:', err.message));
+  } else {
+    // Explicitly reset it: a bot that used to have MINIAPP_URL set (or whose role changed, e.g. the
+    // Mini App moving to a different bot identity) would otherwise keep showing a stale "App" button
+    // forever - Telegram remembers the last menu button it was told to set, it doesn't expire on its own.
+    await bot.telegram.setChatMenuButton({ menuButton: { type: 'default' } })
+      .catch((err) => console.warn('Could not reset the menu button:', err.message));
   }
   const chats = await store.countActiveChats(config.botId);
   // bot.launch() only returns when the bot stops, so the "running" line goes in its start-up callback

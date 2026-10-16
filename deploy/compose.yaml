@@ -66,7 +66,8 @@ services:
     ulimits:
       nofile: 200000
 
-  # Telegram bot - start with:  docker compose --profile bot up -d
+  # @sng_loadboard_bot: buttons only (post/find loads & trucks, account, language, updates) - no Mini
+  # App here, see @sngonebot below for that. Start with:  docker compose --profile bot up -d
   bot:
     build:
       context: ..
@@ -86,17 +87,21 @@ services:
       API_BASE_URL: http://api:8080
       PUBLIC_WEB_URL: https://${SITE_ADDRESS}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      MINIAPP_URL: https://${SITE_ADDRESS}       # same site serves the Mini App; sets this bot's menu button + /app
-      BOT_SEND_SEARCH_ALERTS: "1"                 # the only bot process that DMs people about their saved searches - see broadcaster.js
+      # MINIAPP_URL deliberately NOT set here - @sngonebot is the Mini App's only home (see below).
+      # bot/src/index.js resets the menu button to default when this is unset, clearing any Mini App
+      # button an earlier deploy of this bot had set.
       FIREBASE_WEB_API_KEY: ${FIREBASE_WEB_API_KEY:-AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg}
       BOT_ENCRYPTION_KEY: ${BOT_ENCRYPTION_KEY:-}
       BOT_BROADCAST_LANG: ${BOT_BROADCAST_LANG:-uz}
       BOT_JOIN_CHANNEL: ${BOT_JOIN_CHANNEL:-sngOne_yuklar}
       BOT_JOIN_GROUP: ${BOT_JOIN_GROUP:-sngOne_yuklarr}
 
-  # @sngonebot: a second front door onto the exact same platform/database - the lean companion (Mini
-  # App + login/signup + updates only, see bot/src/config.js's BOT_VARIANT and menu.js's liteKeyboard).
-  # Start with:  docker compose --profile sngonebot up -d
+  # @sngonebot: the Mini App's only home - lean companion (Mini App + login/signup + updates only, see
+  # bot/src/config.js's BOT_VARIANT and menu.js's liteKeyboard). Also the one bot process that DMs
+  # people about their saved searches (BOT_SEND_SEARCH_ALERTS): anyone who saved a search through the
+  # Mini App necessarily has an open chat with this bot (that's what rendered the Mini App), which
+  # Telegram requires before a bot can message someone - @sng_loadboard_bot has no such guarantee since
+  # it doesn't host the Mini App. Start with:  docker compose --profile sngonebot up -d
   sngonebot:
     build:
       context: ..
@@ -118,6 +123,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN_SNGONE:?set TELEGRAM_BOT_TOKEN_SNGONE in .env}
       MINIAPP_URL: https://${SITE_ADDRESS}
       BOT_VARIANT: lite
+      BOT_SEND_SEARCH_ALERTS: "1"
       FIREBASE_WEB_API_KEY: ${FIREBASE_WEB_API_KEY:-AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg}
       BOT_ENCRYPTION_KEY: ${BOT_ENCRYPTION_KEY:-}     # MUST match `bot` above - both decrypt the same telegram_links rows
       BOT_BROADCAST_LANG: ${BOT_BROADCAST_LANG:-uz}
