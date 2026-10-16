@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { COMMAND_MENU, BOT_ABOUT, t } from '../src/i18n.js';
+import { COMMAND_MENU, COMMAND_MENU_LITE, BOT_ABOUT, BOT_ABOUT_LITE, t } from '../src/i18n.js';
 import { publishBotProfile } from '../src/profile.js';
 
 test('the Telegram menu follows Telegram\'s own rules and is translated', () => {
@@ -33,6 +33,36 @@ test('publishBotProfile sets Uzbek as the default and keeps going if one call fa
   assert.ok(calls.some((c) => c[0] === 'commands' && c[1] === 'en'), 'the English menu is overwritten (with Uzbek), not left over from an older version');
   assert.equal(calls.find((c) => c[0] === 'short' && c[1] === 'en')[2], BOT_ABOUT.uz.short);
   assert.equal(warnings.length, 1);
+});
+
+test('sngonebot (lite) has its own short, honest menu - no button-menu-only commands', () => {
+  for (const lang of ['uz', 'ru']) {
+    assert.ok(COMMAND_MENU_LITE[lang].length <= 100);
+    for (const [command, description] of COMMAND_MENU_LITE[lang]) {
+      assert.match(command, /^[a-z0-9_]{1,32}$/, `${command}: lowercase Latin only`);
+      assert.ok(description.length >= 3 && description.length <= 256, `${lang}/${command} description length`);
+    }
+    assert.ok(BOT_ABOUT_LITE[lang].short.length <= 120, `${lang} short description`);
+    assert.ok(BOT_ABOUT_LITE[lang].long.length <= 512, `${lang} description`);
+  }
+  assert.deepEqual(COMMAND_MENU_LITE.uz.map((c) => c[0]), COMMAND_MENU_LITE.ru.map((c) => c[0]), 'same commands in every language');
+  // the full bot's button-menu-only commands must not leak into the lean menu
+  for (const full of ['paste', 'postload', 'posttruck', 'mytrucks', 'mytruck', 'nearloads', 'neartrucks', 'myloads', 'link', 'linkemail', 'mystatus', 'unlink', 'language']) {
+    assert.ok(!COMMAND_MENU_LITE.uz.some(([c]) => c === full), `/${full} should not be in sngonebot's menu`);
+  }
+});
+
+test('publishBotProfile(variant: "lite") sets the lean menu, not the full one', async () => {
+  const calls = [];
+  const telegram = {
+    setMyCommands: async (cmds, extra) => { calls.push(['commands', extra?.language_code ?? 'default', cmds.map((c) => c.command)]); },
+    setMyShortDescription: async (text, code) => { calls.push(['short', code ?? 'default', text]); },
+    setMyDescription: async () => {},
+  };
+  await publishBotProfile(telegram, { warn: () => {} }, 'lite');
+  const defaultCmds = calls.find((c) => c[0] === 'commands' && c[1] === 'default')[2];
+  assert.deepEqual(defaultCmds, COMMAND_MENU_LITE.uz.map((c) => c[0]));
+  assert.equal(calls.find((c) => c[0] === 'short' && c[1] === 'default')[2], BOT_ABOUT_LITE.uz.short);
 });
 
 test('/paste texts exist in every language, and Uzbek is really Uzbek', () => {

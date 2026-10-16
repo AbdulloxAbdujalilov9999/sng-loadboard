@@ -24,7 +24,7 @@ async function main() {
   const broadcaster = makeBroadcaster({ config, pool, store, bot, suppressOwner: (loadId) => bot.chatCleaner.isHidden(loadId) });
 
   await broadcaster.start();
-  await publishBotProfile(bot.telegram);
+  await publishBotProfile(bot.telegram, console, config.variant);
   if (config.miniAppUrl) {
     // Best-effort: the persistent button next to the message box, everyone gets it without asking.
     // /app (bot.js) still works as a fallback if this call fails or the URL changes later.

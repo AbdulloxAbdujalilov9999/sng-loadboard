@@ -358,6 +358,7 @@
     }
     $('gate').classList.add('hidden');
     $('app').classList.remove('hidden');
+    setView('dashboard');
     loadDashboard();
     loadProfile();
   }

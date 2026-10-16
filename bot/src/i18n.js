@@ -1215,6 +1215,20 @@ export const COMMAND_MENU = {
     ['language', 'Сменить язык'],
   ],
 };
+// sngonebot (lite): no button-menu functions here, just the Mini App - a short, honest command list
+// instead of the full bot's menu (которое advertises /postload, /paste etc. this bot does not have).
+export const COMMAND_MENU_LITE = {
+  uz: [
+    ['start', 'Boshlash'],
+    ['app', 'Mini ilovani ochish'],
+    ['updates', 'Birjadagi yuk/mashina soni'],
+  ],
+  ru: [
+    ['start', 'Начало'],
+    ['app', 'Открыть Mini App'],
+    ['updates', 'Сколько грузов/машин на бирже'],
+  ],
+};
 export const BOT_ABOUT = {
   uz: {
     short: 'SNG ONE yuk birjasi: yuk postini joylang — AI oʻqib, birjaga joylaydi.',
@@ -1223,5 +1237,15 @@ export const BOT_ABOUT = {
   ru: {
     short: 'Биржа грузов SNG ONE: вставьте пост о грузе — AI прочитает и опубликует.',
     long: 'SNG ONE — бот грузовой биржи СНГ.\n\n• Вставьте или перешлите пост о грузе — AI прочитает и опубликует на бирже\n• Публикация груза по шагам (/postload), размещение машины (/posttruck)\n• Новые грузы автоматически приходят в группы\n\nНачать: /start',
+  },
+};
+export const BOT_ABOUT_LITE = {
+  uz: {
+    short: 'SNG ONE Mini App: yuk va mashina qidiring, joylang, yangiliklardan xabardor boʻling.',
+    long: 'SNG ONE Mini App.\n\n• Yuk va mashina qidirish, oʻz mashinangizni joylash - hammasi ilovada\n• /updates - birjadagi yuk/mashina soni\n• Har kuni 4 marta yangilanish yuboramiz\n\nBoshlash: /start',
+  },
+  ru: {
+    short: 'SNG ONE Mini App: ищите и публикуйте грузы и машины, следите за обновлениями.',
+    long: 'SNG ONE Mini App.\n\n• Поиск и публикация грузов и машин - всё в приложении\n• /updates - сколько грузов/машин сейчас на бирже\n• 4 раза в день присылаем обновление\n\nНачать: /start',
   },
 };
