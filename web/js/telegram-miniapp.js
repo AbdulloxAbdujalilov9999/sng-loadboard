@@ -5,12 +5,19 @@
 // Outside Telegram (the regular website, window.Telegram is absent) this file does nothing.
 window.TelegramMiniApp = (() => {
   const tg = window.Telegram?.WebApp;
-  const initData = tg?.initData || '';
-  if (!tg || !initData) return { active: false, ready: Promise.resolve(false) };
+  if (!tg) return { active: false, ready: Promise.resolve(false) };
 
+  // Being inside Telegram's WebView at all is reliably detectable from window.Telegram.WebApp alone -
+  // the Mini App layout (tg-miniapp class, bottom tabs, Home landing) always applies here, regardless
+  // of initData below. initData is a separate, narrower concern: whether there's a signed session to
+  // auto sign in with. If it's ever empty (a client quirk, a launch path that omits it), the person
+  // still gets the right Mini App UI, just with the normal sign-in screen inside it.
   tg.ready();
   tg.expand();
   document.documentElement.classList.add('tg-miniapp');
+
+  const initData = tg.initData || '';
+  if (!initData) return { active: true, ready: Promise.resolve(false) };
 
   // Display hints only (never trusted for auth): prefilled into the "complete your profile" form if a
   // brand-new Telegram user has to sign up. The server verifies the real identity from initData itself.
