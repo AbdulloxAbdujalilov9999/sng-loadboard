@@ -74,7 +74,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   // format.js's joinLines.
   const welcomeText = (lang) => {
     const join = joinLines(config, lang);
-    const text = t(lang, 'welcome');
+    const text = t(lang, config.variant === 'lite' ? 'welcome_lite' : 'welcome');
     return join ? `${text}\n\n${join}` : text;
   };
   const isPrivate = (ctx) => ctx.chat?.type === 'private';

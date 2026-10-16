@@ -52,8 +52,12 @@
   border-bottom: none;
   border-radius: 0 0 var(--sng-r-lg) var(--sng-r-lg);
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
+  padding-top: 6px;
+  padding-bottom: 6px;
+  min-height: 0;
 }
-.tg-miniapp #page-title { font-size: 1.15rem; font-weight: 800; color: #0f172a; letter-spacing: -0.01em; }
+/* Small and quiet, not a second headline - the bottom tab already names the current section. */
+.tg-miniapp #page-title { font-size: 0.75rem; font-weight: 600; color: #64748b; letter-spacing: 0; text-transform: uppercase; }
 .tg-miniapp #sync-banner, .tg-miniapp .bg-white.border-b.border-slate-200.shadow-sm {
   background: transparent; border: none; box-shadow: none;
 }
