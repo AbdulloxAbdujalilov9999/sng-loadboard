@@ -26,6 +26,8 @@ const SERVER_MESSAGES = [
   [/^Truck not found/i, 'srv_truck_not_found'],
   [/^Member not found/i, 'srv_member_not_found'],
   [/^Not available for this account/i, 'srv_not_available'],
+  [/^Telegram sign-in is not enabled/i, 'srv_telegram_disabled'],
+  [/^Could not verify Telegram sign-in/i, 'srv_telegram_bad_auth'],
   [/^Nothing to update/i, 'srv_nothing_to_update'],
   [/^Origin and destination must differ/i, 'srv_same_city'],
   [/^Owner only/i, 'srv_owner_only'],
