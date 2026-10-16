@@ -231,6 +231,19 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
       await queue;
       return;
     }
+    // Saved-search alerts (lib/savedSearchAlerts.js, server-side matching): only the bot process
+    // with BOT_SEND_SEARCH_ALERTS set acts on this - see bot/src/config.js. Every bot process LISTENs
+    // on the same channel, so the others just ignore it here.
+    if (evt?.entity === 'savedSearchAlert' && evt.op === 'notify' && config.sendSearchAlerts && evt.telegramUserId && evt.loadId) {
+      const row = await fetchLoad(evt.loadId);
+      if (!row || row.status !== 'active') return;
+      const lang = (await store.getLanguage?.(evt.telegramUserId)) ?? config.broadcastLang;
+      const text = `🔔 ${t(lang, 'saved_search_alert_header')}\n\n${formatLoadMessage(row, lang, linkFor(row))}`;
+      try { await sendWithRetry(evt.telegramUserId, text); } catch (err) {
+        log.warn?.(`saved-search alert to ${evt.telegramUserId} failed: ${err.message}`) ?? console.warn(`saved-search alert to ${evt.telegramUserId} failed: ${err.message}`);
+      }
+      return;
+    }
     if (evt?.entity === 'trucks' && evt.op === 'insert' && evt.id && config.broadcastTrucks !== false) {
       const row = await fetchTruck(evt.id);
       if (!row || row.status !== 'active') return;

@@ -1,12 +1,14 @@
 import { idParam, loadBody, loadPatchBody, loadQuery, loadsBulkBody } from '../lib/schemas.js';
-import { likePattern, loadDto } from '../lib/dto.js';
+import { loadDto } from '../lib/dto.js';
 import { badRequest, forbidden, notFound, tooMany } from '../lib/errors.js';
 import { detail } from '../lib/validation.js';
 import { roadDistanceKm } from '../lib/geo.js';
-import { createBinder, keyset, nextCursorFrom, radiusFilter } from '../lib/sql.js';
+import { createBinder, keyset, nextCursorFrom } from '../lib/sql.js';
+import { buildLoadWhere } from '../lib/loadFilters.js';
 import { publish } from '../events.js';
 import { withTx } from '../db.js';
 import { createMemberLimiter } from '../lib/memberlimit.js';
+import { notifyMatchingSearches } from '../lib/savedSearchAlerts.js';
 
 const COUNT_CAP = 10_000;
 
@@ -59,42 +61,14 @@ export default async function loadRoutes(app, { pool, config }) {
     const q = loadQuery.parse(req.query);
     const b = createBinder();
     const where = [`l.status = 'active'`, `l.pickup_date >= current_date - 1`];
-    let dhoSql = 'NULL::int';
-    let dhdSql = 'NULL::int';
-
-    const near = q.nearLat !== undefined ? { lat: q.nearLat, lng: q.nearLng } : null;
-    if (near) { // "near me": the same radius search as a picked origin city, around the person's own position
-      const f = radiusFilter(b, { latCol: 'l.origin_lat', lngCol: 'l.origin_lng', city: near, radiusKm: q.originRadius });
-      where.push(...f.clauses);
-      dhoSql = `round(${f.distSql})::int`;
-    }
-    for (const [key, prefix, radius, outKey] of [['origin', 'origin', q.originRadius, 'dho'], ['dest', 'dest', q.destRadius, 'dhd']]) {
-      if (!q[key]) continue;
-      const city = await app.cityById(q[key]);
-      if (!city) throw badRequest(`Unknown ${key} city`);
-      const f = radiusFilter(b, { latCol: `l.${prefix}_lat`, lngCol: `l.${prefix}_lng`, city, radiusKm: radius });
-      where.push(...f.clauses);
-      if (outKey === 'dho') dhoSql = `round(${f.distSql})::int`; else dhdSql = `round(${f.distSql})::int`;
-    }
-    if (q.originCountry) where.push(`l.origin_country = ${b.P(q.originCountry)}`);
-    if (q.destCountry) where.push(`l.dest_country = ${b.P(q.destCountry)}`);
-    if (q.equip?.length) where.push(`l.equip = ANY(${b.P(q.equip)}::text[])`);
-    if (q.fp) where.push(`l.fp = ${b.P(q.fp)}`);
-    if (q.dateFrom) where.push(`l.pickup_date >= ${b.P(q.dateFrom)}::date`);
-    if (q.dateTo) where.push(`l.pickup_date <= ${b.P(q.dateTo)}::date`);
-    if (q.minWeight !== undefined) where.push(`l.weight_t >= ${b.P(q.minWeight)}`);
-    if (q.maxWeight !== undefined) where.push(`l.weight_t <= ${b.P(q.maxWeight)}`);
-    if (q.minRate !== undefined) where.push(`l.rate_usd >= ${b.P(q.minRate)}`);
-    if (q.maxDistance !== undefined) where.push(`l.distance_km <= ${b.P(q.maxDistance)}`);
-    if (q.q) {
-      const p = b.P(likePattern(q.q));
-      where.push(`l.search_text LIKE ${p}`); // trigram-indexed (see migration 003)
-    }
+    const built = await buildLoadWhere(app, b, q);
+    where.push(...built.where);
+    const { dhoSql, dhdSql } = built;
     const filterCount = b.params.length;
     const filterSql = where.join(' AND ');
 
     // nearest first only means something with a position (or a picked origin); without one it is the newest first
-    const hasCenter = Boolean(near || q.origin);
+    const hasCenter = Boolean(q.nearLat !== undefined || q.origin);
     const sorts = hasCenter ? { ...SORTS, nearest: { col: dhoSql, cast: 'integer' } } : SORTS;
     const sort = q.sort === 'nearest' && !hasCenter ? 'created' : q.sort;
     const ks = keyset(b, { sorts, sort, dir: q.sort === 'nearest' && !hasCenter ? 'desc' : q.dir, cursor: q.cursor, idCol: 'l.id' });
@@ -180,6 +154,14 @@ export default async function loadRoutes(app, { pool, config }) {
             body.commodity, body.notes ?? '', member.company, body.contactName, body.contactPhone, body.contactEmail, body.contactTelegram]);
         await publish(db, { entity: 'loads', op: 'insert', id: row.id, ownerId: member.id });
         rows.push(row);
+      }
+      return rows;
+    }).then((rows) => {
+      // Saved-search alerts: after the insert commits, not inside the transaction - a bug here must
+      // never roll back a successful post (see lib/savedSearchAlerts.js).
+      for (const row of rows) {
+        notifyMatchingSearches(app, pool, { id: row.id, ownerId: member.id })
+          .catch((err) => app.log.error({ err: err.message, loadId: row.id }, 'saved-search alert matching failed'));
       }
       return rows;
     });

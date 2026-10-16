@@ -23,6 +23,11 @@ export function loadBotConfig(env = process.env) {
     // Leave blank to run the bot without a Mini App: /app just explains it is not set up yet, and the chat menu
     // button is left alone.
     miniAppUrl: (env.MINIAPP_URL || '').replace(/\/+$/, ''),
+    // 'full' (default): the whole menu. 'lite' (sngonebot): just the Mini App + account + updates buttons - see menu.js.
+    variant: env.BOT_VARIANT === 'lite' ? 'lite' : 'full',
+    // Only one bot process should DM people about their saved searches (sng_loadboard_bot - the Mini App's own
+    // bot, guaranteed to already have a chat open with anyone who saved a search through it); see broadcaster.js.
+    sendSearchAlerts: truthy(env.BOT_SEND_SEARCH_ALERTS, false),
     databaseUrl: env.DATABASE_URL,
     databaseSsl: truthy(env.DATABASE_SSL, false),
     firebaseApiKey: env.FIREBASE_WEB_API_KEY || '',

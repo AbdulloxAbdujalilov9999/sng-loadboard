@@ -14,7 +14,7 @@ import { makeLangManager } from './lang.js';
 import { makePasteFlow } from './pasteFlow.js';
 import { makeMyLoads } from './myLoads.js';
 import { makeEditor } from './editor.js';
-import { MENU_TEXTS, mainKeyboard, menuAction } from './menu.js';
+import { MENU_TEXTS, mainKeyboard, liteKeyboard, menuAction } from './menu.js';
 import { makeSignupScene, sendWebLogin } from './signupScene.js';
 import { makeChatCleaner } from './chatCleaner.js';
 import { makeNearby } from './nearby.js';
@@ -78,8 +78,10 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     return join ? `${text}\n\n${join}` : text;
   };
   const isPrivate = (ctx) => ctx.chat?.type === 'private';
+  // sngonebot (config.variant === 'lite') gets the short Mini App + account + updates keyboard; sng_loadboard_bot keeps the full menu.
+  const keyboard = (lang) => (config.variant === 'lite' ? liteKeyboard(lang, config.miniAppUrl) : mainKeyboard(lang));
   // The menu keyboard comes with the welcome message (and stays at the bottom of the chat from then on).
-  const sendWelcome = (ctx) => ctx.reply(welcomeText(ctx.lang), isPrivate(ctx) ? mainKeyboard(ctx.lang) : {});
+  const sendWelcome = (ctx) => ctx.reply(welcomeText(ctx.lang), isPrivate(ctx) ? keyboard(ctx.lang) : {});
   bot.start(sendWelcome);
   bot.help(sendWelcome);
 
@@ -92,12 +94,13 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     LANGS.map((code) => [Markup.button.callback(LANG_NAMES[code], `lang:${code}`)]),
   ));
   bot.command('language', openLanguage);
+  bot.command('updates', sendUpdates);
   bot.action(/^lang:(en|ru|uz)$/, async (ctx) => {
     await ctx.answerCbQuery();
     const code = ctx.match[1];
     await lang.setLang(ctx.from.id, code);
     await ctx.editMessageText(t(code, 'language_set'));
-    if (ctx.chat?.type === 'private') await ctx.reply(t(code, 'menu_ready'), mainKeyboard(code)); // the buttons follow the new language
+    if (ctx.chat?.type === 'private') await ctx.reply(t(code, 'menu_ready'), keyboard(code)); // the buttons follow the new language
   });
 
   // "My account": the link status with the buttons that change it (connect / disconnect), instead of /link, /mystatus and /unlink.
@@ -148,7 +151,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     const phone = m && normalizePhone(m[1]);
     if (!phone) { await ctx.reply(t(ctx.lang, 'link_usage')); return; }
     const r = await performLink({ apiClient, store, tokens, from: ctx.from, phone, pin: m[2] });
-    if (r.ok) await ctx.reply(t(ctx.lang, 'link_success', { company: escapeHtml(r.company) }), { parse_mode: 'HTML', ...mainKeyboard(ctx.lang) });
+    if (r.ok) await ctx.reply(t(ctx.lang, 'link_success', { company: escapeHtml(r.company) }), { parse_mode: 'HTML', ...keyboard(ctx.lang) });
     else await ctx.reply(linkFailureText(ctx.lang, r));
   });
 
@@ -193,7 +196,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
       memberId: me.profile.id, telegramUserId: ctx.from.id, telegramUsername: ctx.from.username || '', refreshToken: signIn.refreshToken,
     });
     tokens.invalidate(ctx.from.id);
-    await ctx.reply(t(ctx.lang, 'link_success', { company: escapeHtml(me.profile.company) }), { parse_mode: 'HTML', ...mainKeyboard(ctx.lang) });
+    await ctx.reply(t(ctx.lang, 'link_success', { company: escapeHtml(me.profile.company) }), { parse_mode: 'HTML', ...keyboard(ctx.lang) });
   });
 
   bot.command('unlink', async (ctx) => {
@@ -237,6 +240,14 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
       return null;
     }
     return { idToken, member: me.profile };
+  }
+
+  // "Updates": the same headline counts as the website's dashboard badges (server/src/routes/stats.js).
+  async function sendUpdates(ctx) {
+    const m = await loadMember(ctx);
+    if (!m) return;
+    const stats = await apiClient.getStats(m.idToken);
+    await ctx.reply(t(ctx.lang, 'updates_text', { loads: stats.loads, trucks: stats.trucks }));
   }
 
   const trucks = makeTrucks({ apiClient, tokens, config, cleaner, loadMember });
@@ -333,6 +344,7 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
     account: openAccount,
     language: openLanguage,
     help: sendWelcome,
+    updates: sendUpdates,
   };
   bot.command('nearloads', (ctx) => nearby.start(ctx, 'loads'));
   bot.command('neartrucks', (ctx) => nearby.start(ctx, 'trucks'));

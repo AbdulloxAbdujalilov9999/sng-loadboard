@@ -205,6 +205,33 @@ export const loadQuery = z.object({
   cursor: z.string().max(300).optional(),
 }).strict().superRefine(nearPair);
 
+// A saved search's filter criteria - the same fields as loadQuery, minus sort/paging and minus
+// "near me" (nearLat/nearLng): a GPS snapshot is stale for matching against loads posted days
+// later, so a saved search is always city/country-based. Stored as-is in saved_searches.filters
+// and re-parsed through loadQuery itself when matching (lib/savedSearchAlerts.js), so a saved
+// search and a live search always mean exactly the same thing by "matches".
+export const savedSearchFilters = z.object({
+  origin: cityId.optional(),
+  originRadius: z.coerce.number().int().min(0).max(2000).default(100),
+  dest: cityId.optional(),
+  originCountry: cc.optional(),
+  destCountry: cc.optional(),
+  destRadius: z.coerce.number().int().min(0).max(2000).default(100),
+  equip: csv(EQUIP).optional(),
+  fp: z.enum(FP).optional(),
+  dateFrom: isoDate.optional(),
+  dateTo: isoDate.optional(),
+  minWeight: z.coerce.number().min(0).max(100).optional(),
+  maxWeight: z.coerce.number().min(0).max(100).optional(),
+  minRate: z.coerce.number().min(0).optional(),
+  maxDistance: z.coerce.number().int().min(1).max(25000).optional(),
+  q: z.string().trim().min(2).max(60).optional(),
+}).strict();
+export const savedSearchBody = z.object({
+  name: z.string().trim().max(80).optional().default(''),
+  filters: savedSearchFilters,
+}).strict();
+
 export const TRUCK_SORTS = ['created', 'available', 'loc', 'equip', 'capacity', 'rate', 'nearest'];
 export const truckQuery = z.object({
   loc: cityId.optional(),

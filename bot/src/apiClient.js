@@ -31,6 +31,8 @@ export function makeApiClient({ baseUrl }) {
   }
 
   const getMe = (idToken) => request(idToken, 'GET', '/api/me');
+  // Headline counts for the "Updates" menu button - same endpoint the website's dashboard badges use.
+  const getStats = (idToken) => request(idToken, 'GET', '/api/stats');
   const searchCities = (idToken, q, limit = 6) =>
     request(idToken, 'GET', `/api/cities?q=${encodeURIComponent(q)}&limit=${limit}`);
   const createLoad = (idToken, body) => request(idToken, 'POST', '/api/loads', body);
@@ -74,5 +76,5 @@ export function makeApiClient({ baseUrl }) {
   // Trades a still-valid PIN session for a fresh one, so a linked member never has to /link again just because time passed.
   const refreshSession = (token) => request(token, 'POST', '/api/auth/refresh', {});
 
-  return { getMe, searchCities, createLoad, createLoadsBulk, parseLoads, listMine, deleteLoad, updateLoad, renewLoad, searchLoads, searchTrucks, parseTrucks, createTruck, createTrucksBulk, listMyTrucks, updateTruck, renewTruck, deleteTruck, putMyTruck, deleteMyTruck, phoneRegister, phoneCheck, createLoginLink, pinLogin, refreshSession };
+  return { getMe, getStats, searchCities, createLoad, createLoadsBulk, parseLoads, listMine, deleteLoad, updateLoad, renewLoad, searchLoads, searchTrucks, parseTrucks, createTruck, createTrucksBulk, listMyTrucks, updateTruck, renewTruck, deleteTruck, putMyTruck, deleteMyTruck, phoneRegister, phoneCheck, createLoginLink, pinLogin, refreshSession };
 }

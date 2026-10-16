@@ -12,6 +12,7 @@ const Loads = (() => {
   let tabs = [];
   let activeId = null;
   let mine = [];
+  let savedSearches = [];
   let datePicker = null;
   let observer = null;
   let entered = false;
@@ -223,6 +224,55 @@ const Loads = (() => {
       // "near me": loads that start within the radius of the person's own position (last, so its radius wins)
       ...(tab.near ? { nearLat: tab.near.lat, nearLng: tab.near.lng, originRadius: tab.dho } : {}),
     };
+  }
+
+  // ---------------------------------------------------------------- saved searches (Mini App: alerts via sng_loadboard_bot)
+  // A saved search stores the same criteria as buildQuery, minus sort/paging/"near me" (a GPS point is
+  // stale for matching loads posted days later - see server/src/lib/schemas.js's savedSearchFilters).
+  function savedSearchFiltersFromTab(tab) {
+    if (tab.near) return null;
+    const [dateFrom, dateTo] = tab.dateRange ? tab.dateRange.split(' to ') : [];
+    return {
+      origin: tab.origin?.kind === 'country' ? undefined : tab.origin?.id,
+      originRadius: tab.origin && tab.origin.kind !== 'country' ? tab.dho : undefined,
+      originCountry: tab.origin?.kind === 'country' ? tab.origin.country : undefined,
+      dest: tab.dest?.kind === 'country' ? undefined : tab.dest?.id,
+      destRadius: tab.dest && tab.dest.kind !== 'country' ? tab.dhd : undefined,
+      destCountry: tab.dest?.kind === 'country' ? tab.dest.country : undefined,
+      equip: tab.equip || undefined, fp: tab.fp || undefined,
+      dateFrom, dateTo: dateTo || dateFrom,
+    };
+  }
+
+  async function loadSavedSearches() {
+    try { savedSearches = (await API.get('/api/me/saved-searches')).items; } catch { return; }
+    renderSavedSearches();
+  }
+
+  function renderSavedSearches() {
+    const box = $('saved-searches-list');
+    box.innerHTML = savedSearches.map((s) => `<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-300 text-slate-700 font-semibold rounded-full pl-2.5 pr-1 py-1 text-[11px]">
+      <i data-lucide="bell" class="w-3 h-3 text-emerald-600"></i>
+      <span class="max-w-[140px] truncate">${esc(s.name || t('search_n'))}</span>
+      <button type="button" data-del-search="${s.id}" class="rounded-full p-0.5 hover:bg-slate-200" aria-label="${esc(t('btn_remove'))}"><i data-lucide="x" class="w-3 h-3"></i></button>
+    </span>`).join('');
+    lucide.createIcons();
+  }
+
+  async function saveCurrentSearch() {
+    if (!(await applyForm())) return;
+    const tab = active();
+    const filters = savedSearchFiltersFromTab(tab);
+    if (!filters) { U.toast(t('save_search_near_unsupported'), 'info'); return; }
+    try {
+      await API.post('/api/me/saved-searches', { name: tabTitle(tab), filters });
+      U.toast(t('toast_search_saved'), 'success');
+      loadSavedSearches();
+    } catch (err) { U.toast(err.message, 'error'); }
+  }
+
+  async function deleteSavedSearch(id) {
+    try { await API.del(`/api/me/saved-searches/${id}`); loadSavedSearches(); } catch (err) { U.toast(err.message, 'error'); }
   }
 
   async function reload({ silent = false } = {}) {
@@ -615,6 +665,11 @@ const Loads = (() => {
     $('filter-equip').addEventListener('change', () => { const tab = active(); if (tab.truck && $('filter-equip').value !== MyTruck.mine()?.equip) tab.truck = false; });
     $('mytruck-use-btn').addEventListener('click', useMyTruck);
     $('mytruck-off-btn').addEventListener('click', clearMyTruck);
+    $('save-search-btn').addEventListener('click', saveCurrentSearch);
+    $('saved-searches-list').addEventListener('click', (e) => {
+      const del = e.target.closest('[data-del-search]');
+      if (del) deleteSavedSearch(Number(del.dataset.delSearch));
+    });
     nearBar = Geo.nearBar('loads', { onUse: useNearMe, onMiles: setNearMiles, onClear: clearNear });
     for (const id of ['filter-dho', 'filter-dhd']) $(id).addEventListener('change', searchSoon);
     $('reset-filters-btn').addEventListener('click', () => {
@@ -715,6 +770,7 @@ const Loads = (() => {
     reload();
     refreshNear();
     loadMine();
+    loadSavedSearches();
   }
 
   function leave() {
@@ -722,11 +778,13 @@ const Loads = (() => {
     list.ctrl?.abort();
     Object.assign(list, { items: [], cursor: null, total: null, done: false, error: null, loading: false });
     mine = [];
+    savedSearches = [];
     tabs = [];
     activeId = null;
     pendingNew = 0;
     $('loads-tbody').innerHTML = '';
     $('my-loads-tbody').innerHTML = '';
+    $('saved-searches-list').innerHTML = '';
   }
 
   /** Called when the user navigates back to the Search tab. */

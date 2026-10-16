@@ -271,8 +271,8 @@ test('the bottom menu: /start brings it, every button does what its command did,
   const { say, last, lastCard, keyboardOf, sent, state, press, buttons } = setup();
   await say('/start');
   const welcome = last('sendMessage');
-  assert.deepEqual(keyboardOf(welcome), [['📋 AI bilan joylash', '✍️ Bosqichma-bosqich'], ['🚚 Mashina joylash', '🛠 Mashina profili'], ['📍 Yaqin yuklar', '🚚 Yaqin mashinalar'], ['📦 Mening yuklarim', '🚛 Mening mashinalarim'], ['👤 Hisobim', '🌐 Til', 'ℹ️ Yordam']]);
-  assert.equal(welcome.reply_markup.is_persistent, true, 'it stays at the bottom of the chat');
+  assert.deepEqual(keyboardOf(welcome), [['📋 AI bilan joylash', '✍️ Bosqichma-bosqich'], ['🚚 Mashina joylash', '🛠 Mashina profili'], ['📍 Yaqin yuklar', '🚚 Yaqin mashinalar'], ['📦 Mening yuklarim', '🚛 Mening mashinalarim'], ['📊 Yangiliklar'], ['👤 Hisobim', '🌐 Til', 'ℹ️ Yordam']]);
+  assert.ok(!welcome.reply_markup.is_persistent, 'collapsed by default - reopened with Telegram\'s own keyboard icon, not forced open');
   assert.doesNotMatch(welcome.text, /\/link|\/postload|\/myloads/, 'the welcome talks about buttons, not commands');
 
   await say('📦 Mening yuklarim');
@@ -299,7 +299,7 @@ test('the bottom menu: /start brings it, every button does what its command did,
   // language: the labels change with it
   await say('🌐 Til');
   await press('lang:ru');
-  assert.deepEqual(keyboardOf(last('sendMessage')), [['📋 Через AI', '✍️ По шагам'], ['🚚 Разместить машину', '🛠 Профиль машины'], ['📍 Грузы рядом', '🚚 Машины рядом'], ['📦 Мои грузы', '🚛 Мои машины'], ['👤 Мой аккаунт', '🌐 Язык', 'ℹ️ Помощь']]);
+  assert.deepEqual(keyboardOf(last('sendMessage')), [['📋 Через AI', '✍️ По шагам'], ['🚚 Разместить машину', '🛠 Профиль машины'], ['📍 Грузы рядом', '🚚 Машины рядом'], ['📦 Мои грузы', '🚛 Мои машины'], ['📊 Обновления'], ['👤 Мой аккаунт', '🌐 Язык', 'ℹ️ Помощь']]);
   await say('📦 Мои грузы'); // the Russian label works too
   assert.match(lastCard().text, /Perm, RU/);
 });
