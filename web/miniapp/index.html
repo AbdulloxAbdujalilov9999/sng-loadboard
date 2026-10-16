@@ -45,8 +45,7 @@
     </div>
 
     <div class="chips" id="dash-chips">
-      <div class="chip on" data-kind="all"><span data-t="chip_all"></span><span class="n" id="chip-all-n">–</span></div>
-      <div class="chip" data-kind="loads"><span data-t="chip_cargo"></span><span class="n" id="chip-cargo-n">–</span></div>
+      <div class="chip on" data-kind="loads"><span data-t="chip_cargo"></span><span class="n" id="chip-cargo-n">–</span></div>
       <div class="chip" data-kind="trucks"><span data-t="chip_truck"></span><span class="n" id="chip-truck-n">–</span></div>
     </div>
 
@@ -118,6 +117,32 @@
   </section>
 
   <!-- ===== Profile (Post has no own tab view - it's the modal below) ===== -->
+  <!-- ===== Near Me ===== -->
+  <section id="view-nearby" class="view">
+    <h1 class="page-h" data-t="nearby_title"></h1>
+    <p class="page-sub" data-t="nearby_sub"></p>
+
+    <div class="toggle2">
+      <button class="seg on" id="nearby-seg-loads" data-t="chip_cargo"></button>
+      <button class="seg" id="nearby-seg-trucks" data-t="chip_truck"></button>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <div class="btn-row">
+        <button class="btn btn-primary" id="nearby-locate">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 00-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 00-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+          <span id="nearby-locate-text"></span>
+        </button>
+      </div>
+      <select class="field hidden" id="nearby-radius" style="margin-top:10px;">
+        <option value="50">50 km</option><option value="100" selected>100 km</option><option value="150">150 km</option>
+      </select>
+    </div>
+
+    <div class="listhead"><span id="nearby-count"></span></div>
+    <div id="nearby-results"></div>
+  </section>
+
   <section id="view-profile" class="view">
     <h1 class="page-h" data-t="profile_title"></h1>
     <div class="profile-head">
@@ -177,12 +202,13 @@
       <span class="fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg></span>
       <span data-t="nav_post"></span>
     </button>
+    <button class="tab" data-view="nearby">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 00-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 00-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+      <span data-t="nav_nearby"></span>
+    </button>
     <button class="tab" data-view="profile">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       <span data-t="nav_profile"></span>
-    </button>
-    <button class="tab" id="tab-placeholder" style="visibility:hidden;">
-      <svg viewBox="0 0 24 24"></svg><span>&nbsp;</span>
     </button>
   </nav>
 </div>

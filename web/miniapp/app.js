@@ -13,6 +13,7 @@
     document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = t(el.dataset.t); });
     document.querySelectorAll('[data-t-ph]').forEach((el) => { el.placeholder = t(el.dataset.tPh); });
     $('search-go-text').textContent = searchKind === 'trucks' ? t('btn_find_trucks') : t('btn_find_cargo');
+    $('nearby-locate-text').textContent = t('nearby_locate');
     $('row-language-sub').textContent = { en: 'English', ru: 'Русский', uz: "O'zbek" }[MiniI18n.lang];
   }
   function setTheme(mode) {
@@ -85,11 +86,10 @@
       const stats = await API.get('/api/stats');
       $('chip-cargo-n').textContent = stats.loads;
       $('chip-truck-n').textContent = stats.trucks;
-      $('chip-all-n').textContent = stats.loads + stats.trucks;
     } catch { /* counts are a nicety, feed still loads */ }
     await loadFeed();
   }
-  let dashKind = 'all';
+  let dashKind = 'loads';
   async function loadFeed() {
     $('dash-feed').innerHTML = `<div class="empty"><span class="spinner" style="border-color:rgba(13,142,240,.25);border-top-color:var(--blue-2);"></span></div>`;
     try {
@@ -189,6 +189,51 @@
       );
     });
     $('search-radius').addEventListener('change', () => { if (geoPos) runSearch(); });
+  }
+
+  // ---------------------------------------------------------------- Near Me (its own tab: just loads/trucks around you)
+  let nearbyKind = 'loads';
+  let nearbyPos = null;
+  function setNearbyKind(kind) {
+    nearbyKind = kind;
+    $('nearby-seg-loads').classList.toggle('on', kind === 'loads');
+    $('nearby-seg-trucks').classList.toggle('on', kind === 'trucks');
+    if (nearbyPos) runNearby();
+  }
+  async function runNearby() {
+    if (!nearbyPos) return;
+    $('nearby-results').innerHTML = `<div class="empty"><span class="spinner" style="border-color:rgba(13,142,240,.25);border-top-color:var(--blue-2);"></span></div>`;
+    const radius = Number($('nearby-radius').value);
+    const params = { sort: 'nearest', dir: 'asc', limit: 30, nearLat: nearbyPos.lat, nearLng: nearbyPos.lng };
+    if (nearbyKind === 'loads') params.originRadius = radius; else params.locRadius = radius;
+    try {
+      const res = await API.get(nearbyKind === 'loads' ? '/api/loads' : '/api/trucks', params);
+      $('nearby-count').textContent = t('of_count', { shown: res.items.length, total: res.total ?? res.items.length });
+      $('nearby-results').innerHTML = res.items.length ? res.items.map((x) => cardHtml(x, nearbyKind)).join('') : `<div class="empty">${esc(t('loads_none'))}</div>`;
+    } catch (err) {
+      $('nearby-results').innerHTML = `<div class="empty">${esc(err.message || t('err_generic'))}</div>`;
+    }
+  }
+  function wireNearby() {
+    $('nearby-seg-loads').addEventListener('click', () => setNearbyKind('loads'));
+    $('nearby-seg-trucks').addEventListener('click', () => setNearbyKind('trucks'));
+    $('nearby-radius').addEventListener('change', runNearby);
+    $('nearby-locate').addEventListener('click', () => {
+      if (!navigator.geolocation) return toast(t('nearby_denied'));
+      $('nearby-locate').disabled = true;
+      $('nearby-locate-text').textContent = t('nearby_locating');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          nearbyPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          $('nearby-radius').classList.remove('hidden');
+          $('nearby-locate').disabled = false;
+          $('nearby-locate-text').textContent = t('nearby_locate');
+          runNearby();
+        },
+        () => { toast(t('nearby_denied')); $('nearby-locate').disabled = false; $('nearby-locate-text').textContent = t('nearby_locate'); },
+        { timeout: 10000 },
+      );
+    });
   }
 
   // ---------------------------------------------------------------- Post modal
@@ -347,7 +392,7 @@
   async function boot() {
     setTheme(U.store.get('sng.miniTheme') || (telegram?.colorScheme === 'dark' ? 'dark' : 'light'));
     applyI18n();
-    wireNav(); wireDashboard(); wireSearch(); wirePost(); wireProfile();
+    wireNav(); wireDashboard(); wireSearch(); wireNearby(); wirePost(); wireProfile();
     await window.TelegramMiniApp?.ready;
     const token = await window.Session.getToken();
     if (!token) {
