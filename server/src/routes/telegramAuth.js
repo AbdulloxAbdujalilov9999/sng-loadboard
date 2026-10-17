@@ -11,7 +11,13 @@ export default async function telegramAuthRoutes(app, { pool, config }) {
   const enabled = Boolean(config.telegramBotToken && config.authSecret);
 
   app.post('/api/auth/telegram', {
-    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+    // Unlike a PIN or password endpoint, this can't be brute-forced - the only way through is a
+    // signature Telegram itself computed, so the limit here isn't guarding a guessable secret, only
+    // server load. It also fires on every single Mini App open, not just an explicit "log in", and
+    // many real people can share one IP behind mobile-carrier NAT (common in Uzbekistan) - a handful
+    // of people opening the app in the same minute was enough to 429 everyone else on that IP, which
+    // the Mini App then showed as a flat "sign-in failed", indistinguishable from a real auth bug.
+    config: { rateLimit: { max: 300, timeWindow: '1 minute' } },
   }, async (req) => {
     if (!enabled) throw new HttpError(404, 'telegram_auth_disabled', 'Telegram sign-in is not enabled on this server');
     const initData = typeof req.body?.initData === 'string' ? req.body.initData : '';

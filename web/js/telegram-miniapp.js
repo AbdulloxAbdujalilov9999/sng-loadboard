@@ -34,12 +34,27 @@ window.TelegramMiniApp = (() => {
     });
   }
 
-  const ready = fetch(`${window.APP_CONFIG.apiBase || ''}/api/auth/telegram`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ initData }),
-  })
-    .then((res) => (res.ok ? res.json() : null))
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // 429 here is near-certainly many real people sharing one IP behind mobile-carrier NAT (common in
+  // Uzbekistan), not this particular person doing anything wrong - a handful of others opening the
+  // app in the same minute was enough to make a legitimate sign-in look broken. Retrying a couple of
+  // times (honoring the server's own Retry-After) absorbs that instead of surfacing a dead end.
+  async function signIn(attempt = 1) {
+    const res = await fetch(`${window.APP_CONFIG.apiBase || ''}/api/auth/telegram`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ initData }),
+    });
+    if (res.status === 429 && attempt < 3) {
+      const waitSec = Number(res.headers.get('Retry-After')) || attempt * 2;
+      await sleep(waitSec * 1000);
+      return signIn(attempt + 1);
+    }
+    return res.ok ? res.json() : null;
+  }
+
+  const ready = signIn()
     .then((session) => {
       if (session?.token) U.store.set('sng.pinSession', JSON.stringify({ token: session.token, expiresAt: session.expiresAt, phone: '' }));
     })

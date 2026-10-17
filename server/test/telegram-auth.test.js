@@ -70,3 +70,16 @@ test('rejects garbage or unsigned initData', async () => {
   const empty = await env.anon().post('/api/auth/telegram', {});
   assert.equal(empty.status, 401);
 });
+
+test('the per-IP rate limit tolerates many different real people sharing one IP (mobile-carrier NAT), not just one brute-force guesser', async () => {
+  // A PIN/password endpoint keeps a tight limit on purpose (it's guardng a guessable secret per IP).
+  // This endpoint can't be brute-forced at all - only a Telegram-signed payload gets through - so a
+  // burst of sign-ins from distinct Telegram users (the normal shape of many people behind one NAT'd
+  // IP opening the Mini App around the same time) must not 429 a legitimate person.
+  const codes = [];
+  for (let i = 0; i < 50; i += 1) {
+    const initData = initDataFor({ id: 700000000 + i, first_name: `Burst${i}` });
+    codes.push((await env.anon().post('/api/auth/telegram', { initData })).status);
+  }
+  assert.ok(codes.every((c) => c === 200), `expected all 50 distinct sign-ins to succeed, got ${codes}`);
+});
