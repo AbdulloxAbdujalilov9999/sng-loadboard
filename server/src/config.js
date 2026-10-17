@@ -42,9 +42,15 @@ export function loadConfig(env = process.env) {
     workers: env.WEB_CONCURRENCY === 'auto' ? os.availableParallelism() : Number(env.WEB_CONCURRENCY || 1),
     // Secret for phone + PIN sign-in (hashes and session tokens). Required in production; without it PIN sign-in is simply off.
     authSecret: env.AUTH_SECRET || (isProd ? '' : 'dev-only-auth-secret-not-for-production'),
-    // Same token as the bot's TELEGRAM_BOT_TOKEN: needed here too, to verify the signed initData a
-    // Telegram Mini App sends on launch (see lib/telegramAuth.js). Telegram sign-in is simply off without it.
-    telegramBotToken: env.TELEGRAM_BOT_TOKEN || '',
+    // Verifies the signed initData a Telegram Mini App sends on launch (see lib/telegramAuth.js).
+    // Telegram signs initData with whichever bot actually opened the page, so this accepts EITHER
+    // bot's token: sngonebot's own (TELEGRAM_BOT_TOKEN, the Mini App's current home) and the full
+    // bot's (TELEGRAM_BOT_TOKEN_LOADBOARD) as a fallback - a stale "open Mini App" button left over
+    // from before the two bots were split, or someone tapping the wrong bot out of habit, still
+    // proves the same real Telegram person and should still work rather than a dead-end 401 with no
+    // way to recover short of them finding the one specific button that still matches. Telegram
+    // sign-in is off entirely only if neither token is set.
+    telegramBotTokens: [env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_BOT_TOKEN_LOADBOARD].filter(Boolean),
     registerPerHour: Number(env.REGISTER_RATE_PER_HOUR || 20), // new phone accounts per IP per hour
     pinLoginPerMin: Number(env.PIN_LOGIN_RATE_PER_MIN || 12), // per IP; the per-phone lockout is separate
     devAuth: truthy(env.DEV_FAKE_AUTH, false),

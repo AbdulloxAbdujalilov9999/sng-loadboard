@@ -4,20 +4,21 @@ import crypto from 'node:crypto';
 import { startTestEnv } from './helpers.js';
 
 const BOT_TOKEN = '123456:test-bot-token-for-signature-only';
+const LOADBOARD_BOT_TOKEN = '789012:test-loadboard-bot-token-for-signature-only';
 
 /** Signs a Telegram Mini App initData string exactly the way Telegram itself does, so the server's
  * real HMAC verification (server/src/lib/telegramAuth.js) accepts it like a genuine launch. */
-function initDataFor(user, { authDate = Math.floor(Date.now() / 1000) } = {}) {
+function initDataFor(user, { authDate = Math.floor(Date.now() / 1000), token = BOT_TOKEN } = {}) {
   const params = new URLSearchParams({ auth_date: String(authDate), query_id: 'AAtest', user: JSON.stringify(user) });
   const dataCheckString = [...params.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, v]) => `${k}=${v}`).join('\n');
-  const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+  const secretKey = crypto.createHmac('sha256', 'WebAppData').update(token).digest();
   const hash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
   params.set('hash', hash);
   return params.toString();
 }
 
 let env;
-before(async () => { env = await startTestEnv({ TELEGRAM_BOT_TOKEN: BOT_TOKEN }); });
+before(async () => { env = await startTestEnv({ TELEGRAM_BOT_TOKEN: BOT_TOKEN, TELEGRAM_BOT_TOKEN_LOADBOARD: LOADBOARD_BOT_TOKEN }); });
 after(async () => { await env.close(); });
 
 test('a classic-linked member (telegram_links, never written to members) is recognized by Mini App sign-in', async () => {
@@ -69,6 +70,22 @@ test('rejects garbage or unsigned initData', async () => {
   assert.equal(bad.status, 401);
   const empty = await env.anon().post('/api/auth/telegram', {});
   assert.equal(empty.status, 401);
+});
+
+test('a Mini App button opened from the full bot (@sng_loadboard_bot) - e.g. a stale message from before the bots were split - still signs in, not just sngonebot', async () => {
+  const telegramUserId = 333222111;
+  const initData = initDataFor({ id: telegramUserId, first_name: 'ViaLoadboard' }, { token: LOADBOARD_BOT_TOKEN });
+  const res = await env.anon().post('/api/auth/telegram', { initData });
+  assert.equal(res.status, 200, 'the server trusts either bot\'s signature, since both prove the same real Telegram person');
+  const me = await env.withToken(res.json.token).get('/api/me');
+  assert.equal(me.status, 200);
+  assert.equal(me.json.status, 'none');
+});
+
+test('a signature from neither trusted bot is still rejected', async () => {
+  const forged = initDataFor({ id: 1 }, { token: 'nobody:trusts-this-token' });
+  const res = await env.anon().post('/api/auth/telegram', { initData: forged });
+  assert.equal(res.status, 401);
 });
 
 test('the per-IP rate limit tolerates many different real people sharing one IP (mobile-carrier NAT), not just one brute-force guesser', async () => {

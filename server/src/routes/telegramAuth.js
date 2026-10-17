@@ -8,7 +8,7 @@ import { telegramIdentity } from '../lib/identity.js';
 import { signTelegramSession } from '../lib/telegramSession.js';
 
 export default async function telegramAuthRoutes(app, { pool, config }) {
-  const enabled = Boolean(config.telegramBotToken && config.authSecret);
+  const enabled = Boolean(config.telegramBotTokens.length && config.authSecret);
 
   app.post('/api/auth/telegram', {
     // Unlike a PIN or password endpoint, this can't be brute-forced - the only way through is a
@@ -21,7 +21,13 @@ export default async function telegramAuthRoutes(app, { pool, config }) {
   }, async (req) => {
     if (!enabled) throw new HttpError(404, 'telegram_auth_disabled', 'Telegram sign-in is not enabled on this server');
     const initData = typeof req.body?.initData === 'string' ? req.body.initData : '';
-    const user = verifyTelegramInitData(initData, config.telegramBotToken);
+    // Try every trusted bot's token, not just sngonebot's - the signature only proves which bot
+    // opened the page, not which one the person "should" have used.
+    let user = null;
+    for (const token of config.telegramBotTokens) {
+      user = verifyTelegramInitData(initData, token);
+      if (user) break;
+    }
     if (!user) throw new HttpError(401, 'bad_telegram_auth', 'Could not verify Telegram sign-in');
 
     // Two separate paths lead to an existing member: signed up straight through the Mini App
