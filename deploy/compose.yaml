@@ -63,6 +63,10 @@ services:
       AI_RATE_PER_HOUR: ${AI_RATE_PER_HOUR:-200}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-sng-pro}
       CSP_ENFORCE: ${CSP_ENFORCE:-false}
+      # The Mini App is a separate deployment (Vercel, its own repo) calling this API cross-origin -
+      # without this, the browser's CORS check refuses every request from that origin. Override in
+      # .env if the actual Vercel URL differs from the default guess (custom domain, preview URLs, etc).
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://sng-miniapp-web.vercel.app}
     ulimits:
       nofile: 200000
 
@@ -121,7 +125,9 @@ services:
       API_BASE_URL: http://api:8080
       PUBLIC_WEB_URL: https://${SITE_ADDRESS}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN_SNGONE:?set TELEGRAM_BOT_TOKEN_SNGONE in .env}
-      MINIAPP_URL: https://${SITE_ADDRESS}/miniapp/
+      # Deployed separately on Vercel (its own repo, sng-miniapp-web) - not served from this platform.
+      # Override in .env if the real Vercel URL differs from this default guess.
+      MINIAPP_URL: ${MINIAPP_URL:-https://sng-miniapp-web.vercel.app}
       BOT_VARIANT: lite
       BOT_SEND_SEARCH_ALERTS: "1"
       BOT_SEND_UPDATES_DIGEST: "1"

@@ -14,7 +14,6 @@ const nm = (...p) => path.join(root, 'node_modules', ...p);
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(path.join(dist, 'js'), { recursive: true });
 fs.mkdirSync(path.join(dist, 'vendor'), { recursive: true });
-fs.mkdirSync(path.join(dist, 'miniapp'), { recursive: true });
 
 // 1. CSS
 execFileSync(process.execPath, [nm('tailwindcss', 'lib', 'cli.js'), '-c', path.join(root, 'tailwind.config.cjs'),
@@ -28,14 +27,6 @@ fs.appendFileSync(path.join(dist, 'styles.css'), `\n${darkCss(readSources(root))
 for (const f of fs.readdirSync(path.join(web, 'js'))) fs.copyFileSync(path.join(web, 'js', f), path.join(dist, 'js', f));
 if (fs.existsSync(path.join(web, 'public'))) {
   for (const f of fs.readdirSync(path.join(web, 'public'))) fs.copyFileSync(path.join(web, 'public', f), path.join(dist, f));
-}
-
-// 2c. The Mini App: a separate, standalone page (own CSS/JS, deliberately not sharing the main
-// site's design) - only index.html needs the __BUILD__ cache-bust, done together with the main one below.
-const miniapp = path.join(web, 'miniapp');
-for (const f of fs.readdirSync(miniapp)) {
-  if (f === 'index.html') continue;
-  fs.copyFileSync(path.join(miniapp, f), path.join(dist, 'miniapp', f));
 }
 
 // 3. Vendor libraries, self-hosted (no third-party CDN at runtime except Firebase Auth itself)
@@ -55,8 +46,6 @@ const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) =
   .flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]));
 for (const f of walk(dist)) hash.update(fs.readFileSync(f));
 hash.update(fs.readFileSync(path.join(web, 'index.html')));
-hash.update(fs.readFileSync(path.join(miniapp, 'index.html')));
 const version = hash.digest('hex').slice(0, 10);
 fs.writeFileSync(path.join(dist, 'index.html'), fs.readFileSync(path.join(web, 'index.html'), 'utf8').replaceAll('__BUILD__', version));
-fs.writeFileSync(path.join(dist, 'miniapp', 'index.html'), fs.readFileSync(path.join(miniapp, 'index.html'), 'utf8').replaceAll('__BUILD__', version));
 console.log(`web built -> ${path.relative(root, dist)} (build ${version})`);
