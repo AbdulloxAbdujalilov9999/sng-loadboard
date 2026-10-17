@@ -2,16 +2,21 @@
 // `initData` string proving who the user is; we trade that for a session token (see
 // server/src/routes/telegramAuth.js) and store it exactly like a phone+PIN session (sng.pinSession),
 // so the existing sign-in gate in session.js sees it and skips straight past the login screen.
-// Outside Telegram (the regular website, window.Telegram is absent) this file does nothing.
+// Outside Telegram (the regular website) this file does nothing.
 window.TelegramMiniApp = (() => {
   const tg = window.Telegram?.WebApp;
-  if (!tg) return { active: false, ready: Promise.resolve(false) };
+  // The Telegram Web App SDK script defines window.Telegram.WebApp as a stub in ANY browser that
+  // merely loads it - not only inside real Telegram - so tg's mere existence is not a valid signal
+  // (this cost the main site its own layout for a while: every ordinary visit got treated as a Mini
+  // App). tg.platform is Telegram's own documented way to tell them apart: a real client reports its
+  // actual platform ("ios", "tdesktop", "web", ...); the stub reports "unknown".
+  if (!tg || tg.platform === 'unknown') return { active: false, ready: Promise.resolve(false) };
 
-  // Being inside Telegram's WebView at all is reliably detectable from window.Telegram.WebApp alone -
-  // the Mini App layout (tg-miniapp class, bottom tabs, Home landing) always applies here, regardless
-  // of initData below. initData is a separate, narrower concern: whether there's a signed session to
-  // auto sign in with. If it's ever empty (a client quirk, a launch path that omits it), the person
-  // still gets the right Mini App UI, just with the normal sign-in screen inside it.
+  // Being genuinely inside Telegram, the Mini App layout (tg-miniapp class, bottom tabs, Home
+  // landing) always applies, regardless of initData below. initData is a separate, narrower concern:
+  // whether there's a signed session to auto sign in with. If it's ever empty (a client quirk, a
+  // launch path that omits it), the person still gets the right Mini App UI, just with the normal
+  // sign-in screen inside it.
   tg.ready();
   tg.expand();
   document.documentElement.classList.add('tg-miniapp');
