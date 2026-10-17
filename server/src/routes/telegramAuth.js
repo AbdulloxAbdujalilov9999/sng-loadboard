@@ -18,7 +18,17 @@ export default async function telegramAuthRoutes(app, { pool, config }) {
     const user = verifyTelegramInitData(initData, config.telegramBotToken);
     if (!user) throw new HttpError(401, 'bad_telegram_auth', 'Could not verify Telegram sign-in');
 
-    const { rows: [existing] } = await pool.query('SELECT email FROM members WHERE telegram_user_id = $1', [user.id]);
+    // Two separate paths lead to an existing member: signed up straight through the Mini App
+    // (members.telegram_user_id, migration 024) or linked the classic way from either bot's /link
+    // command (telegram_links, never written to members - see bot/src/store.js's own comment on
+    // this same split). Checking only the first left every classic-link member unrecognized here,
+    // handing them a brand-new, empty synthetic identity instead of their real account - exactly the
+    // "linked twice" bug the shared-account requirement exists to prevent.
+    const { rows: [existing] } = await pool.query(
+      `SELECT m.email FROM members m WHERE m.telegram_user_id = $1
+         OR m.id = (SELECT member_id FROM telegram_links WHERE telegram_user_id = $1) LIMIT 1`,
+      [user.id],
+    );
     const identity = existing ? existing.email : telegramIdentity(user.id);
     return signTelegramSession({ secret: config.authSecret, identity, telegramUserId: user.id });
   });
