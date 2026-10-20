@@ -52,7 +52,11 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://sng:${POSTGRES_PASSWORD}@db:5432/sng
+      # Normally the local `db` service below. Set DATABASE_URL in .env instead to point this
+      # deployment at an external/shared Postgres (e.g. one also used by other projects) - the local
+      # `db` container still starts (harmless; nothing uses it) but is simply unused.
+      DATABASE_URL: ${DATABASE_URL:-postgres://sng:${POSTGRES_PASSWORD}@db:5432/sng}
+      DATABASE_SSL: ${DATABASE_SSL:-false}
       OWNER_EMAILS: ${OWNER_EMAILS:?set OWNER_EMAILS in .env}
       AUTH_SECRET: ${AUTH_SECRET:-}              # phone + PIN sign-in; update.sh generates it once
       # Verifies the Mini App's signed initData (server/src/lib/telegramAuth.js) - Telegram signs it
