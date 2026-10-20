@@ -460,7 +460,7 @@ const Session = (() => {
     if (!ok) { form.querySelector('.field-invalid')?.focus(); return; }
     U.setBusy(form, true);
     try {
-      const r = await API.request('POST', '/api/auth/phone/register', { body: { phone: phoneNumber, pin: $('reg-pin').value.trim(), contactName: name, telegram: $('reg-tg').value.trim() }, retry: false });
+      const r = await API.request('POST', '/api/auth/phone/register', { body: { phone: phoneNumber, pin: $('reg-pin').value.trim(), contactName: name, telegram: $('reg-tg').value.trim(), ...($('reg-persona').value ? { persona: $('reg-persona').value } : {}) }, retry: false });
       PinSession.set({ token: r.token, expiresAt: r.expiresAt, phone: phoneNumber });
       $('reg-pin').value = ''; $('reg-pin2').value = '';
       await refresh();
@@ -571,6 +571,7 @@ const Session = (() => {
       U.clearFormErrors(form);
       $('request-error').classList.add('hidden');
       const body = { contactName: $('gate-request-name').value.trim(), telegram: $('gate-request-tg').value.trim(), phone: $('gate-request-phone').value.trim() };
+      if ($('gate-request-persona').value) body.persona = $('gate-request-persona').value;
       let ok = true;
       if (!body.contactName) { U.fieldError($('gate-request-name'), t('err_required')); ok = false; }
       if (!body.phone && !body.telegram) { U.fieldError($('gate-request-phone'), t('v_contact_required')); U.fieldError($('gate-request-tg'), t('v_contact_required')); ok = false; }

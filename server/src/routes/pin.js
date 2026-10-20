@@ -37,9 +37,9 @@ export default async function pinRoutes(app, { pool, config }) {
     try {
       row = await withTx(pool, async (db) => {
         const { rows: [m] } = await db.query(
-          `INSERT INTO members (email, company, contact_name, phone, telegram, contact_email, status, login_phone, pin_hash, pin_changed_at, works_with_company, trial_ends_at)
-           VALUES ($1, $2, $3, $4, $5, $6, 'approved', $4, $7, now(), $8, $9) RETURNING *`,
-          [identity, body.company || body.contactName, body.contactName, body.phone, body.telegram, body.contactEmail, hash, Boolean(body.company), trialEndFor(await app.subscriptionSettings())]);
+          `INSERT INTO members (email, company, contact_name, phone, telegram, contact_email, status, login_phone, pin_hash, pin_changed_at, works_with_company, trial_ends_at, persona)
+           VALUES ($1, $2, $3, $4, $5, $6, 'approved', $4, $7, now(), $8, $9, $10) RETURNING *`,
+          [identity, body.company || body.contactName, body.contactName, body.phone, body.telegram, body.contactEmail, hash, Boolean(body.company), trialEndFor(await app.subscriptionSettings()), body.persona ?? null]);
         await publish(db, { entity: 'members', op: 'insert', id: m.id });
         return m;
       });

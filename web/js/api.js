@@ -48,6 +48,8 @@ const SERVER_MESSAGES = [
   [/^You have reached the limit of (\d+) active trucks/i, 'srv_limit_trucks', (m) => ({ n: m[1] })],
   [/^You have reached the limit of (\d+) saved searches/i, 'srv_limit_saved_searches', (m) => ({ n: m[1] })],
   [/^Saved search not found/i, 'srv_saved_search_not_found'],
+  [/^You have reached the limit of (\d+) saved posts/i, 'srv_limit_favorites', (m) => ({ n: m[1] })],
+  [/^Not in your saved posts/i, 'srv_not_favorited'],
   [/^Your access request is/i, 'srv_blocked'],
   [/^Your free trial or subscription has ended/i, 'srv_subscription_required'],
   [/^Invalid or expired link/i, 'srv_link_invalid'],

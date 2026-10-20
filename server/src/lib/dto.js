@@ -22,6 +22,7 @@ export const memberDto = (m) => ({
   routes: m.routes,
   status: m.status,
   role: m.role,
+  persona: m.persona ?? null,
   hasPin: Boolean(m.pin_hash),
   myTruck: m.my_truck ?? null,
   loginPhone: m.login_phone ?? '',
@@ -40,6 +41,7 @@ export const directoryDto = (m) => ({
   tirCarnet: m.tir_carnet,
   fleet: m.fleet,
   routes: m.routes,
+  persona: m.persona ?? null,
 });
 
 export const loadDto = (r, viewerId) => ({
@@ -96,6 +98,12 @@ export const truckDto = (r, viewerId) => ({
   dho: r.dho ?? null,
   mine: r.owner_id === viewerId,
 });
+
+// Guest (unauthenticated) view of a load/truck: same shape as the member view, minus contact details -
+// matching the member view field-for-field means the web app's one card component renders both; only
+// the contact block needs a "sign in to view" state. `mine` never applies to a guest.
+export const guestLoadDto = (r) => ({ ...loadDto(r, null), contactName: null, contactPhone: null, contactEmail: null, contactTelegram: null, mine: false, signInToContact: true });
+export const guestTruckDto = (r) => ({ ...truckDto(r, null), contactPhone: null, contactTelegram: null, mine: false, signInToContact: true });
 
 export const cityDto = (c, note) => ({ id: c.id, name: c.name, nameRu: c.name_ru, country: c.country.trim(), label: c.label, lat: c.lat, lng: c.lng, ...(note ? { note } : {}) });
 

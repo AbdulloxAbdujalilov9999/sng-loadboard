@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 export const EQUIP = ['T', 'R', 'F', 'V', 'AC'];
 export const FP = ['Full', 'Partial'];
+// Business role a member picks (shown in the UI); NULL/omitted = "not picked yet". Not an authorization
+// level - that's the separate `role` column (owner/member) - see migration 026_persona.sql.
+export const PERSONA = ['shipper', 'driver', 'broker'];
 
 const trimmed = (max, min = 1) => z.string().trim().min(min).max(max);
 const optionalText = (max) => z.string().trim().max(max).default('');
@@ -34,6 +37,7 @@ export const signupBody = z.object({
   telegram: orEmpty(telegram).default(''),
   contactEmail: orEmpty(email).default(''),
   pin: pin.optional(),
+  persona: z.enum(PERSONA).optional(), // asked at sign-up; skippable, and changeable later in Settings
 }).strict();
 export const accessRequestBody = signupBody; // the endpoint keeps its old URL
 
@@ -53,6 +57,7 @@ export const phoneRegisterBody = z.object({
   company: optionalText(120),
   telegram: orEmpty(telegram).default(''),
   contactEmail: orEmpty(email).default(''),
+  persona: z.enum(PERSONA).optional(),
 }).strict();
 export const linkLoginBody = z.object({ code: z.string().regex(/^[A-Za-z0-9_-]{30,64}$/, 'invalid') }).strict();
 export const phoneCheckBody = z.object({ phone: z.string().trim().regex(/^\+\d{8,15}$/, 'phone') }).strict();
@@ -70,6 +75,7 @@ export const profileBody = z.object({
   tirCarnet: z.string().trim().max(60),
   fleet: z.string().trim().max(200),
   routes: z.string().trim().max(300),
+  persona: z.union([z.literal(''), z.enum(PERSONA)]).transform((v) => v || null), // '' clears it back to "not set"
 }).partial().strict();
 
 const cityId = z.coerce.number().int().positive();
@@ -270,6 +276,14 @@ export const fxBody = z.object({
 }).strict();
 
 export const idParam = z.object({ id: z.coerce.number().int().positive() }).strict();
+
+// A saved individual load/truck post ("Saved" tab) - see migration 027_favorites.sql. Distinct from a
+// saved search (savedSearchBody above), which saves a filter, not a post.
+export const favoriteBody = z.object({
+  entityType: z.enum(['load', 'truck']),
+  entityId: z.coerce.number().int().positive(),
+}).strict();
+export const favoriteParams = favoriteBody;
 
 export const subscriptionBody = z.object({
   enabled: z.boolean(),

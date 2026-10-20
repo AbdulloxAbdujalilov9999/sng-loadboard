@@ -61,6 +61,7 @@ const Account = (() => {
     set('setting-tir', p.tirCarnet);
     set('setting-fleet', p.fleet);
     set('setting-routes', p.routes);
+    set('setting-persona', p.persona);
     set('setting-default-dh', U.store.get('sng.defaultDh', 100));
 
     $('acc-big-avatar').textContent = me.isOwner ? '★' : initials(p.company || p.contactName);
