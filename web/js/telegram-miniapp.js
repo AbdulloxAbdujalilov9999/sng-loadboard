@@ -36,12 +36,25 @@ window.TelegramMiniApp = (() => {
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  // fetch() has no built-in timeout: a connection a restrictive network silently drops instead of
+  // cleanly refusing (rather than a clean error, no response ever arrives) hangs this promise
+  // forever - and since boot() awaits this before it does anything else, the gate was stuck on its
+  // initial "Opening your account..." placeholder with no way out, forever, not actually frozen code
+  // but a request that was never going to settle on its own. Capping every attempt forces it to fail
+  // fast instead, so the gate always reaches a real outcome (signed in, or the normal sign-in screen).
+  const TIMEOUT_MS = 8000;
+  async function fetchWithTimeout(url, options) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try { return await fetch(url, { ...options, signal: controller.signal }); } finally { clearTimeout(timer); }
+  }
+
   // 429 here is near-certainly many real people sharing one IP behind mobile-carrier NAT (common in
   // Uzbekistan), not this particular person doing anything wrong - a handful of others opening the
   // app in the same minute was enough to make a legitimate sign-in look broken. Retrying a couple of
   // times (honoring the server's own Retry-After) absorbs that instead of surfacing a dead end.
   async function signIn(attempt = 1) {
-    const res = await fetch(`${window.APP_CONFIG.apiBase || ''}/api/auth/telegram`, {
+    const res = await fetchWithTimeout(`${window.APP_CONFIG.apiBase || ''}/api/auth/telegram`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ initData }),
