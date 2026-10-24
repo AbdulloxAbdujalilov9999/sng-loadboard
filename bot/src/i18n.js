@@ -12,6 +12,7 @@ const DICT = {
   en: {
     btn_menu_nearloads: "📍 Nearby loads",
     btn_menu_neartrucks: "🚚 Nearby trucks",
+    ptr_use_buttons: "Please use the buttons above - or /cancel to stop.",
     btn_menu_posttruck: "🚚 Post a truck",
     btn_menu_mytruck: "🛠 Truck profile",
     btn_menu_mytrucks: "🚛 My trucks",
@@ -397,6 +398,7 @@ const DICT = {
   ru: {
     btn_menu_nearloads: "📍 Грузы рядом",
     btn_menu_neartrucks: "🚚 Машины рядом",
+    ptr_use_buttons: "Пользуйтесь кнопками выше - или /cancel, чтобы остановить.",
     btn_menu_posttruck: "🚚 Разместить машину",
     btn_menu_mytruck: "🛠 Профиль машины",
     btn_menu_mytrucks: "🚛 Мои машины",
@@ -782,6 +784,7 @@ const DICT = {
   uz: {
     btn_menu_nearloads: "📍 Yaqin yuklar",
     btn_menu_neartrucks: "🚚 Yaqin mashinalar",
+    ptr_use_buttons: "Yuqoridagi tugmalardan foydalaning - yoki /cancel bilan toʻxtating.",
     btn_menu_posttruck: "🚚 Mashina joylash",
     btn_menu_mytruck: "🛠 Mashina profili",
     btn_menu_mytrucks: "🚛 Mening mashinalarim",

@@ -935,45 +935,6 @@
                                 <div><label class="block font-semibold text-slate-700 mb-1" for="setting-contact-email" data-i18n="lbl_contact_email">Contact email</label><input type="email" id="setting-contact-email" name="contactEmail" maxlength="254" autocomplete="off" data-i18n-placeholder="ph_contact_email" placeholder="Leave empty to use your Google login email" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
                             </div>
                         </div>
-                        <div id="mytruck-card" class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
-                            <h4 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2"><i data-lucide="truck" class="w-4 h-4 text-sky-600"></i><span data-i18n="mt_title">My truck</span></h4>
-                            <p class="text-slate-500" data-i18n="mt_sub">Fill it in once. Searching for loads can start from it, and posting a truck is filled in for you.</p>
-                            <div class="grid grid-cols-3 gap-2">
-                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-equip" data-i18n="filter_type">Trailer Type</label>
-                                    <select id="mt-equip" name="equip" class="w-full border border-slate-300 rounded p-2 text-xs"><option value="T" data-i18n="eq_T">T</option><option value="R" data-i18n="eq_R">R</option><option value="F" data-i18n="eq_F">F</option><option value="V" data-i18n="eq_V">V</option><option value="AC" data-i18n="eq_AC">AC</option></select></div>
-                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-cap" data-i18n="lbl_max_payload">Max Payload (Tons)</label>
-                                    <input type="number" id="mt-cap" name="capacityT" step="0.1" min="0.1" max="100" placeholder="22" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-vol" data-i18n="lbl_vol_cube">Volume (m³)</label>
-                                    <input type="number" id="mt-vol" name="volumeM3" min="1" max="200" placeholder="92" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-1 text-[11px] text-slate-700">
-                                <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="mt-tir" name="hasTir" class="rounded text-blue-600"><span data-i18n="feat_tir">TIR Carnet</span></label>
-                                <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="mt-adr" name="hasAdr" class="rounded text-blue-600"><span data-i18n="feat_adr">ADR (Hazardous)</span></label>
-                                <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="mt-gps" name="hasGps" class="rounded text-blue-600"><span data-i18n="feat_gps">GPS Live Tracking</span></label>
-                                <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="mt-side" name="sideLoading" class="rounded text-blue-600"><span data-i18n="feat_side">Side & Top Loading</span></label>
-                            </div>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <div class="relative"><label class="block font-semibold text-slate-700 mb-1" for="mt-loc" data-i18n="mt_loc">Usually stands in</label>
-                                    <input type="text" id="mt-loc" data-city-picker autocomplete="off" data-i18n-placeholder="ph_city" placeholder="Type a city" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-dest" data-i18n="mt_dest">Likes to go to</label>
-                                    <input type="text" id="mt-dest" name="destPref" maxlength="120" data-i18n-placeholder="ph_truck_dest" placeholder="e.g. Moscow, RU or Anywhere" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-plate" data-i18n="mt_plate">Truck plate</label>
-                                    <input type="text" id="mt-plate" name="plate" maxlength="20" autocomplete="off" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-trailer" data-i18n="mt_trailer_plate">Trailer plate</label>
-                                    <input type="text" id="mt-trailer" name="trailerPlate" maxlength="20" autocomplete="off" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-driver" data-i18n="mt_driver">Driver name</label>
-                                    <input type="text" id="mt-driver" name="driverName" maxlength="80" autocomplete="off" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                                <div><label class="block font-semibold text-slate-700 mb-1" for="mt-driver-phone" data-i18n="mt_driver_phone">Driver phone</label>
-                                    <input type="tel" id="mt-driver-phone" name="driverPhone" maxlength="40" autocomplete="off" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
-                            </div>
-                            <div><label class="block font-semibold text-slate-700 mb-1" for="mt-notes" data-i18n="lbl_notes">Notes</label>
-                                <textarea id="mt-notes" name="notes" rows="2" maxlength="300" class="w-full border border-slate-300 rounded p-2 text-xs"></textarea></div>
-                            <p class="text-[10px] text-slate-400" data-i18n="mt_private">Plates and driver are only for you and your bot - they are not shown on the board.</p>
-                            <div class="flex gap-2 flex-wrap">
-                                <button type="button" id="mt-save-btn" class="bg-sky-600 hover:bg-sky-700 text-white font-bold px-3 py-2 rounded" data-i18n="mt_save">Save my truck</button>
-                                <button type="button" id="mt-clear-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded border border-slate-300" data-i18n="mt_clear">Remove</button>
-                            </div>
-                        </div>
                         <div id="geo-card" class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
                             <h4 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2"><i data-lucide="locate-fixed" class="w-4 h-4 text-sky-600"></i><span data-i18n="geo_card_title">Location</span></h4>
                             <p class="text-slate-500" data-i18n="geo_card_sub">With your location the board can show loads and trucks around you (like "within 100 miles"). It stays in this browser and is only used for the search.</p>
@@ -1021,6 +982,46 @@
                         </div>
                     </div>
                 </form>
+
+                <div id="mytruck-card" class="max-w-4xl mx-auto mt-5 bg-white p-4 sm:p-5 rounded-lg shadow-sm border border-slate-200 space-y-3">
+                    <h4 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2"><i data-lucide="truck" class="w-4 h-4 text-sky-600"></i><span data-i18n="mt_title">My truck</span></h4>
+                    <p class="text-slate-500" data-i18n="mt_sub">Fill it in once. Searching for loads can start from it, and posting a truck is filled in for you.</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div><label class="block font-semibold text-slate-700 mb-1" for="mt-equip" data-i18n="filter_type">Trailer Type</label>
+                            <select id="mt-equip" name="equip" class="w-full border border-slate-300 rounded p-2 text-xs"><option value="T" data-i18n="eq_T">T</option><option value="R" data-i18n="eq_R">R</option><option value="F" data-i18n="eq_F">F</option><option value="V" data-i18n="eq_V">V</option><option value="AC" data-i18n="eq_AC">AC</option></select></div>
+                        <div><label class="block font-semibold text-slate-700 mb-1" for="mt-cap" data-i18n="lbl_max_payload">Max Payload (Tons)</label>
+                            <input type="number" id="mt-cap" name="capacityT" step="0.1" min="0.1" max="100" placeholder="22" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                        <div><label class="block font-semibold text-slate-700 mb-1" for="mt-vol" data-i18n="lbl_vol_cube">Volume (m³)</label>
+                            <input type="number" id="mt-vol" name="volumeM3" min="1" max="200" placeholder="92" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1 text-[11px] text-slate-700">
+                        <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="mt-tir" name="hasTir" class="rounded text-blue-600"><span data-i18n="feat_tir">TIR Carnet</span></label>
+                        <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="mt-adr" name="hasAdr" class="rounded text-blue-600"><span data-i18n="feat_adr">ADR (Hazardous)</span></label>
+                        <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="mt-gps" name="hasGps" class="rounded text-blue-600"><span data-i18n="feat_gps">GPS Live Tracking</span></label>
+                        <label class="flex items-center space-x-1.5 cursor-pointer"><input type="checkbox" id="mt-side" name="sideLoading" class="rounded text-blue-600"><span data-i18n="feat_side">Side & Top Loading</span></label>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div class="relative"><label class="block font-semibold text-slate-700 mb-1" for="mt-loc" data-i18n="mt_loc">Usually stands in</label>
+                            <input type="text" id="mt-loc" data-city-picker autocomplete="off" data-i18n-placeholder="ph_city" placeholder="Type a city" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                        <div><label class="block font-semibold text-slate-700 mb-1" for="mt-dest" data-i18n="mt_dest">Likes to go to</label>
+                            <input type="text" id="mt-dest" name="destPref" maxlength="120" data-i18n-placeholder="ph_truck_dest" placeholder="e.g. Moscow, RU or Anywhere" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                        <div><label class="block font-semibold text-slate-700 mb-1" for="mt-plate" data-i18n="mt_plate">Truck plate</label>
+                            <input type="text" id="mt-plate" name="plate" maxlength="20" autocomplete="off" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                        <div><label class="block font-semibold text-slate-700 mb-1" for="mt-trailer" data-i18n="mt_trailer_plate">Trailer plate</label>
+                            <input type="text" id="mt-trailer" name="trailerPlate" maxlength="20" autocomplete="off" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                        <div><label class="block font-semibold text-slate-700 mb-1" for="mt-driver" data-i18n="mt_driver">Driver name</label>
+                            <input type="text" id="mt-driver" name="driverName" maxlength="80" autocomplete="off" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                        <div><label class="block font-semibold text-slate-700 mb-1" for="mt-driver-phone" data-i18n="mt_driver_phone">Driver phone</label>
+                            <input type="tel" id="mt-driver-phone" name="driverPhone" maxlength="40" autocomplete="off" class="w-full border border-slate-300 rounded p-2 text-xs"></div>
+                    </div>
+                    <div><label class="block font-semibold text-slate-700 mb-1" for="mt-notes" data-i18n="lbl_notes">Notes</label>
+                        <textarea id="mt-notes" name="notes" rows="2" maxlength="300" class="w-full border border-slate-300 rounded p-2 text-xs"></textarea></div>
+                    <p class="text-[10px] text-slate-400" data-i18n="mt_private">Plates and driver are only for you and your bot - they are not shown on the board.</p>
+                    <div class="flex gap-2 flex-wrap">
+                        <button type="button" id="mt-save-btn" class="bg-sky-600 hover:bg-sky-700 text-white font-bold px-3 py-2 rounded" data-i18n="mt_save">Save my truck</button>
+                        <button type="button" id="mt-clear-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded border border-slate-300" data-i18n="mt_clear">Remove</button>
+                    </div>
+                </div>
 
                 <div id="security-card" class="max-w-4xl mx-auto mt-5 bg-white p-4 sm:p-5 rounded-lg shadow-sm border border-slate-200 space-y-4 text-xs">
                     <h4 class="font-bold text-slate-800 text-sm border-b pb-2 flex items-center space-x-2"><i data-lucide="shield" class="w-4 h-4 text-emerald-600"></i><span data-i18n="sec_title">Sign-in & Security</span></h4>

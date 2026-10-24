@@ -125,7 +125,8 @@ test('post a truck step by step from nothing, then save it as my truck', async (
   await say('samarkand');
   assert.deepEqual(buttons(last()), ['ptr:city:88', 'ptr:city:89']);
   await press('ptr:city:88');
-  await say('25.10'); // the date, typed
+  const soon = new Date(Date.now() + 5 * 3_600_000 + 3 * 86_400_000); // 3 days ahead, as a person would type it
+  await say(`${String(soon.getUTCDate()).padStart(2, '0')}.${String(soon.getUTCMonth() + 1).padStart(2, '0')}`); // the date, typed
   await say('Moskva');
   assert.match(last().text, /Moskva/);
   await press('ptr:ok');
@@ -136,6 +137,16 @@ test('post a truck step by step from nothing, then save it as my truck', async (
   const [, put] = calls.find((c) => c[0] === 'putMyTruck');
   assert.equal(put.equip, 'F'); assert.equal(put.capacityT, 22); assert.equal(put.locCityId, 88);
   assert.equal(state.myTruck.equip, 'F');
+});
+
+test('typing while a button is expected is never mistaken for a pasted load post', async () => {
+  const { say, press, last, calls } = setup({ myTruck: SAVED });
+  await say('/posttruck'); await press('ptr:go:new');
+  await say('Samarkand Moscow 20t free tomorrow'); // the truck type is asked with buttons
+  assert.match(last().text, /tugmalardan foydalaning/);
+  assert.equal(calls.filter((c) => c[0] === 'parse').length, 0);
+  await say('/cancel');
+  assert.match(last().text, /Bekor qilindi/);
 });
 
 test('AI: describe the trucks, check them, drop one, publish the rest', async () => {

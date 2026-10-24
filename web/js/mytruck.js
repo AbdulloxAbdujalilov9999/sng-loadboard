@@ -5,7 +5,9 @@ const MyTruck = (() => {
   const mine = () => Session.me?.profile?.myTruck || null;
 
   // ---- Settings card ----
+  let dirty = false; // the person has typed in the card: a refresh from the server (live update, language change) must not wipe it
   function fillCard() {
+    dirty = false;
     const m = mine();
     $('mt-equip').value = m?.equip || 'T';
     $('mt-cap').value = m?.capacityT ?? '';
@@ -39,6 +41,7 @@ const MyTruck = (() => {
     const { profile } = body ? await API.put('/api/me/truck', body) : await API.del('/api/me/truck');
     Session.me.profile = profile;
     U.toast(t(toastKey), 'success');
+    dirty = false;
     refresh();
   }
 
@@ -90,7 +93,8 @@ const MyTruck = (() => {
   /** Everything that depends on whether a truck is saved. */
   function refresh() {
     if (!$('mytruck-card')) return;
-    fillCard();
+    if (!dirty) fillCard();
+    $('mt-clear-btn').classList.toggle('hidden', !mine());
     $('truck-fill-row').classList.toggle('hidden', !mine());
     $('mytruck-bar').classList.toggle('hidden', !mine());
     Loads.syncMyTruck?.();
@@ -99,6 +103,8 @@ const MyTruck = (() => {
   function init() {
     Cities.attach($('mt-loc'));
     $('mt-save-btn').addEventListener('click', saveCard);
+    $('mytruck-card').addEventListener('input', () => { dirty = true; });
+    $('mytruck-card').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); saveCard(); } });
     $('mt-clear-btn').addEventListener('click', clearCard);
     $('truck-fill-btn').addEventListener('click', () => fillPostForm());
     $('truck-save-mine-btn').addEventListener('click', saveFromPostForm);

@@ -127,7 +127,7 @@ const Loads = (() => {
   // ---- "Loads for my truck": the saved truck's type and capacity (and where it stands, when no place is picked yet) ----
   function syncMyTruck() {
     const m = MyTruck.mine();
-    const on = Boolean(m && active().truck);
+    const on = Boolean(m && active()?.truck);
     $('mytruck-use-btn').classList.toggle('hidden', on);
     $('mytruck-chip').classList.toggle('hidden', !on);
     if (on) $('mytruck-chip-text').textContent = t('mt_filter_on', { type: m.equip, cap: m.capacityT });

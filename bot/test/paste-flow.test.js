@@ -2,9 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { toLoadBody } from '../src/pasteFlow.js';
 
+// a date that is always still in the future (a past pickup date is moved to today on purpose, so a fixed date would stop passing one day)
+const PICKUP = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+
 const DRAFT = {
   originCityId: 1, destCityId: 2, equip: 'T', fp: 'Full', weightT: 23, volumeM3: null,
-  pickupDate: '2026-10-15', rateUsd: 0, commodity: 'Granule', notes: '',
+  pickupDate: PICKUP, rateUsd: 0, commodity: 'Granule', notes: '',
   contactPhone: '', contactTelegram: '', contactName: '', flags: [],
 };
 const MEMBER = { contactName: 'Bek', company: 'Acme Logistics', phone: '+998901234567', telegram: '@bek', contactEmail: 'bek@example.com' };
@@ -45,7 +48,7 @@ test('carries origin/dest/equip/weight/date/rate/commodity through unchanged', (
   assert.equal(body.equip, 'T');
   assert.equal(body.fp, 'Full');
   assert.equal(body.weightT, 23);
-  assert.equal(body.pickupDate, '2026-10-15');
+  assert.equal(body.pickupDate, PICKUP);
   assert.equal(body.rateUsd, 0);
   assert.equal(body.commodity, 'Granule');
 });

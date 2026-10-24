@@ -407,7 +407,8 @@ export function makeTrucks({ apiClient, tokens, config, cleaner = null, loadMemb
         await next(ctx);
         return true;
       }
-      return false; // equip / confirm are answered with buttons
+      await ctx.reply(t(ctx.lang, 'ptr_use_buttons')); // equip / confirm are answered with the buttons - never read as a pasted load post
+      return true;
     }
     const paste = ctx.session?.trpaste;
     if (paste) {
