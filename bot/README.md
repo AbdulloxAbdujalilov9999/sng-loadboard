@@ -148,7 +148,8 @@ source group  ──message──▶  ingest bot  ──filter──▶  AI pars
   **phone**/**telegram** = a real line you monitor, since these become the contact shown on any
   auto-imported load whose source message didn't carry its own), and approve it from the owner
   account like any other member. Set `INGEST_SERVICE_EMAIL` / `INGEST_SERVICE_PASSWORD` to its
-  login. It otherwise behaves like any member: the same active-loads cap and posts-per-hour quota
+  login. Simpler: create a phone account from the bot's «🆕 Create an account» button and set
+  `INGEST_SERVICE_PHONE` (`+998...`) / `INGEST_SERVICE_PASSWORD` instead (no e-mail, no Firebase). It otherwise behaves like any member: the same active-loads cap and posts-per-hour quota
   apply (`MAX_ACTIVE_LOADS_PER_MEMBER`, `MAX_POSTS_PER_HOUR` in the main `.env.example` - raise them
   if this account hits the ceiling before a human would).
 
@@ -184,12 +185,13 @@ independently - one bad line in a message never blocks the good ones next to it.
 1. Create a **second** bot with `@BotFather`, disable its privacy mode (see above), and put its
    token in `TELEGRAM_INGEST_BOT_TOKEN`.
 2. Sign up, verify, and approve a dedicated member account on the web app (see above); put its
-   login in `INGEST_SERVICE_EMAIL` / `INGEST_SERVICE_PASSWORD`.
+   login in `INGEST_SERVICE_EMAIL` / `INGEST_SERVICE_PASSWORD` (or a phone account in
+   `INGEST_SERVICE_PHONE` / `INGEST_SERVICE_PASSWORD`).
 3. Make sure migration `007_telegram_ingest.sql` has run (automatic with `AUTO_MIGRATE=true`).
 4. Get your own Telegram user id from `@userinfobot` and put it in `INGEST_ADMIN_TG_IDS` (comma
    separated if more than one person should be able to run the admin commands below).
 5. Run it: `npm run ingest` (or `npm run ingest:dev`). Docker: `docker compose --profile ingest up
-   --build`. On Render: the `sng-one-telegram-ingest` worker in `render.yaml`.
+   --build`. On the Hetzner server `deploy/update.sh` starts it once `TELEGRAM_INGEST_BOT_TOKEN` is in `.env`. On Render: the `sng-one-telegram-ingest` worker in `render.yaml`.
 6. In Telegram, add that bot to each source group you have access to - you (or that group's admins)
    add it exactly like any other bot. It starts ingesting the moment it joins; nothing else to
    configure per group.
