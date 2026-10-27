@@ -36,6 +36,8 @@ grep -q '^TELEGRAM_BOT_TOKEN_SNGONE=.\+' .env && grep -q '^BOT_ENCRYPTION_KEY=.\
 # TELEGRAM_BOT_TOKEN_OLD in .env to keep the retiring bot running alongside the new one; unset it
 # and run `docker compose rm -sf bot_old` once nobody needs it anymore.
 grep -q '^TELEGRAM_BOT_TOKEN_OLD=.\+' .env && grep -q '^BOT_ENCRYPTION_KEY=.\+' .env && PROFILES+=(--profile bot_old)
+# Auto-import bot (deploy/compose.yaml's ingest) - set TELEGRAM_INGEST_BOT_TOKEN and the INGEST_SERVICE_* login in .env.
+grep -q '^TELEGRAM_INGEST_BOT_TOKEN=.\+' .env && PROFILES+=(--profile ingest)
 docker compose "${PROFILES[@]}" up -d --build --remove-orphans
 docker image prune -f >/dev/null
 # pick up changes to Caddyfile / sites/*.caddy without restarting the proxy

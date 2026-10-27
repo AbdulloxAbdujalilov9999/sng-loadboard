@@ -153,6 +153,33 @@ services:
       BOT_JOIN_CHANNEL: ${BOT_JOIN_CHANNEL:-sngOne_yuklar}
       BOT_JOIN_GROUP: ${BOT_JOIN_GROUP:-sngOne_yuklarr}
 
+  # Auto-import from big freight groups (bot/src/ingestIndex.js, see bot/README.md "Ingestion bot"):
+  # a separate @BotFather bot with privacy mode OFF, added to source groups; every load it reads is
+  # posted through the API as one dedicated member account. Starts when TELEGRAM_INGEST_BOT_TOKEN is set.
+  ingest:
+    build:
+      context: ..
+    command: ["node", "bot/src/ingestIndex.js"]
+    restart: unless-stopped
+    profiles: ["ingest"]
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    healthcheck:
+      disable: true
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://sng:${POSTGRES_PASSWORD}@db:5432/sng
+      API_BASE_URL: http://api:8080
+      FIREBASE_WEB_API_KEY: ${FIREBASE_WEB_API_KEY:-AIzaSyDryrZCdCuYNZrx8PQe83U4x3YL0Ipz3Hg}
+      TELEGRAM_INGEST_BOT_TOKEN: ${TELEGRAM_INGEST_BOT_TOKEN:?set TELEGRAM_INGEST_BOT_TOKEN in .env}
+      INGEST_SERVICE_PHONE: ${INGEST_SERVICE_PHONE:-}
+      INGEST_SERVICE_EMAIL: ${INGEST_SERVICE_EMAIL:-}
+      INGEST_SERVICE_PASSWORD: ${INGEST_SERVICE_PASSWORD:?set INGEST_SERVICE_PASSWORD in .env}
+      INGEST_ADMIN_TG_IDS: ${INGEST_ADMIN_TG_IDS:-}
+
   # Temporary bridge during a bot-token migration: the OLD bot identity, kept running alongside
   # `bot` above (which now uses the new token) so people who only know the old @username, or groups
   # only the old bot was ever added to, keep working while everyone moves over. Same image, same
