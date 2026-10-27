@@ -213,7 +213,7 @@ test('the copy of a load the poster gets in their own chat carries Edit / Renew 
     const own = sent.find((s) => s.chatId === 999);
     assert.equal(group.extra.reply_markup, undefined, 'nobody else gets buttons');
     const data = own.extra.reply_markup.inline_keyboard.flat().map((b) => b.callback_data);
-    assert.deepEqual(data, [`ed:menu:L${posted.json.id}`, `myloads:renew:${posted.json.id}`, `myloads:ask:${posted.json.id}`]);
+    assert.deepEqual(data, [`ed:menu:L${posted.json.id}`, `myloads:renew:${posted.json.id}`, `myloads:repost:${posted.json.id}`, `myloads:top:${posted.json.id}`, `myloads:ask:${posted.json.id}`]);
     assert.match(own.extra.reply_markup.inline_keyboard[0][0].text, /Tahrirlash/);
   } finally { await broadcaster.stop(); }
 });

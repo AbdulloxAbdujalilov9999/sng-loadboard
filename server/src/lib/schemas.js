@@ -28,6 +28,8 @@ const needsContact = (v, ctx, phoneKey = 'contactPhone', tgKey = 'contactTelegra
 
 const orEmpty = (schema) => z.union([z.literal(''), schema]);
 const pin = z.string().regex(/^\d{4,6}$/, 'pin_format');
+// An invite code is optional and never fails a sign-up: anything that does not look like one is simply dropped.
+const refCode = z.string().optional().transform((v) => (v && /^[a-z0-9]{4,16}$/i.test(v.trim()) ? v.trim().toLowerCase() : undefined));
 
 // Signing up: a name and one way to be reached. Company is optional (added later in Settings; the name stands in until then).
 export const signupBody = z.object({
@@ -38,6 +40,7 @@ export const signupBody = z.object({
   contactEmail: orEmpty(email).default(''),
   pin: pin.optional(),
   persona: z.enum(PERSONA).optional(), // asked at sign-up; skippable, and changeable later in Settings
+  ref: refCode, // invite code from a friend's link (lib/growth.js); unknown codes are ignored
 }).strict();
 export const accessRequestBody = signupBody; // the endpoint keeps its old URL
 
@@ -58,6 +61,7 @@ export const phoneRegisterBody = z.object({
   telegram: orEmpty(telegram).default(''),
   contactEmail: orEmpty(email).default(''),
   persona: z.enum(PERSONA).optional(),
+  ref: refCode,
 }).strict();
 export const linkLoginBody = z.object({ code: z.string().regex(/^[A-Za-z0-9_-]{30,64}$/, 'invalid') }).strict();
 export const phoneCheckBody = z.object({ phone: z.string().trim().regex(/^\+\d{8,15}$/, 'phone') }).strict();
@@ -295,4 +299,19 @@ export const loadExpiryBody = z.object({
   enabled: z.boolean(),
   hours: z.coerce.number().int().min(1).max(720),
 }).strict();
+// Paid extras (lib/growth.js). Merchant ids are public identifiers (they appear in every pay link), not secrets.
+const merchantId = z.string().trim().regex(/^[A-Za-z0-9_-]{0,64}$/, 'invalid');
+export const extrasBody = z.object({
+  enabled: z.boolean(),
+  boostPriceUzs: z.coerce.number().int().min(0).max(100_000_000),
+  boostPack: z.coerce.number().int().min(1).max(100).default(1),
+  verifyPriceUzs: z.coerce.number().int().min(0).max(100_000_000),
+  payText: z.string().trim().max(1500).default(''),
+  paymeMerchantId: merchantId.default(''),
+  paymeAccountField: z.string().trim().regex(/^[a-z_]{1,32}$/, 'invalid').default('order_id'),
+  clickServiceId: merchantId.default(''),
+  clickMerchantId: merchantId.default(''),
+}).strict();
+export const creditsBody = z.object({ credits: z.coerce.number().int().min(-1000).max(1000).refine((n) => n !== 0, 'invalid') }).strict();
+export const verifiedBody = z.object({ verified: z.boolean() }).strict();
 export const activateBody = z.object({ days: z.coerce.number().int().min(1).max(3650) }).strict();

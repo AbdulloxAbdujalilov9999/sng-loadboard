@@ -29,11 +29,11 @@ export const dtoToRow = (l) => ({
   id: l.id, origin_city: l.originCity, dest_city: l.destCity, equip: l.equip, fp: l.fp, weight_t: l.weightT, volume_m3: l.volumeM3,
   pickup_date: l.pickupDate, delivery_date: l.deliveryDate, distance_km: l.distanceKm, rate_usd: l.rateUsd, commodity: l.commodity,
   notes: l.notes, company_name: l.company, contact_name: l.contactName, contact_phone: l.contactPhone, contact_email: l.contactEmail,
-  contact_tg: l.contactTelegram,
+  contact_tg: l.contactTelegram, owner_verified: l.verified,
 });
 
 /** `linkUrl`, when given, becomes a "view on the loadboard" line - see bot/src/broadcaster.js. */
-export function formatLoadMessage(row, lang = 'en', linkUrl = null) {
+export function formatLoadMessage(row, lang = 'en', linkUrl = null, { tag = null } = {}) {
   const equip = t(lang, `eq_${row.equip}`);
   const fp = t(lang, row.fp === 'Full' ? 'wiz_fp_full' : 'wiz_fp_partial');
   const pickup = row.delivery_date
@@ -42,6 +42,7 @@ export function formatLoadMessage(row, lang = 'en', linkUrl = null) {
   // One fact per line (each tagged by its own emoji, no label text to translate) - easier to scan
   // in a group chat than a paragraph.
   const lines = [
+    ...(tag ? [`<b>${t(lang, tag)}</b>`] : []), // msg_top / msg_repost when the load goes out again (broadcaster.js)
     `🚚 <b>${escapeHtml(row.origin_city)} → ${escapeHtml(row.dest_city)}</b>`,
     '',
     `🔧 ${equip} · ${fp}`,
@@ -59,6 +60,7 @@ export function formatLoadMessage(row, lang = 'en', linkUrl = null) {
     ? `${row.company_name} (${row.contact_name})`
     : (row.contact_name || row.company_name);
   if (name) lines.push(`👤 ${escapeHtml(name)}`);
+  if (row.owner_verified) lines.push(t(lang, 'msg_verified'));
   if (row.contact_phone) lines.push(`📞 ${escapeHtml(row.contact_phone)}`);
   const tgLine = [row.contact_tg, row.contact_email].filter(Boolean).map(escapeHtml);
   if (tgLine.length) lines.push(`✈️ ${tgLine.join(' · ')}`);

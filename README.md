@@ -28,6 +28,12 @@ browser ──HTTPS──▶ Fastify (N workers) ──▶ PostgreSQL
 - **Trucks**: post availability with end date (auto-expires after 30 days without one); same radius/equipment/date search.
 - **Contact rule everywhere** (sign-up, profile, loads, trucks, AI import, Telegram bot): a phone number **or** a Telegram username is required (either one), e-mail is always optional.
 - **Carrier directory** of members; **display currencies** (USD, RUB, KZT, UZS, KGS, TJS, BYN, AZN, GEL, AMD) with owner-editable rates; **English / Russian** UI; mobile layout.
+- **Growth tools and paid extras** (posting and searching stay free forever; `server/src/lib/growth.js`, migration 028):
+  - **Invite friends**: every member has an invite link (website `/?ref=<code>`, bot `t.me/<bot>?start=ref_<code>`; Settings → Invite friends, bot «👤 My account» → «🎁 Invite friends» or `/invite`). When the invited friend posts their first load, the inviter earns `REFERRAL_REWARD_CREDITS` TOP credits (rewarded on the first load, not on sign-up, so empty fake accounts earn nothing).
+  - **Repost** (free): sends a load to every Telegram group again and renews it, once per `REPOST_COOLDOWN_HOURS` per load (My loads → Repost, bot «🔁 Repost to groups»).
+  - **TOP** (1 credit): the load shows above the results of every matching search, highlighted, for `BOOST_HOURS`, and is reposted to the groups with a ⭐ TOP tag (`GET /api/loads/top`, `GET /api/guest/loads/top`).
+  - **Verified badge**: set by the owner on the member's card after checking them; shown next to the company on the board and in every Telegram post.
+  - **Selling extras**: Members → Paid extras sets prices in soʻm and the Payme / Click merchant ids; members then see prices with Payme / Click pay buttons (the order reference is `top-<memberId>` / `verify-<memberId>`). There is no merchant webhook yet: after a payment the owner adds credits / the badge on the member's card. Off by default.
 - **Live updates**: new posts, approvals and rate changes reach open browsers within a second (Server-Sent Events, backed by Postgres `LISTEN/NOTIFY`).
 
 Community: Telegram [@sngOne_yuklar](https://t.me/sngOne_yuklar) and [@sngOne_yuklarr](https://t.me/sngOne_yuklarr) (linked from the sign-in screen and the sidebar).

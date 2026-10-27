@@ -73,6 +73,9 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite,gemini-3.5-flash,gemini-3.8-flash}
       AI_RATE_PER_HOUR: ${AI_RATE_PER_HOUR:-200}
+      REPOST_COOLDOWN_HOURS: ${REPOST_COOLDOWN_HOURS:-6}      # free repost to the Telegram groups, once per this many hours per load
+      BOOST_HOURS: ${BOOST_HOURS:-24}                          # one TOP credit = this many hours at the top
+      REFERRAL_REWARD_CREDITS: ${REFERRAL_REWARD_CREDITS:-1}   # TOP credits for each invited friend who posts a first load
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-sng-pro}
       CSP_ENFORCE: ${CSP_ENFORCE:-false}
       # The Mini App is a separate deployment (Vercel, its own repo) calling this API cross-origin -
@@ -111,6 +114,7 @@ services:
       BOT_BROADCAST_LANG: ${BOT_BROADCAST_LANG:-uz}
       BOT_JOIN_CHANNEL: ${BOT_JOIN_CHANNEL:-sngOne_yuklar}
       BOT_JOIN_GROUP: ${BOT_JOIN_GROUP:-sngOne_yuklarr}
+      BOT_SEND_REFERRAL_NOTICES: "1"   # «a friend you invited posted their first load» DMs come from this bot only
 
   # @sngonebot: the Mini App's only home - lean companion (Mini App + login/signup + updates only, see
   # bot/src/config.js's BOT_VARIANT and menu.js's liteKeyboard). Also the one bot process that DMs

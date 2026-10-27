@@ -26,6 +26,8 @@ export const memberDto = (m) => ({
   hasPin: Boolean(m.pin_hash),
   myTruck: m.my_truck ?? null,
   loginPhone: m.login_phone ?? '',
+  verified: Boolean(m.verified_at),
+  boostCredits: m.boost_credits ?? 0,
   requestedAt: iso(m.requested_at),
   reviewedAt: iso(m.reviewed_at),
 });
@@ -42,6 +44,7 @@ export const directoryDto = (m) => ({
   fleet: m.fleet,
   routes: m.routes,
   persona: m.persona ?? null,
+  verified: Boolean(m.verified_at),
 });
 
 export const loadDto = (r, viewerId) => ({
@@ -73,6 +76,8 @@ export const loadDto = (r, viewerId) => ({
   dho: r.dho ?? null,
   dhd: r.dhd ?? null,
   mine: r.owner_id === viewerId,
+  verified: Boolean(r.owner_verified),
+  top: Boolean(r.boosted_until && new Date(r.boosted_until) > new Date()),
 });
 
 export const truckDto = (r, viewerId) => ({

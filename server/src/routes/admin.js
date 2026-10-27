@@ -1,4 +1,5 @@
-import { activateBody, adminMembersQuery, fxBody, idParam, loadExpiryBody, subscriptionBody } from '../lib/schemas.js';
+import { activateBody, adminMembersQuery, creditsBody, extrasBody, fxBody, idParam, loadExpiryBody, subscriptionBody, verifiedBody } from '../lib/schemas.js';
+import { loadExtras } from '../lib/growth.js';
 import { loadSettings, stateOf } from '../lib/subscription.js';
 import { loadExpirySettings, sweepExpiredLoads } from '../lib/expiry.js';
 import { memberDto } from '../lib/dto.js';
@@ -42,6 +43,53 @@ export default async function adminRoutes(app, { pool, config }) {
       await publish(db, { entity: 'settings' });
     });
     return next;
+  });
+
+  // ---- paid extras (TOP credits, verified badge): prices and Payme / Click merchant ids. Off until the owner switches it on.
+  app.get('/api/admin/extras', guard, async () => loadExtras(pool));
+
+  app.put('/api/admin/extras', guard, async (req) => {
+    const next = extrasBody.parse(req.body);
+    await withTx(pool, async (db) => {
+      await db.query(`INSERT INTO app_settings (key, value) VALUES ('extras', $1::jsonb)
+                      ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = now()`, [JSON.stringify(next)]);
+      await publish(db, { entity: 'settings' });
+    });
+    return next;
+  });
+
+  // Add (or take back, with a negative number) TOP credits - after a member paid, or as a gift. Never below zero.
+  app.post('/api/admin/members/:id/credits', guard, async (req) => {
+    const { id } = idParam.parse(req.params);
+    const { credits } = creditsBody.parse(req.body);
+    const m = await withTx(pool, async (db) => {
+      const { rows: [row] } = await db.query(
+        `UPDATE members SET boost_credits = GREATEST(boost_credits + $2, 0), updated_at = now() WHERE id = $1 RETURNING *`, [id, credits]);
+      if (!row) throw notFound('Member not found');
+      await publish(db, { entity: 'me', email: row.email });
+      await publish(db, { entity: 'members', op: 'update', id });
+      return row;
+    });
+    app.invalidateMember(m.email);
+    return { profile: memberDto(m) };
+  });
+
+  // Verified badge: given after the owner checked the member (documents, a call). Copied onto their active loads at once.
+  app.put('/api/admin/members/:id/verified', guard, async (req) => {
+    const { id } = idParam.parse(req.params);
+    const { verified } = verifiedBody.parse(req.body);
+    const m = await withTx(pool, async (db) => {
+      const { rows: [row] } = await db.query(
+        `UPDATE members SET verified_at = CASE WHEN $2 THEN COALESCE(verified_at, now()) END, updated_at = now() WHERE id = $1 RETURNING *`, [id, verified]);
+      if (!row) throw notFound('Member not found');
+      await db.query(`UPDATE loads SET owner_verified = $2 WHERE owner_id = $1 AND status = 'active'`, [id, verified]);
+      await publish(db, { entity: 'loads', op: 'bulk' });
+      await publish(db, { entity: 'me', email: row.email });
+      await publish(db, { entity: 'members', op: 'update', id });
+      return row;
+    });
+    app.invalidateMember(m.email);
+    return { profile: memberDto(m) };
   });
 
   // ---- automatic expiry of loads (on by default: a load leaves the board 24 h after it was posted)

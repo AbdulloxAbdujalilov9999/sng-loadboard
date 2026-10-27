@@ -118,9 +118,10 @@ export function parseEditValue(field, raw, now = new Date()) {
   }
 }
 
-/** Edit / Renew / Delete under a load that is on the board. */
+/** Edit / Renew / Repost / TOP / Delete under a load that is on the board. */
 export const loadKeyboard = (lang, id) => Markup.inlineKeyboard([
   [Markup.button.callback(t(lang, 'myloads_btn_edit'), `ed:menu:L${id}`), Markup.button.callback(t(lang, 'myloads_btn_renew'), `myloads:renew:${id}`)],
+  [Markup.button.callback(t(lang, 'myloads_btn_repost'), `myloads:repost:${id}`), Markup.button.callback(t(lang, 'myloads_btn_top'), `myloads:top:${id}`)],
   [Markup.button.callback(t(lang, 'myloads_btn_delete'), `myloads:ask:${id}`)],
 ]);
 

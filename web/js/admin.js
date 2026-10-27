@@ -83,6 +83,15 @@ const Admin = (() => {
         <button type="button" data-act="activate" data-id="${m.id}" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded">${esc(t('btn_activate'))}</button>
         <button type="button" data-act="endaccess" data-id="${m.id}" class="text-slate-400 hover:text-rose-600 px-1" title="${esc(t('btn_end_access'))}"><i data-lucide="calendar-x" class="w-3.5 h-3.5"></i></button>
       </div>` : '';
+    // Paid extras on every active member: the verified badge and TOP credits (given after a Payme / Click payment, or as a gift).
+    const extrasBlock = blocked ? '' : `<div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
+        <span class="font-semibold text-amber-700">${esc(t('member_credits', { n: m.boostCredits ?? 0 }))}</span>
+        ${m.verified ? `<span class="font-semibold text-sky-700">✔ ${esc(t('badge_verified_title'))}</span>` : ''}
+        <span class="flex-1"></span>
+        <select data-credits="${m.id}" class="border border-slate-300 rounded p-1.5 bg-white">${[1, 3, 5, 10].map((n) => `<option value="${n}">+${n}</option>`).join('')}</select>
+        <button type="button" data-act="credits" data-id="${m.id}" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-1.5 px-3 rounded">${esc(t('btn_add_credits'))}</button>
+        <button type="button" data-act="${m.verified ? 'unverify' : 'verify'}" data-id="${m.id}" class="${m.verified ? 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200' : 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200'} border font-bold py-1.5 px-3 rounded">${esc(t(m.verified ? 'btn_unverify' : 'btn_verify'))}</button>
+      </div>`;
     return `<div class="bg-white border ${isNew(m) ? 'border-emerald-300 ring-1 ring-emerald-200' : 'border-slate-200'} rounded-lg p-4 shadow-sm">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
@@ -95,6 +104,7 @@ const Admin = (() => {
       </div>
       <div class="flex gap-2 mt-3">${actions}</div>
       ${subBlock}
+      ${extrasBlock}
     </div>`;
   }
 
@@ -122,6 +132,14 @@ const Admin = (() => {
         U.toast(t('toast_sub_activated', { days }), 'success');
         load();
         return;
+      } else if (kind === 'credits') {
+        const credits = Number(document.querySelector(`[data-credits="${id}"]`)?.value || 1);
+        const r = await API.post(`/api/admin/members/${id}/credits`, { credits });
+        U.toast(t('toast_credits_added', { n: r.profile.boostCredits }), 'success');
+        load();
+        return;
+      } else if (kind === 'verify' || kind === 'unverify') {
+        await API.put(`/api/admin/members/${id}/verified`, { verified: kind === 'verify' });
       } else if (kind === 'endaccess') {
         const ok = await U.confirmDialog({ title: t('btn_end_access'), message: t('confirm_end_access', { company: label }), confirmText: t('btn_end_access') });
         if (!ok) return;
@@ -145,6 +163,34 @@ const Admin = (() => {
     } catch (err) {
       U.toast(err.message, 'error');
     }
+  }
+
+  // ---- paid extras (TOP credits + verified badge prices, Payme / Click merchant ids) ----
+  async function loadExtras() {
+    try {
+      const c = await API.get('/api/admin/extras');
+      $('extras-enabled').checked = Boolean(c.enabled);
+      $('extras-boost-price').value = c.boostPriceUzs || 0;
+      $('extras-boost-pack').value = c.boostPack || 1;
+      $('extras-verify-price').value = c.verifyPriceUzs || 0;
+      $('extras-payme').value = c.paymeMerchantId || '';
+      $('extras-click-service').value = c.clickServiceId || '';
+      $('extras-click-merchant').value = c.clickMerchantId || '';
+      $('extras-pay-text-input').value = c.payText || '';
+    } catch { /* the form keeps its defaults */ }
+  }
+  async function saveExtras(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    U.setBusy(form, true);
+    try {
+      await API.put('/api/admin/extras', {
+        enabled: $('extras-enabled').checked, boostPriceUzs: Number($('extras-boost-price').value) || 0, boostPack: Number($('extras-boost-pack').value) || 1,
+        verifyPriceUzs: Number($('extras-verify-price').value) || 0, paymeMerchantId: $('extras-payme').value.trim(),
+        clickServiceId: $('extras-click-service').value.trim(), clickMerchantId: $('extras-click-merchant').value.trim(), payText: $('extras-pay-text-input').value,
+      });
+      U.toast(t('toast_extras_saved'), 'success');
+    } catch (err) { U.toast(err.message, 'error'); } finally { U.setBusy(form, false); }
   }
 
   // ---- subscription settings ----
@@ -219,6 +265,7 @@ const Admin = (() => {
     $('approvals-list').addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (b) act(b.dataset.act, Number(b.dataset.id)); });
     $('fx-form').addEventListener('submit', saveFx);
     $('sub-form').addEventListener('submit', saveSub);
+    $('extras-form').addEventListener('submit', saveExtras);
     $('exp-form').addEventListener('submit', saveExp);
     Live.on(async (evt) => {
       if (!entered || !Session.me?.isOwner) return;
@@ -239,7 +286,7 @@ const Admin = (() => {
     newSince = seenAt() || Session.me?.profile?.requestedAt || ''; // NEW tags are relative to the previous visit...
     U.store.set(SEEN_KEY, new Date().toISOString());      // ...and this visit counts as "seen"
     newCount = 0;
-    load(); loadFx(); loadSub(); loadExp();
+    load(); loadFx(); loadSub(); loadExp(); loadExtras();
   }
 
   return { init, enter, leave, onShow, render: () => { renderCounts(); renderList(); } };

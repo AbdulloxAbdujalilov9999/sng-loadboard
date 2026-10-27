@@ -10,7 +10,7 @@ const formBody = (id) => { const a = html.indexOf(`id="${id}"`); return html.sli
 test('the profile form only holds profile fields (other cards live outside it)', () => {
   const body = formBody('profile-form');
   const names = [...body.matchAll(/\sname="(\w+)"/g)].map((m) => m[1]);
-  const allowed = new Set(['company', 'contactName', 'phone', 'telegram', 'contactEmail', 'location', 'tirCarnet', 'fleet', 'routes', 'email']);
+  const allowed = new Set(['company', 'contactName', 'phone', 'telegram', 'contactEmail', 'location', 'tirCarnet', 'fleet', 'routes', 'email', 'persona']);
   assert.deepEqual(names.filter((n) => !allowed.has(n)), [], 'a field inside the profile form is not a profile field');
   assert.ok(!body.includes('id="mytruck-card"'));
 });

@@ -9,6 +9,7 @@ import { withTx } from '../db.js';
 import { publish } from '../events.js';
 import { memberDto } from '../lib/dto.js';
 import { trialEndFor } from '../lib/subscription.js';
+import { referrerId } from '../lib/growth.js';
 import { burnPinCheck, hashPin, signSession, verifyPin } from '../lib/pin.js';
 
 const MAX_FAILS = 5;
@@ -37,9 +38,9 @@ export default async function pinRoutes(app, { pool, config }) {
     try {
       row = await withTx(pool, async (db) => {
         const { rows: [m] } = await db.query(
-          `INSERT INTO members (email, company, contact_name, phone, telegram, contact_email, status, login_phone, pin_hash, pin_changed_at, works_with_company, trial_ends_at, persona)
-           VALUES ($1, $2, $3, $4, $5, $6, 'approved', $4, $7, now(), $8, $9, $10) RETURNING *`,
-          [identity, body.company || body.contactName, body.contactName, body.phone, body.telegram, body.contactEmail, hash, Boolean(body.company), trialEndFor(await app.subscriptionSettings()), body.persona ?? null]);
+          `INSERT INTO members (email, company, contact_name, phone, telegram, contact_email, status, login_phone, pin_hash, pin_changed_at, works_with_company, trial_ends_at, persona, referred_by)
+           VALUES ($1, $2, $3, $4, $5, $6, 'approved', $4, $7, now(), $8, $9, $10, $11) RETURNING *`,
+          [identity, body.company || body.contactName, body.contactName, body.phone, body.telegram, body.contactEmail, hash, Boolean(body.company), trialEndFor(await app.subscriptionSettings()), body.persona ?? null, await referrerId(db, body.ref)]);
         await publish(db, { entity: 'members', op: 'insert', id: m.id });
         return m;
       });

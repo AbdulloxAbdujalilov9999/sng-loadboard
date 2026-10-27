@@ -14,7 +14,7 @@ const GUEST_LIMIT_MAX = 30; // lower than the member board (100): guests browse,
 const LOAD_COLS = `l.id, l.owner_id, (extract(epoch from l.created_at) * 1000)::bigint AS created_ms,
   l.origin_city_id, l.origin_city, l.origin_lat, l.origin_lng, l.dest_city_id, l.dest_city, l.dest_lat, l.dest_lng, l.equip, l.fp, l.weight_t, l.volume_m3,
   l.pickup_date, l.delivery_date, l.distance_km, l.rate_usd, l.commodity, l.notes, l.company_name,
-  l.contact_name, l.contact_phone, l.contact_email, l.contact_tg`;
+  l.contact_name, l.contact_phone, l.contact_email, l.contact_tg, l.owner_verified, l.boosted_until`;
 const LOAD_SORTS = {
   created: { col: 'l.id', cast: 'bigint' }, pickup: { col: 'l.pickup_date', cast: 'date' },
   origin: { col: 'l.origin_city', cast: 'text' }, dest: { col: 'l.dest_city', cast: 'text' },
@@ -65,6 +65,18 @@ export default async function guestRoutes(app, { pool }) {
       nextCursor: hasMore ? nextCursorFrom(rows.at(-1)) : null,
       ...(count ? { total: Math.min(count.rows[0].n, COUNT_CAP), totalCapped: count.rows[0].n > COUNT_CAP } : {}),
     };
+  });
+
+  // TOP loads for the same filters (see routes/loads.js) - guests see paid placement too, that is the point of it.
+  app.get('/api/guest/loads/top', guest, async (req) => {
+    const q = loadQuery.parse({ ...req.query, limit: GUEST_LIMIT_MAX });
+    const b = createBinder();
+    const where = [`l.status = 'active'`, `l.pickup_date >= current_date - 1`, `l.boosted_until > now()`];
+    const built = await buildLoadWhere(app, b, q);
+    where.push(...built.where);
+    const { rows } = await pool.query(`SELECT ${LOAD_COLS}, ${built.dhoSql} AS dho, ${built.dhdSql} AS dhd FROM loads l
+                                        WHERE ${where.join(' AND ')} ORDER BY l.boosted_until DESC LIMIT 5`, b.params);
+    return { items: rows.map(guestLoadDto) };
   });
 
   app.get('/api/guest/loads/:id', guest, async (req) => {
