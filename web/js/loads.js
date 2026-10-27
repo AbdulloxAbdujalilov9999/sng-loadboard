@@ -348,11 +348,11 @@ const Loads = (() => {
   const verifiedMark = (l) => (l.verified ? ` <i data-lucide="badge-check" class="inline w-3.5 h-3.5 text-sky-600 align-text-bottom" role="img" aria-label="${esc(t('badge_verified_title'))}"></i>` : '');
   function rowHtml(l, isTop = false) {
     const dh = (v) => (v === null ? '' : ` <span class="text-[10px] ${v > 0 ? 'text-blue-600 font-bold' : 'text-slate-400 font-normal'}">(${v}km)</span>`);
-    return `<tr class="data-row border-b border-slate-200 transition cursor-pointer select-none ${isTop ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-slate-50'}" data-id="${l.id}" tabindex="0" aria-haspopup="dialog">
+    return `<tr class="data-row border-b border-slate-200 transition cursor-pointer select-none ${isTop ? 'top-row' : 'hover:bg-slate-50'}" data-id="${l.id}" tabindex="0" aria-haspopup="dialog">
       <td class="cell-hide-mobile py-2 px-1.5 text-center text-blue-600" aria-hidden="true">›</td>
       <td data-label="${esc(t('th_age'))}" data-created="${esc(l.createdAt)}" class="py-2 px-2 text-slate-400 font-normal truncate">${esc(U.ageText(l.createdAt))}</td>
       <td data-label="${esc(t('th_date'))}" class="py-2 px-2 text-slate-600 truncate">${esc(U.shortDate(l.pickupDate))}</td>
-      <td class="cell-heading py-2 px-2.5 font-bold text-slate-900 truncate" title="${esc(l.originCity)}">${isTop ? `<span class="text-[9px] bg-amber-400 text-amber-950 px-1 rounded font-black mr-1">${esc(t('badge_top'))}</span>` : ''}${esc(l.originCity)}${dh(l.dho)}</td>
+      <td class="cell-heading py-2 px-2.5 font-bold text-slate-900 truncate" title="${esc(l.originCity)}">${isTop ? `<span class="top-badge">${esc(t('badge_top'))}</span>` : ''}${esc(l.originCity)}${dh(l.dho)}</td>
       <td class="cell-heading py-2 px-2.5 font-bold text-slate-900 truncate" title="${esc(l.destCity)}">→ ${esc(l.destCity)}${dh(l.dhd)}</td>
       <td data-label="${esc(t('th_type'))}" class="py-2 px-2 text-center"><span class="bg-blue-50 text-blue-800 font-bold px-1.5 py-0.5 rounded border border-blue-200 text-[10px]">${esc(l.equip)}</span></td>
       <td data-label="F/P" class="py-2 px-2 text-slate-600 truncate">${esc(t(l.fp === 'Full' ? 'opt_full' : 'opt_partial'))}</td>
@@ -530,10 +530,12 @@ const Loads = (() => {
   }
 
   // 🔁 Repost: free, sends the load to the Telegram groups again (once per few hours). ⭐ TOP: spends one credit.
+  // "in 6 h" reads better than "in 360 min": minutes only for the last hour.
+  const repostWaitText = (min) => (min >= 60 ? t('toast_repost_wait_h', { hours: Math.ceil(min / 60) }) : t('toast_repost_wait', { min: min ?? '?' }));
   async function repostMine(id) {
     try { await API.post(`/api/loads/${id}/repost`, {}); U.toast(t('toast_reposted'), 'success'); loadMine(); } catch (err) {
       const wait = err.details?.find?.((d) => d.code === 'repost_wait');
-      U.toast(wait ? t('toast_repost_wait', { min: wait.params?.min ?? '?' }) : err.message, 'error');
+      U.toast(wait ? repostWaitText(wait.params?.min) : err.message, 'error');
     }
   }
   async function topMine(id) {
@@ -549,13 +551,13 @@ const Loads = (() => {
     const tbody = $('my-loads-tbody');
     if (!mine.length) { tbody.innerHTML = `<tr class="status-row"><td colspan="7" class="p-4 text-center text-slate-400 font-sans">${esc(t('my_loads_empty'))}</td></tr>`; return; }
     tbody.innerHTML = mine.map((l) => `<tr class="data-row hover:bg-slate-50 transition border-b border-slate-200">
-      <td class="cell-heading p-2.5 font-bold text-slate-900">${l.top ? `<span class="text-[9px] bg-amber-400 text-amber-950 px-1 rounded font-black mr-1">${esc(t('badge_top'))}</span>` : ''}${esc(l.originCity)} → ${esc(l.destCity)}</td>
+      <td class="cell-heading p-2.5 font-bold text-slate-900">${l.top ? `<span class="top-badge">${esc(t('badge_top'))}</span>` : ''}${esc(l.originCity)} → ${esc(l.destCity)}</td>
       <td data-label="${esc(t('th_pickup_delivery'))}" class="p-2.5 text-slate-600">${esc(l.pickupDate)} <span class="text-slate-400">/</span> ${esc(l.deliveryDate || '--')}</td>
       <td data-label="${esc(t('th_type_weight'))}" class="p-2.5"><span class="bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">${esc(l.equip)}</span> ${esc(l.weightT)}t</td>
       <td data-label="${esc(t('th_distance'))}" class="p-2.5 text-slate-600">${esc(l.distanceKm.toLocaleString())} km</td>
       <td data-label="${esc(t('th_rate'))}" class="p-2.5 font-bold text-emerald-600${l.rateUsd > 0 ? '' : ' rate-neg'}">${esc(rateText(l.rateUsd))}</td>
       <td data-label="${esc(t('lbl_commodity_short'))}" class="p-2.5 text-slate-700 truncate max-w-[150px]" title="${esc(l.commodity)}">${esc(l.commodity)}</td>
-      <td class="p-2.5 text-center"><div class="flex items-center justify-center space-x-1">
+      <td class="p-2.5 text-center"><div class="flex flex-wrap items-center justify-center gap-1">
         ${expiryHours() ? `<button type="button" data-action="renew" data-id="${l.id}" class="flex-1 md:flex-none justify-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-2 py-1.5 md:py-1 rounded text-[10px] border border-emerald-200 flex items-center space-x-1 transition"><i data-lucide="refresh-cw" class="w-3 h-3"></i><span>${esc(t('btn_renew'))}</span></button>` : ''}
         <button type="button" data-action="repost" data-id="${l.id}" title="${esc(t('btn_repost_title'))}" class="flex-1 md:flex-none justify-center bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold px-2 py-1.5 md:py-1 rounded text-[10px] border border-sky-200 flex items-center space-x-1 transition"><i data-lucide="send" class="w-3 h-3"></i><span>${esc(t('btn_repost'))}</span></button>
         <button type="button" data-action="top" data-id="${l.id}" title="${esc(t('btn_top_title'))}" class="flex-1 md:flex-none justify-center bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold px-2 py-1.5 md:py-1 rounded text-[10px] border border-amber-200 flex items-center space-x-1 transition"><i data-lucide="star" class="w-3 h-3"></i><span>${esc(t('btn_top'))}</span></button>

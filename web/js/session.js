@@ -471,6 +471,7 @@ const Session = (() => {
     try {
       const r = await API.request('POST', '/api/auth/phone/register', { body: { phone: phoneNumber, pin: $('reg-pin').value.trim(), contactName: name, telegram: $('reg-tg').value.trim(), ...($('reg-persona').value ? { persona: $('reg-persona').value } : {}), ...refBody() }, retry: false });
       PinSession.set({ token: r.token, expiresAt: r.expiresAt, phone: phoneNumber });
+      U.store.remove(REF_KEY); // used: the next person to sign up on this device is not counted as the same friend's invite
       $('reg-pin').value = ''; $('reg-pin2').value = '';
       await refresh();
     } catch (err) {
@@ -590,6 +591,7 @@ const Session = (() => {
       U.setBusy(form, true);
       try {
         await API.post('/api/me/access-request', body);
+        U.store.remove(REF_KEY);
         await refresh();
       } catch (err) {
         if (err.code === 'validation_error') {

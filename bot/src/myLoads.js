@@ -85,7 +85,9 @@ export function makeMyLoads({ apiClient, tokens, cleaner = null }) {
       await note(ctx, fresh, t(ctx.lang, 'myloads_reposted', { hours }));
     } catch (err) {
       const wait = err instanceof ApiError && err.status === 429 ? err.details?.find((d) => d.code === 'repost_wait') : null;
-      await note(ctx, l, wait ? t(ctx.lang, 'myloads_repost_wait', { min: wait.params?.min ?? '?' }) : t(ctx.lang, 'myloads_action_failed'));
+      const min = wait?.params?.min;
+      const waitText = min >= 60 ? t(ctx.lang, 'myloads_repost_wait_h', { hours: Math.ceil(min / 60) }) : t(ctx.lang, 'myloads_repost_wait', { min: min ?? '?' });
+      await note(ctx, l, wait ? waitText : t(ctx.lang, 'myloads_action_failed'));
     }
   });
   const top = (ctx, id) => withLoad(ctx, id, async (idToken, l) => {
