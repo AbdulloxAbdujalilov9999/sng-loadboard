@@ -134,7 +134,7 @@ test('/myloads shows the whole load with Edit, Renew and Delete buttons', async 
   assert.match(card.text, /22 t · 120 m³/);
   assert.match(card.text, /Kelishiladi/);
   assert.match(card.text, /📞 \+998938747080/);
-  assert.deepEqual(buttons(card), ['ed:menu:L7', 'myloads:renew:7', 'myloads:ask:7']);
+  assert.deepEqual(buttons(card), ['ed:menu:L7', 'myloads:renew:7', 'myloads:repost:7', 'myloads:top:7', 'myloads:ask:7']);
 });
 
 test('delete asks first and shows the whole load, then removes it', async () => {
@@ -288,7 +288,7 @@ test('the bottom menu: /start brings it, every button does what its command did,
   state.link = { company: 'Abdulloh', email: 'p998938747080@phone.sng', member_status: 'approved' };
   await say('👤 Hisobim');
   assert.match(last('sendMessage').text, /Abdulloh[\s\S]*\+998938747080/);
-  assert.deepEqual(buttons(last('sendMessage')), ['acct:weblogin', 'acct:unlink']);
+  assert.deepEqual(buttons(last('sendMessage')), ['acct:weblogin', 'acct:invite', 'acct:unlink']);
   await press('acct:unlink');
   assert.deepEqual(buttons(last('editMessageText')), ['acct:unlinkyes', 'acct:keep']);
   await press('acct:keep');

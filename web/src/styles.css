@@ -402,3 +402,10 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
   #trucks-tbody tr.data-row > td.rate-neg { font-size: 11px; font-weight: 600; }
   #my-loads-tbody tr.data-row > td.rate-neg { font-size: 12px; font-weight: 600; }
 }
+
+/* ---------- TOP (boosted) loads: amber accent in both themes (custom classes, so dark-css.mjs leaves them alone) ---------- */
+tr.data-row.top-row, .responsive-table tr.data-row.top-row { background: #fffbeb; box-shadow: inset 4px 0 0 #f59e0b; border-color: #f59e0b; }
+tr.data-row.top-row:hover { background: #fef3c7; }
+.dark tr.data-row.top-row, .dark .responsive-table tr.data-row.top-row { background: rgba(245, 158, 11, 0.14); }
+.dark tr.data-row.top-row:hover { background: rgba(245, 158, 11, 0.22); }
+.top-badge { display: inline-block; background: #f59e0b; color: #1c1300; font-size: 9px; font-weight: 900; line-height: 1.4; padding: 0 4px; border-radius: 3px; margin-right: 4px; vertical-align: middle; }

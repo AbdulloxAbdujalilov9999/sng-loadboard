@@ -31,7 +31,7 @@ test('every translation keeps the same {placeholders} and none is empty', () => 
 test('Uzbek and Russian are really translated (not left in English)', () => {
   const same = (lang) => Object.entries(DICT[lang]).filter(([k, v]) => v === DICT.en[k] && /[a-z]{4}/i.test(v));
   // brand names / codes / shared words are allowed to match
-  const allowed = new Set(['method_google', 'lbl_telegram', 'ai_placeholder', 'eq_F', 'lbl_email', 'lbl_email_btn']);
+  const allowed = new Set(['method_google', 'lbl_telegram', 'ai_placeholder', 'eq_F', 'lbl_email', 'lbl_email_btn', 'persona_broker']);
   assert.deepEqual(same('uz').map(([k]) => k).filter((k) => !allowed.has(k)), [], 'untranslated Uzbek strings');
   assert.deepEqual(same('ru').map(([k]) => k).filter((k) => !allowed.has(k)), [], 'untranslated Russian strings');
 });

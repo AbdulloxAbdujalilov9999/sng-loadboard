@@ -67,7 +67,10 @@ export function makeSignupScene({ apiClient, store, tokens, config }) {
   async function create(ctx) {
     const { name, phone, pin } = ctx.scene.state;
     try {
-      await apiClient.phoneRegister({ phone, pin, contactName: name, telegram: ctx.from.username ? `@${ctx.from.username}` : '' });
+      await apiClient.phoneRegister({
+        phone, pin, contactName: name, telegram: ctx.from.username ? `@${ctx.from.username}` : '',
+        ...(ctx.session?.ref ? { ref: ctx.session.ref } : {}), // from a friend's t.me/<bot>?start=ref_<code> link (bot.js)
+      });
     } catch (err) {
       if (err instanceof ApiError && err.status === 400 && err.details?.some((d) => d.code === 'phone_taken')) return finish(ctx, t(ctx.lang, 'signup_phone_taken'));
       if (err instanceof ApiError && err.status === 429) return finish(ctx, t(ctx.lang, 'signup_rate_limited'));

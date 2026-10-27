@@ -2,6 +2,7 @@
 // Editing itself lives in editor.js (shared with the review of a pasted post); this file lists, renews and deletes.
 import { Markup } from 'telegraf';
 import { NotLinkedError } from './tokens.js';
+import { ApiError } from './apiClient.js';
 import { dtoToRow, escapeHtml, formatLoadMessage } from './format.js';
 import { loadKeyboard } from './editor.js';
 import { t } from './i18n.js';
@@ -75,5 +76,29 @@ export function makeMyLoads({ apiClient, tokens, cleaner = null }) {
     } catch { await show(ctx, `${card(l, ctx.lang)}\n\n${t(ctx.lang, 'myloads_renew_failed')}`, loadKeyboard(ctx.lang, l.id)); }
   });
 
-  return { list, showCard, askDelete, confirmDelete, renew };
+  // 🔁 Repost (free, with a cooldown) and ⭐ TOP (spends a credit): the card stays, a line under it says what happened.
+  const note = (ctx, l, text) => show(ctx, `${card(l, ctx.lang)}\n\n${text}`, loadKeyboard(ctx.lang, l.id));
+  const repost = (ctx, id) => withLoad(ctx, id, async (idToken, l) => {
+    try {
+      const fresh = await apiClient.repostLoad(idToken, l.id);
+      const hours = Math.max(1, Math.round((Date.parse(fresh.nextRepostAt) - Date.now()) / 3_600_000));
+      await note(ctx, fresh, t(ctx.lang, 'myloads_reposted', { hours }));
+    } catch (err) {
+      const wait = err instanceof ApiError && err.status === 429 ? err.details?.find((d) => d.code === 'repost_wait') : null;
+      const min = wait?.params?.min;
+      const waitText = min >= 60 ? t(ctx.lang, 'myloads_repost_wait_h', { hours: Math.ceil(min / 60) }) : t(ctx.lang, 'myloads_repost_wait', { min: min ?? '?' });
+      await note(ctx, l, wait ? waitText : t(ctx.lang, 'myloads_action_failed'));
+    }
+  });
+  const top = (ctx, id) => withLoad(ctx, id, async (idToken, l) => {
+    try {
+      const fresh = await apiClient.boostLoad(idToken, l.id);
+      const me = await apiClient.getMe(idToken).catch(() => null);
+      await note(ctx, fresh, t(ctx.lang, 'myloads_topped', { hours: me?.growth?.boostHours ?? 24, credits: fresh.boostCredits ?? '∞' }));
+    } catch (err) {
+      await note(ctx, l, t(ctx.lang, err instanceof ApiError && err.status === 402 ? 'myloads_no_credits' : 'myloads_action_failed'));
+    }
+  });
+
+  return { list, showCard, askDelete, confirmDelete, renew, repost, top };
 }

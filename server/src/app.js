@@ -25,6 +25,8 @@ import eventRoutes from './routes/events.js';
 import statsRoutes from './routes/stats.js';
 import aiRoutes from './routes/ai.js';
 import savedSearchRoutes from './routes/savedSearches.js';
+import guestRoutes from './routes/guest.js';
+import favoriteRoutes from './routes/favorites.js';
 
 // Sign-in uses Firebase Auth (Google popup), so these Google/Firebase origins must be reachable.
 function cspDirectives(config) {
@@ -168,6 +170,8 @@ export async function buildApp({ config, pool, verifyToken, hub: providedHub, lo
   await app.register(statsRoutes, opts);
   await app.register(aiRoutes, opts);
   await app.register(savedSearchRoutes, opts);
+  await app.register(guestRoutes, opts);
+  await app.register(favoriteRoutes, opts);
 
   // Serve the built web app (same origin as the API => no CORS needed in the default deployment).
   const webRoot = path.resolve(config.webRoot);

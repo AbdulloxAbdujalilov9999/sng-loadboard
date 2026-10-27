@@ -95,6 +95,32 @@ test('new user: sign up with a name + one contact -> a member straight away (no 
   assert.equal(onlyPhone.json.profile.company, 'Phone Co');
 });
 
+test('persona: optional at sign-up, self-service to set/change/clear afterwards, never a permission', async () => {
+  // One real sign-up call (the access-request endpoint shares a tight per-IP rate limit with every other
+  // test in this file - see lib/memberlimit.js's sibling in pin.js/me.js - so only spend it once here).
+  // Omitted -> stored as NULL ("not picked yet"), not an error.
+  const withoutPersona = await env.approvedMember('nopersona@gmail.com', 'No Persona Co');
+  assert.equal(withoutPersona.persona, null);
+
+  // Picked at sign-up, through the real HTTP endpoint (proves the wire-up end to end).
+  const withPersona = await env.as('withpersona@gmail.com').post('/api/me/access-request', { contactName: 'Has Persona', phone: '+998901112201', persona: 'driver' });
+  assert.equal(withPersona.status, 201);
+  assert.equal(withPersona.json.profile.persona, 'driver');
+
+  // Self-service change later (no admin/owner involved) via the profile endpoint - which validates the
+  // same enum, so this also covers "rejects a made-up value" without a second access-request call.
+  const nopersona = env.as('nopersona@gmail.com');
+  assert.equal((await nopersona.patch('/api/me/profile', { persona: 'dispatcher' })).status, 400, 'rejects a made-up value');
+  const changed = await nopersona.patch('/api/me/profile', { persona: 'broker' });
+  assert.equal(changed.status, 200);
+  assert.equal(changed.json.profile.persona, 'broker');
+  assert.equal((await nopersona.get('/api/loads')).status, 200, 'persona never gates access to the board');
+
+  // Clears back to "not set".
+  const cleared = await nopersona.patch('/api/me/profile', { persona: '' });
+  assert.equal(cleared.json.profile.persona, null);
+});
+
 test('the owner sees who joined, and can still block, unblock and remove members', async () => {
   const alice = env.as('alice@gmail.com');
   const owner = env.as('owner@test.com');

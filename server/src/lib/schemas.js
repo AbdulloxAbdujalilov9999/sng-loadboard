@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 export const EQUIP = ['T', 'R', 'F', 'V', 'AC'];
 export const FP = ['Full', 'Partial'];
+// Business role a member picks (shown in the UI); NULL/omitted = "not picked yet". Not an authorization
+// level - that's the separate `role` column (owner/member) - see migration 026_persona.sql.
+export const PERSONA = ['shipper', 'driver', 'broker'];
 
 const trimmed = (max, min = 1) => z.string().trim().min(min).max(max);
 const optionalText = (max) => z.string().trim().max(max).default('');
@@ -25,6 +28,8 @@ const needsContact = (v, ctx, phoneKey = 'contactPhone', tgKey = 'contactTelegra
 
 const orEmpty = (schema) => z.union([z.literal(''), schema]);
 const pin = z.string().regex(/^\d{4,6}$/, 'pin_format');
+// An invite code is optional and never fails a sign-up: anything that does not look like one is simply dropped.
+const refCode = z.string().optional().transform((v) => (v && /^[a-z0-9]{4,16}$/i.test(v.trim()) ? v.trim().toLowerCase() : undefined));
 
 // Signing up: a name and one way to be reached. Company is optional (added later in Settings; the name stands in until then).
 export const signupBody = z.object({
@@ -34,6 +39,8 @@ export const signupBody = z.object({
   telegram: orEmpty(telegram).default(''),
   contactEmail: orEmpty(email).default(''),
   pin: pin.optional(),
+  persona: z.enum(PERSONA).optional(), // asked at sign-up; skippable, and changeable later in Settings
+  ref: refCode, // invite code from a friend's link (lib/growth.js); unknown codes are ignored
 }).strict();
 export const accessRequestBody = signupBody; // the endpoint keeps its old URL
 
@@ -53,6 +60,8 @@ export const phoneRegisterBody = z.object({
   company: optionalText(120),
   telegram: orEmpty(telegram).default(''),
   contactEmail: orEmpty(email).default(''),
+  persona: z.enum(PERSONA).optional(),
+  ref: refCode,
 }).strict();
 export const linkLoginBody = z.object({ code: z.string().regex(/^[A-Za-z0-9_-]{30,64}$/, 'invalid') }).strict();
 export const phoneCheckBody = z.object({ phone: z.string().trim().regex(/^\+\d{8,15}$/, 'phone') }).strict();
@@ -70,6 +79,7 @@ export const profileBody = z.object({
   tirCarnet: z.string().trim().max(60),
   fleet: z.string().trim().max(200),
   routes: z.string().trim().max(300),
+  persona: z.union([z.literal(''), z.enum(PERSONA)]).transform((v) => v || null), // '' clears it back to "not set"
 }).partial().strict();
 
 const cityId = z.coerce.number().int().positive();
@@ -271,6 +281,14 @@ export const fxBody = z.object({
 
 export const idParam = z.object({ id: z.coerce.number().int().positive() }).strict();
 
+// A saved individual load/truck post ("Saved" tab) - see migration 027_favorites.sql. Distinct from a
+// saved search (savedSearchBody above), which saves a filter, not a post.
+export const favoriteBody = z.object({
+  entityType: z.enum(['load', 'truck']),
+  entityId: z.coerce.number().int().positive(),
+}).strict();
+export const favoriteParams = favoriteBody;
+
 export const subscriptionBody = z.object({
   enabled: z.boolean(),
   trialDays: z.coerce.number().int().min(1).max(365),
@@ -281,4 +299,19 @@ export const loadExpiryBody = z.object({
   enabled: z.boolean(),
   hours: z.coerce.number().int().min(1).max(720),
 }).strict();
+// Paid extras (lib/growth.js). Merchant ids are public identifiers (they appear in every pay link), not secrets.
+const merchantId = z.string().trim().regex(/^[A-Za-z0-9_-]{0,64}$/, 'invalid');
+export const extrasBody = z.object({
+  enabled: z.boolean(),
+  boostPriceUzs: z.coerce.number().int().min(0).max(100_000_000),
+  boostPack: z.coerce.number().int().min(1).max(100).default(1),
+  verifyPriceUzs: z.coerce.number().int().min(0).max(100_000_000),
+  payText: z.string().trim().max(1500).default(''),
+  paymeMerchantId: merchantId.default(''),
+  paymeAccountField: z.string().trim().regex(/^[a-z_]{1,32}$/, 'invalid').default('order_id'),
+  clickServiceId: merchantId.default(''),
+  clickMerchantId: merchantId.default(''),
+}).strict();
+export const creditsBody = z.object({ credits: z.coerce.number().int().min(-1000).max(1000).refine((n) => n !== 0, 'invalid') }).strict();
+export const verifiedBody = z.object({ verified: z.boolean() }).strict();
 export const activateBody = z.object({ days: z.coerce.number().int().min(1).max(3650) }).strict();

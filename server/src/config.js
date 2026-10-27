@@ -29,6 +29,11 @@ export function loadConfig(env = process.env) {
     maxActiveLoadsPerMember: Number(env.MAX_ACTIVE_LOADS_PER_MEMBER || 500),
     maxActiveTrucksPerMember: Number(env.MAX_ACTIVE_TRUCKS_PER_MEMBER || 200),
     maxPostsPerHour: Number(env.MAX_POSTS_PER_HOUR || 200),
+    // Growth tools (lib/growth.js): a free repost to the Telegram groups once per REPOST_COOLDOWN_HOURS per load; a TOP credit
+    // keeps a load at the top for BOOST_HOURS; an invited member's first load earns the inviter REFERRAL_REWARD_CREDITS.
+    repostCooldownHours: Number(env.REPOST_COOLDOWN_HOURS || 6),
+    boostHours: Number(env.BOOST_HOURS || 24),
+    referralRewardCredits: Number(env.REFERRAL_REWARD_CREDITS ?? 1),
     roadFactor: Number(env.ROAD_FACTOR || 1.2),
     countCacheMs: Number(env.COUNT_CACHE_MS ?? 5000),
     searchCacheMs: Number(env.SEARCH_CACHE_MS ?? 1500),

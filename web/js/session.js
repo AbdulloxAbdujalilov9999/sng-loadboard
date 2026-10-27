@@ -12,6 +12,15 @@ const Session = (() => {
   let phoneNumber = '';
   let ready = false;
 
+  // A friend's invite link ("/?ref=<code>"): remembered on this device until the visitor signs up, then sent with the sign-up so the
+  // friend earns TOP credits (server/src/lib/growth.js). U.store already shrugs off blocked storage.
+  const REF_KEY = 'sng.ref';
+  try {
+    const ref = new URLSearchParams(location.search).get('ref');
+    if (ref && /^[a-z0-9]{4,16}$/i.test(ref)) U.store.set(REF_KEY, ref.toLowerCase());
+  } catch { /* no URL access: nothing to remember */ }
+  const refBody = () => { const r = U.store.get(REF_KEY); return r ? { ref: r } : {}; };
+
   // ---- phone + PIN sessions (issued by our own server; Firebase is only used for the one-time SMS code) ----
   const PinSession = {
     KEY: 'sng.pinSession',
@@ -460,8 +469,9 @@ const Session = (() => {
     if (!ok) { form.querySelector('.field-invalid')?.focus(); return; }
     U.setBusy(form, true);
     try {
-      const r = await API.request('POST', '/api/auth/phone/register', { body: { phone: phoneNumber, pin: $('reg-pin').value.trim(), contactName: name, telegram: $('reg-tg').value.trim() }, retry: false });
+      const r = await API.request('POST', '/api/auth/phone/register', { body: { phone: phoneNumber, pin: $('reg-pin').value.trim(), contactName: name, telegram: $('reg-tg').value.trim(), ...($('reg-persona').value ? { persona: $('reg-persona').value } : {}), ...refBody() }, retry: false });
       PinSession.set({ token: r.token, expiresAt: r.expiresAt, phone: phoneNumber });
+      U.store.remove(REF_KEY); // used: the next person to sign up on this device is not counted as the same friend's invite
       $('reg-pin').value = ''; $('reg-pin2').value = '';
       await refresh();
     } catch (err) {
@@ -571,6 +581,8 @@ const Session = (() => {
       U.clearFormErrors(form);
       $('request-error').classList.add('hidden');
       const body = { contactName: $('gate-request-name').value.trim(), telegram: $('gate-request-tg').value.trim(), phone: $('gate-request-phone').value.trim() };
+      if ($('gate-request-persona').value) body.persona = $('gate-request-persona').value;
+      Object.assign(body, refBody());
       let ok = true;
       if (!body.contactName) { U.fieldError($('gate-request-name'), t('err_required')); ok = false; }
       if (!body.phone && !body.telegram) { U.fieldError($('gate-request-phone'), t('v_contact_required')); U.fieldError($('gate-request-tg'), t('v_contact_required')); ok = false; }
@@ -579,6 +591,7 @@ const Session = (() => {
       U.setBusy(form, true);
       try {
         await API.post('/api/me/access-request', body);
+        U.store.remove(REF_KEY);
         await refresh();
       } catch (err) {
         if (err.code === 'validation_error') {

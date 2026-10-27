@@ -85,6 +85,9 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   // sngonebot only (it has nothing useful to do without an account - no buttons, just the Mini App):
   // a first-time /start with no linked account goes straight into signup instead of the welcome menu.
   bot.start(async (ctx) => {
+    // t.me/<bot>?start=ref_<code>: a friend's invite link. Kept for this chat until the sign-up below sends it with the new account.
+    const ref = /^ref_([a-z0-9]{4,16})$/i.exec(ctx.startPayload ?? '')?.[1];
+    if (ref && ctx.session) ctx.session.ref = ref.toLowerCase();
     if (config.variant === 'lite' && isPrivate(ctx) && !(await store.getLinkByTelegramUserId(ctx.from.id))) {
       await ctx.reply(t(ctx.lang, 'welcome_gate'), Markup.removeKeyboard());
       await ctx.scene.enter('signup');
@@ -128,9 +131,48 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
       company: escapeHtml(link.company), login: escapeHtml(loginOf(link.email)), status: t(ctx.lang, `status_${link.member_status}`),
     }), { parse_mode: 'HTML', ...Markup.inlineKeyboard([
       [Markup.button.callback(t(ctx.lang, 'acct_btn_weblogin'), 'acct:weblogin')],
+      [Markup.button.callback(t(ctx.lang, 'acct_btn_invite'), 'acct:invite')],
       [Markup.button.callback(t(ctx.lang, 'acct_btn_unlink'), 'acct:unlink')],
     ]) });
   }
+
+  // «🎁 Invite friends»: the member's own invite links (this bot + the website), how many joined, TOP credits, and - when the owner
+  // sells extras - the prices with Payme / Click buttons (lib/growth.js on the server builds those links).
+  async function openInvite(ctx) {
+    let me;
+    try { me = await apiClient.getMe(await tokens.getIdToken(ctx.from.id)); } catch (err) {
+      await ctx.reply(t(ctx.lang, err instanceof NotLinkedError ? 'postload_not_linked' : 'postload_unreachable'));
+      return;
+    }
+    const g = me.growth;
+    if (!g) { await ctx.reply(t(ctx.lang, 'postload_not_linked')); return; }
+    const botLink = `https://t.me/${ctx.botInfo?.username ?? ''}?start=ref_${g.refCode}`;
+    const webLink = `${config.webBaseUrl}/?ref=${g.refCode}`;
+    const lines = [t(ctx.lang, 'invite_text', {
+      reward: g.rewardCredits, hours: g.boostHours, botLink: escapeHtml(botLink), webLink: escapeHtml(webLink),
+      invited: g.invited, active: g.invitedActive, credits: g.boostCredits,
+    })];
+    if (g.verified) lines.push('', t(ctx.lang, 'invite_verified'));
+    const buttons = [];
+    const ex = me.extras;
+    if (ex?.enabled) {
+      const price = (n) => Number(n).toLocaleString('ru-RU');
+      lines.push('', t(ctx.lang, 'extras_header'));
+      if (ex.boost) lines.push(t(ctx.lang, 'extras_top', { pack: ex.boostPack, price: price(ex.boost.priceUzs) }));
+      if (ex.verify && !g.verified) lines.push(t(ctx.lang, 'extras_verify', { price: price(ex.verify.priceUzs) }));
+      if (ex.payText) lines.push('', escapeHtml(ex.payText));
+      lines.push('', `<i>${t(ctx.lang, 'extras_after_pay')}</i>`);
+      for (const [kind, offer] of [['top', ex.boost], ['verify', g.verified ? null : ex.verify]]) {
+        if (!offer) continue;
+        const row = [['Payme', offer.payme], ['Click', offer.click]].filter(([, url]) => url)
+          .map(([provider, url]) => Markup.button.url(t(ctx.lang, `extras_btn_${kind}`, { provider }), url));
+        if (row.length) buttons.push(row);
+      }
+    }
+    await ctx.reply(lines.join('\n'), { parse_mode: 'HTML', link_preview_options: { is_disabled: true }, ...(buttons.length ? Markup.inlineKeyboard(buttons) : {}) });
+  }
+  bot.action('acct:invite', async (ctx) => { await ctx.answerCbQuery(); if (isPrivate(ctx)) await openInvite(ctx); });
+  bot.command('invite', async (ctx) => { if (isPrivate(ctx)) await openInvite(ctx); else await ctx.reply(t(ctx.lang, 'link_dm_only')); });
   bot.action('acct:signup', async (ctx) => { await ctx.answerCbQuery(); if (isPrivate(ctx)) await ctx.scene.enter('signup'); });
   bot.action('acct:weblogin', async (ctx) => { await ctx.answerCbQuery(); if (isPrivate(ctx)) await sendWebLogin(ctx, { apiClient, tokens, config }); });
   bot.action('acct:link', async (ctx) => { await ctx.answerCbQuery(); if (isPrivate(ctx)) await ctx.scene.enter('link'); });
@@ -280,6 +322,8 @@ export function makeBot({ config, firebaseAuth, apiClient, tokens, store }) {
   bot.action(/^myloads:ask:(\d+)$/, (ctx) => myLoads.askDelete(ctx, ctx.match[1]));
   bot.action(/^myloads:del:(\d+)$/, (ctx) => myLoads.confirmDelete(ctx, ctx.match[1]));
   bot.action(/^myloads:renew:(\d+)$/, (ctx) => myLoads.renew(ctx, ctx.match[1]));
+  bot.action(/^myloads:repost:(\d+)$/, (ctx) => myLoads.repost(ctx, ctx.match[1]));
+  bot.action(/^myloads:top:(\d+)$/, (ctx) => myLoads.top(ctx, ctx.match[1]));
   // editing - the same buttons under a posted load and under a draft that is still being reviewed (target L<id> / D<batch>.<n>)
   bot.action(/^ed:menu:([LDTM][\w.]*)$/, (ctx) => editor.menu(ctx, ctx.match[1]));
   bot.action(/^ed:back:([LDTM][\w.]*)$/, (ctx) => editor.back(ctx, ctx.match[1]));

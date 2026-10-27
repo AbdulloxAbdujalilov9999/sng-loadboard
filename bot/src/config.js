@@ -32,6 +32,8 @@ export function loadBotConfig(env = process.env) {
     // (currently sngonebot), since it's guaranteed to already have a chat open with anyone who saved a
     // search through it. See broadcaster.js.
     sendSearchAlerts: truthy(env.BOT_SEND_SEARCH_ALERTS, false),
+    // «A friend you invited posted their first load» DMs: only ONE bot process should send them (the main @sng_loadboard_bot).
+    sendReferralNotices: truthy(env.BOT_SEND_REFERRAL_NOTICES, false),
     // Same one-process-does-it idea: only one bot sends the 4x/day load/truck-count digest. See updatesDigest.js.
     sendUpdatesDigest: truthy(env.BOT_SEND_UPDATES_DIGEST, false),
     databaseUrl: env.DATABASE_URL,

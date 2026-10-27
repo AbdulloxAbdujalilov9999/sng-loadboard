@@ -1,6 +1,6 @@
 import { idParam, loadBody, loadPatchBody, loadQuery, loadsBulkBody } from '../lib/schemas.js';
 import { loadDto } from '../lib/dto.js';
-import { badRequest, forbidden, notFound, tooMany } from '../lib/errors.js';
+import { HttpError, badRequest, forbidden, notFound, tooMany } from '../lib/errors.js';
 import { detail } from '../lib/validation.js';
 import { roadDistanceKm } from '../lib/geo.js';
 import { createBinder, keyset, nextCursorFrom } from '../lib/sql.js';
@@ -9,6 +9,9 @@ import { publish } from '../events.js';
 import { withTx } from '../db.js';
 import { createMemberLimiter } from '../lib/memberlimit.js';
 import { notifyMatchingSearches } from '../lib/savedSearchAlerts.js';
+import { rewardReferrer } from '../lib/growth.js';
+
+const TOP_MAX = 5; // TOP loads shown above a search's results
 
 const COUNT_CAP = 10_000;
 
@@ -17,7 +20,7 @@ const COUNT_CAP = 10_000;
 const LIST_COLS = `l.id, l.owner_id, (extract(epoch from l.created_at) * 1000)::bigint AS created_ms,
   l.origin_city_id, l.origin_city, l.origin_lat, l.origin_lng, l.dest_city_id, l.dest_city, l.dest_lat, l.dest_lng, l.equip, l.fp, l.weight_t, l.volume_m3,
   l.pickup_date, l.delivery_date, l.distance_km, l.rate_usd, l.commodity, l.notes, l.company_name,
-  l.contact_name, l.contact_phone, l.contact_email, l.contact_tg`; // "10,000+" - counting further buys nothing and costs time
+  l.contact_name, l.contact_phone, l.contact_email, l.contact_tg, l.owner_verified, l.boosted_until`; // "10,000+" - counting further buys nothing and costs time
 
 // API sort name -> column + cast used when binding the keyset cursor value.
 const SORTS = {
@@ -93,6 +96,19 @@ export default async function loadRoutes(app, { pool, config }) {
     };
   });
 
+  // TOP placement: up to TOP_MAX boosted loads that match the same filters, shown above the normal results (which keep their own
+  // order and paging untouched). The newest boost first, so a fresh purchase is seen.
+  app.get('/api/loads/top', approved, async (req) => {
+    const q = loadQuery.parse(req.query);
+    const b = createBinder();
+    const where = [`l.status = 'active'`, `l.pickup_date >= current_date - 1`, `l.boosted_until > now()`];
+    const built = await buildLoadWhere(app, b, q);
+    where.push(...built.where);
+    const { rows } = await pool.query(`SELECT ${LIST_COLS}, ${built.dhoSql} AS dho, ${built.dhdSql} AS dhd FROM loads l
+                                        WHERE ${where.join(' AND ')} ORDER BY l.boosted_until DESC LIMIT ${TOP_MAX}`, b.params);
+    return { items: rows.map((r) => loadDto(r, req.member.id)) };
+  });
+
   // One load by id - used by deep links (e.g. "view this load" from the Telegram bot's broadcast).
   app.get('/api/loads/:id', approved, async (req) => {
     const { id } = idParam.parse(req.params);
@@ -146,15 +162,17 @@ export default async function loadRoutes(app, { pool, config }) {
           `INSERT INTO loads (owner_id, origin_city_id, origin_city, origin_lat, origin_lng,
                               dest_city_id, dest_city, dest_lat, dest_lng, equip, fp, weight_t, volume_m3,
                               pickup_date, delivery_date, distance_km, rate_usd, commodity, notes, company_name,
-                              contact_name, contact_phone, contact_email, contact_tg)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+                              contact_name, contact_phone, contact_email, contact_tg, owner_verified)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
            RETURNING *`,
           [member.id, o.id, o.label, o.lat, o.lng, d.id, d.label, d.lat, d.lng, body.equip, body.fp, body.weightT,
             body.volumeM3, body.pickupDate, body.deliveryDate, roadDistanceKm(o, d, config.roadFactor), body.rateUsd,
-            body.commodity, body.notes ?? '', member.company, body.contactName, body.contactPhone, body.contactEmail, body.contactTelegram]);
+            body.commodity, body.notes ?? '', member.company, body.contactName, body.contactPhone, body.contactEmail, body.contactTelegram,
+            Boolean(member.verified_at)]);
         await publish(db, { entity: 'loads', op: 'insert', id: row.id, ownerId: member.id });
         rows.push(row);
       }
+      await rewardReferrer(db, member, config.referralRewardCredits);
       return rows;
     }).then((rows) => {
       // Saved-search alerts: after the insert commits, not inside the transaction - a bug here must
@@ -241,6 +259,52 @@ export default async function loadRoutes(app, { pool, config }) {
       return r;
     });
     return loadDto(row, req.member.id);
+  });
+
+  // ---------- repost: free - the load goes out to every Telegram group again (and is renewed). Once per REPOST_COOLDOWN_HOURS ----------
+  app.post('/api/loads/:id/repost', write, async (req) => {
+    const { id } = idParam.parse(req.params);
+    const row = await withTx(pool, async (db) => {
+      const { rows: [cur] } = await db.query(`SELECT * FROM loads WHERE id = $1 AND status = 'active' FOR UPDATE`, [id]);
+      if (!cur) throw notFound('Load not found - it may already have expired');
+      if (cur.owner_id !== req.member.id) throw forbidden('You can only repost your own loads');
+      const nextAt = new Date(new Date(cur.broadcast_at).getTime() + config.repostCooldownHours * 3_600_000);
+      if (nextAt > new Date() && req.member.role !== 'owner') {
+        const min = Math.ceil((nextAt - Date.now()) / 60_000);
+        throw new HttpError(429, 'repost_wait', `You can repost this load again in ${min} min`, [{ path: 'repost', code: 'repost_wait', params: { min } }]);
+      }
+      const { rows: [r] } = await db.query(
+        `UPDATE loads SET created_at = now(), broadcast_at = now(), updated_at = now() WHERE id = $1 RETURNING *`, [id]);
+      await publish(db, { entity: 'loads', op: 'repost', id, ownerId: r.owner_id });
+      return r;
+    });
+    return { ...loadDto(row, req.member.id), nextRepostAt: new Date(Date.now() + config.repostCooldownHours * 3_600_000).toISOString() };
+  });
+
+  // ---------- TOP: spends one credit; the load stays at the top of matching searches for BOOST_HOURS and is reposted at once ----------
+  app.post('/api/loads/:id/boost', write, async (req) => {
+    const { id } = idParam.parse(req.params);
+    const isOwner = req.member.role === 'owner';
+    const { row, credits } = await withTx(pool, async (db) => {
+      const { rows: [cur] } = await db.query(`SELECT * FROM loads WHERE id = $1 AND status = 'active' FOR UPDATE`, [id]);
+      if (!cur) throw notFound('Load not found - it may already have expired');
+      if (cur.owner_id !== req.member.id) throw forbidden('You can only put your own loads in TOP');
+      // The platform owner is never charged; everyone else spends one credit (the CHECK keeps credits from going below zero).
+      let m = null;
+      if (!isOwner) {
+        ({ rows: [m] } = await db.query(
+          'UPDATE members SET boost_credits = boost_credits - 1, updated_at = now() WHERE id = $1 AND boost_credits > 0 RETURNING boost_credits, email', [req.member.id]));
+        if (!m) throw new HttpError(402, 'no_credits', 'You have no TOP credits left', [{ path: 'boost', code: 'no_credits' }]);
+      }
+      const { rows: [r] } = await db.query(
+        `UPDATE loads SET boosted_until = GREATEST(COALESCE(boosted_until, now()), now()) + make_interval(hours => $2),
+                created_at = now(), broadcast_at = now(), updated_at = now() WHERE id = $1 RETURNING *`, [id, config.boostHours]);
+      await publish(db, { entity: 'loads', op: 'repost', id, ownerId: r.owner_id, top: true });
+      if (m) await publish(db, { entity: 'me', email: m.email });
+      return { row: r, credits: m ? m.boost_credits : null };
+    });
+    if (!isOwner) app.invalidateMember(req.member.email);
+    return { ...loadDto(row, req.member.id), boostCredits: credits };
   });
 
   // ---------- remove (soft: history is kept, the load just leaves the board) ----------

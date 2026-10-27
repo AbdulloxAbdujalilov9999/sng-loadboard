@@ -37,6 +37,36 @@ const Account = (() => {
     chip.textContent = t(`sub_chip_${s.state}`, vars);
   }
 
+  // «Invite friends · free TOP»: the member's invite link, how many joined, TOP credits, the verified badge, and - when the owner
+  // sells extras - prices with Payme / Click buttons (the server builds those links with this member's id: lib/growth.js).
+  function renderGrowth() {
+    const g = Session.me?.growth;
+    $('growth-card').classList.toggle('hidden', !g || Session.me?.isOwner);
+    if (!g) return;
+    $('growth-sub').textContent = t('growth_sub', { reward: g.rewardCredits, hours: g.boostHours });
+    $('growth-link').value = `${location.origin}/?ref=${g.refCode}`;
+    $('growth-stats').textContent = t('growth_stats', { invited: g.invited, active: g.invitedActive });
+    $('growth-credits').textContent = t('growth_credits', { credits: g.boostCredits });
+    $('growth-verified').classList.toggle('hidden', !g.verified);
+    const ex = Session.me.extras || {};
+    $('extras-wrap').classList.toggle('hidden', !ex.enabled);
+    if (!ex.enabled) return;
+    const price = (n) => Number(n).toLocaleString('ru-RU');
+    const payBtn = (label, url) => (url ? `<a href="${U.esc(url)}" target="_blank" rel="noopener noreferrer" class="inline-block bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-1.5 rounded">${U.esc(label)}</a>` : '');
+    const offer = (text, o) => `<div class="flex flex-wrap items-center gap-2"><span class="font-semibold text-slate-700 mr-auto">${U.esc(text)}</span>${payBtn('Payme', o.payme)}${payBtn('Click', o.click)}</div>`;
+    $('extras-offers').innerHTML = [
+      ex.boost ? offer(t('extras_top', { pack: ex.boostPack, price: price(ex.boost.priceUzs) }), ex.boost) : '',
+      ex.verify && !g.verified ? offer(t('extras_verify', { price: price(ex.verify.priceUzs) }), ex.verify) : '',
+    ].join('');
+    $('extras-pay-text').textContent = ex.payText || '';
+    $('extras-pay-text').classList.toggle('hidden', !ex.payText);
+  }
+
+  async function copyInvite() {
+    const link = $('growth-link').value;
+    try { await navigator.clipboard.writeText(link); U.toast(t('toast_link_copied'), 'success'); } catch { $('growth-link').select(); }
+  }
+
   // Everyone is an individual until they say they work with a company: only then are the company fields asked for.
   let companyOn = false;
   function setCompanyMode(on) {
@@ -61,6 +91,7 @@ const Account = (() => {
     set('setting-tir', p.tirCarnet);
     set('setting-fleet', p.fleet);
     set('setting-routes', p.routes);
+    set('setting-persona', p.persona);
     set('setting-default-dh', U.store.get('sng.defaultDh', 100));
 
     $('acc-big-avatar').textContent = me.isOwner ? '★' : initials(p.company || p.contactName);
@@ -71,6 +102,7 @@ const Account = (() => {
     prefillContacts();
     renderSecurity();
     renderSubscription();
+    renderGrowth();
     MyTruck.refresh();
     Prefs.syncLanguage(); Prefs.syncCurrency();
     App.renderSidebarUser();
@@ -242,6 +274,7 @@ const Account = (() => {
     $('sec-forgot-btn').addEventListener('click', (e) => emailReset(e.currentTarget));
     $('sec-set-password-btn').addEventListener('click', (e) => emailReset(e.currentTarget));
     $('profile-form').addEventListener('submit', save);
+    $('growth-copy').addEventListener('click', copyInvite);
     $('company-on-btn').addEventListener('click', () => { setCompanyMode(true); $('setting-company-name').focus(); });
     $('company-off-btn').addEventListener('click', () => setCompanyMode(false));
     document.querySelectorAll('[data-action="logout"]').forEach((b) => b.addEventListener('click', () => Session.signOut()));

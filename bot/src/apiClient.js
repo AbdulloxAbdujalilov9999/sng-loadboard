@@ -54,6 +54,9 @@ export function makeApiClient({ baseUrl }) {
   // Edit (PATCH: only the fields sent change) and "still available" (renew). Both are owner-only on the server.
   const updateLoad = (idToken, id, patch) => request(idToken, 'PATCH', `/api/loads/${id}`, patch);
   const renewLoad = (idToken, id) => request(idToken, 'POST', `/api/loads/${id}/renew`, {});
+  // Free repost to the groups (cooldown) and TOP placement (spends a credit) - server/src/routes/loads.js.
+  const repostLoad = (idToken, id) => request(idToken, 'POST', `/api/loads/${id}/repost`, {});
+  const boostLoad = (idToken, id) => request(idToken, 'POST', `/api/loads/${id}/boost`, {});
 
   // Trucks: the same endpoints the website uses (AI reading, bulk posting, my list, edit, "still available", remove) and the saved "my truck".
   const parseTrucks = (idToken, text) => request(idToken, 'POST', '/api/ai/parse-trucks', { text });
@@ -76,5 +79,5 @@ export function makeApiClient({ baseUrl }) {
   // Trades a still-valid PIN session for a fresh one, so a linked member never has to /link again just because time passed.
   const refreshSession = (token) => request(token, 'POST', '/api/auth/refresh', {});
 
-  return { getMe, getStats, searchCities, createLoad, createLoadsBulk, parseLoads, listMine, deleteLoad, updateLoad, renewLoad, searchLoads, searchTrucks, parseTrucks, createTruck, createTrucksBulk, listMyTrucks, updateTruck, renewTruck, deleteTruck, putMyTruck, deleteMyTruck, phoneRegister, phoneCheck, createLoginLink, pinLogin, refreshSession };
+  return { getMe, getStats, searchCities, createLoad, createLoadsBulk, parseLoads, listMine, deleteLoad, updateLoad, renewLoad, repostLoad, boostLoad, searchLoads, searchTrucks, parseTrucks, createTruck, createTrucksBulk, listMyTrucks, updateTruck, renewTruck, deleteTruck, putMyTruck, deleteMyTruck, phoneRegister, phoneCheck, createLoginLink, pinLogin, refreshSession };
 }

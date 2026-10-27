@@ -139,9 +139,9 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
     return config.webUrlIsPublic === false ? null : `${config.webBaseUrl}/?load=${row.id}`; // never broadcast a dead (internal) address
   }
 
-  /** Sends one load to the given groups (and, if `owner`, to the poster's own chat). */
-  async function broadcastLoad(row, chatIds, { owner = false } = {}) {
-    const text = formatLoadMessage(row, config.broadcastLang, linkFor(row));
+  /** Sends one load to the given groups (and, if `owner`, to the poster's own chat). `tag` heads a repost / TOP message. */
+  async function broadcastLoad(row, chatIds, { owner = false, tag = null } = {}) {
+    const text = formatLoadMessage(row, config.broadcastLang, linkFor(row), { tag });
     const waits = chatIds.map((chatId) => enqueue(chatId, { loadId: row.id, text }));
     if (owner) {
       const ownerChat = await store.getTelegramUserIdByMemberId(row.owner_id);
@@ -252,7 +252,27 @@ export function makeBroadcaster({ config, pool, store, bot, log = console, sleep
       }
       return;
     }
+    // A friend the member invited posted their first load (server/src/lib/growth.js): tell the member, from one bot process only.
+    if (evt?.entity === 'referralReward' && evt.op === 'notify' && config.sendReferralNotices && evt.memberId) {
+      const chatId = await store.getTelegramUserIdByMemberId(evt.memberId);
+      if (!chatId) return;
+      const lang = (await store.getLanguage?.(chatId)) ?? config.broadcastLang;
+      try { await sendWithRetry(chatId, t(lang, 'referral_reward_notice', { credits: evt.credits ?? 1 })); } catch (err) {
+        log.warn?.(`referral notice to ${chatId} failed: ${err.message}`);
+      }
+      return;
+    }
     if (evt?.entity !== 'loads' || !evt.id) return;
+    // A free repost or a TOP purchase (POST /api/loads/:id/repost | boost): the load goes out to every group again, headed by a tag.
+    // Groups only - the poster already has the load in their chat.
+    if (evt.op === 'repost') {
+      const row = await fetchLoad(evt.id);
+      if (!row || row.status !== 'active') return;
+      try { await broadcastLoad(row, await store.listActiveChatIds(config.botId), { tag: evt.top ? 'msg_top' : 'msg_repost' }); } catch (err) {
+        log.error?.(`repost broadcast failed: ${err.message}`) ?? console.error(`repost broadcast failed: ${err.message}`);
+      }
+      return;
+    }
     if (evt.op === 'delete') {
       forget(evt.id);
       queue = queue.then(() => handleDelete(evt.id)

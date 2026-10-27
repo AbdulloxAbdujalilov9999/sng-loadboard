@@ -30,7 +30,7 @@ const Loads = (() => {
   }
   let deepLinked = null; // the load currently shown in the preview popup, for its own Copy button
   let previewTrigger = null; // the row that opened the popup, so focus can return to it
-  const list = { items: [], cursor: null, total: null, capped: false, loading: false, done: false, error: null, ctrl: null };
+  const list = { top: [], items: [], cursor: null, total: null, capped: false, loading: false, done: false, error: null, ctrl: null };
 
   // ---------------------------------------------------------------- tabs
   const defaultRadius = () => Number(U.store.get('sng.defaultDh', 100)) || 100;
@@ -287,8 +287,13 @@ const Loads = (() => {
     hideBanner();
     stale = false;
     try {
-      const res = await API.get('/api/loads', buildQuery(active()), ctrl.signal);
+      // TOP loads (paid / earned placement) for the same filters ride along; a failure there never hides the normal results.
+      const [res, top] = await Promise.all([
+        API.get('/api/loads', buildQuery(active()), ctrl.signal),
+        API.get('/api/loads/top', buildQuery(active()), ctrl.signal).catch(() => ({ items: [] })),
+      ]);
       if (list.ctrl !== ctrl) return;
+      list.top = top.items || [];
       Object.assign(list, { items: res.items, cursor: res.nextCursor, total: res.total ?? list.total, capped: Boolean(res.totalCapped), done: !res.nextCursor, error: null });
     } catch (err) {
       if (err.name === 'AbortError') return;
@@ -339,20 +344,22 @@ const Loads = (() => {
   // Rate 0 means "not stated / negotiable" (e.g. a pasted post with no price).
   const rateText = (usd) => (usd > 0 ? U.money(usd) : t('negotiable'));
 
-  function rowHtml(l) {
+  // TOP rows sit above the results with a badge; a verified member's company gets a check mark everywhere.
+  const verifiedMark = (l) => (l.verified ? ` <i data-lucide="badge-check" class="inline w-3.5 h-3.5 text-sky-600 align-text-bottom" role="img" aria-label="${esc(t('badge_verified_title'))}"></i>` : '');
+  function rowHtml(l, isTop = false) {
     const dh = (v) => (v === null ? '' : ` <span class="text-[10px] ${v > 0 ? 'text-blue-600 font-bold' : 'text-slate-400 font-normal'}">(${v}km)</span>`);
-    return `<tr class="data-row border-b border-slate-200 transition cursor-pointer select-none hover:bg-slate-50" data-id="${l.id}" tabindex="0" aria-haspopup="dialog">
+    return `<tr class="data-row border-b border-slate-200 transition cursor-pointer select-none ${isTop ? 'top-row' : 'hover:bg-slate-50'}" data-id="${l.id}" tabindex="0" aria-haspopup="dialog">
       <td class="cell-hide-mobile py-2 px-1.5 text-center text-blue-600" aria-hidden="true">›</td>
       <td data-label="${esc(t('th_age'))}" data-created="${esc(l.createdAt)}" class="py-2 px-2 text-slate-400 font-normal truncate">${esc(U.ageText(l.createdAt))}</td>
       <td data-label="${esc(t('th_date'))}" class="py-2 px-2 text-slate-600 truncate">${esc(U.shortDate(l.pickupDate))}</td>
-      <td class="cell-heading py-2 px-2.5 font-bold text-slate-900 truncate" title="${esc(l.originCity)}">${esc(l.originCity)}${dh(l.dho)}</td>
+      <td class="cell-heading py-2 px-2.5 font-bold text-slate-900 truncate" title="${esc(l.originCity)}">${isTop ? `<span class="top-badge">${esc(t('badge_top'))}</span>` : ''}${esc(l.originCity)}${dh(l.dho)}</td>
       <td class="cell-heading py-2 px-2.5 font-bold text-slate-900 truncate" title="${esc(l.destCity)}">→ ${esc(l.destCity)}${dh(l.dhd)}</td>
       <td data-label="${esc(t('th_type'))}" class="py-2 px-2 text-center"><span class="bg-blue-50 text-blue-800 font-bold px-1.5 py-0.5 rounded border border-blue-200 text-[10px]">${esc(l.equip)}</span></td>
       <td data-label="F/P" class="py-2 px-2 text-slate-600 truncate">${esc(t(l.fp === 'Full' ? 'opt_full' : 'opt_partial'))}</td>
       <td data-label="${esc(t('th_weight'))}" class="py-2 px-2 text-slate-700 truncate">${esc(l.weightT)}t${l.volumeM3 ? ` / ${esc(l.volumeM3)}m³` : ''}</td>
       <td data-label="${esc(t('th_distance'))}" class="py-2 px-2 text-right text-slate-600 truncate">${esc(l.distanceKm.toLocaleString())} km</td>
       <td data-label="${esc(t('th_rate'))}" class="py-2 px-2.5 text-right font-bold text-emerald-600 truncate${l.rateUsd > 0 ? '' : ' rate-neg'}">${esc(rateText(l.rateUsd))}</td>
-      <td data-label="${esc(t('th_company'))}" class="py-2 px-2.5 text-slate-800 font-medium truncate" title="${esc(l.company)}">${esc(l.company)}${l.mine ? ` <span class="text-[9px] bg-amber-100 text-amber-800 px-1 rounded font-bold">${esc(t('badge_yours'))}</span>` : ''}</td>
+      <td data-label="${esc(t('th_company'))}" class="py-2 px-2.5 text-slate-800 font-medium truncate" title="${esc(l.company)}">${esc(l.company)}${verifiedMark(l)}${l.mine ? ` <span class="text-[9px] bg-amber-100 text-amber-800 px-1 rounded font-bold">${esc(t('badge_yours'))}</span>` : ''}</td>
     </tr>`;
   }
 
@@ -392,7 +399,7 @@ const Loads = (() => {
               <span class="text-sm font-black text-emerald-600 font-mono">${esc(rateText(l.rateUsd))}</span>
             </div>
             <div class="space-y-2 text-slate-700 text-[11px] pt-1">
-              <div class="flex items-center justify-between"><div class="flex items-center space-x-1.5"><i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i><strong class="text-slate-900">${esc(l.company)}</strong></div><span class="text-slate-500 font-medium">${esc(l.contactName)}</span></div>
+              <div class="flex items-center justify-between"><div class="flex items-center space-x-1.5"><i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i><strong class="text-slate-900">${esc(l.company)}</strong>${verifiedMark(l)}</div><span class="text-slate-500 font-medium">${esc(l.contactName)}</span></div>
               ${l.contactPhone ? `<div class="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-100"><div class="flex items-center space-x-2"><i data-lucide="phone" class="w-3.5 h-3.5 text-blue-600"></i><a href="tel:${esc(tel)}" class="font-bold text-blue-700 hover:underline">${esc(l.contactPhone)}</a></div><a href="tel:${esc(tel)}" class="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold hover:bg-blue-200">${esc(t('lbl_call'))}</a></div>` : ''}
               ${l.contactEmail ? `<div class="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-100"><div class="flex items-center space-x-2 truncate"><i data-lucide="mail" class="w-3.5 h-3.5 text-amber-600"></i><a href="mailto:${esc(l.contactEmail)}" class="text-slate-800 hover:underline truncate">${esc(l.contactEmail)}</a></div><a href="mailto:${esc(l.contactEmail)}" class="text-[10px] bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-semibold hover:bg-slate-300">${esc(t('lbl_email_btn'))}</a></div>` : ''}
               <div class="grid ${l.contactTelegram ? 'grid-cols-2' : 'grid-cols-1'} gap-2 pt-1">
@@ -411,7 +418,7 @@ const Loads = (() => {
     if (list.loading && !list.items.length) tbody.innerHTML = skeletonRows();
     else if (!list.items.length) tbody.innerHTML = `<tr class="status-row"><td colspan="11" class="p-8 text-center text-slate-400 font-sans">${esc(list.error ? list.error.message : t('loads_none'))}</td></tr>`;
     else {
-      tbody.innerHTML = list.items.map(rowHtml).join('');
+      tbody.innerHTML = [...list.top.map((l) => rowHtml(l, true)), ...list.items.map((l) => rowHtml(l))].join('');
     }
     $('filtered-count').textContent = list.loading && list.total === null ? '…' : U.fmtCount(list.total, list.capped);
     renderFooter();
@@ -468,12 +475,12 @@ const Loads = (() => {
   }
 
   function openLoadPreview(id) {
-    const l = list.items.find((x) => x.id === id);
+    const l = list.items.find((x) => x.id === id) || list.top.find((x) => x.id === id);
     if (l) showLoadPreview(l, $('loads-tbody').querySelector(`tr[data-id="${id}"]`));
   }
 
   async function copyContact(id) {
-    const l = list.items.find((x) => x.id === id) || (deepLinked?.id === id ? deepLinked : null);
+    const l = list.items.find((x) => x.id === id) || list.top.find((x) => x.id === id) || (deepLinked?.id === id ? deepLinked : null);
     if (!l) return;
     const text = [`${t('th_company')}: ${l.company}`, `${t('lbl_disp_name')}: ${l.contactName}`, l.contactPhone && `${t('lbl_phone')}: ${l.contactPhone}`, l.contactEmail && `${t('lbl_email')}: ${l.contactEmail}`, l.contactTelegram && `Telegram: ${l.contactTelegram}`].filter(Boolean).join('\n');
     try { await navigator.clipboard.writeText(text); U.toast(t('toast_copied'), 'success'); } catch { U.toast(text, 'info', 9000); }
@@ -522,19 +529,38 @@ const Loads = (() => {
     try { await API.post(`/api/loads/${id}/renew`, {}); U.toast(t('toast_load_renewed'), 'success'); loadMine(); } catch (err) { U.toast(err.message, 'error'); loadMine(); }
   }
 
+  // 🔁 Repost: free, sends the load to the Telegram groups again (once per few hours). ⭐ TOP: spends one credit.
+  // "in 6 h" reads better than "in 360 min": minutes only for the last hour.
+  const repostWaitText = (min) => (min >= 60 ? t('toast_repost_wait_h', { hours: Math.ceil(min / 60) }) : t('toast_repost_wait', { min: min ?? '?' }));
+  async function repostMine(id) {
+    try { await API.post(`/api/loads/${id}/repost`, {}); U.toast(t('toast_reposted'), 'success'); loadMine(); } catch (err) {
+      const wait = err.details?.find?.((d) => d.code === 'repost_wait');
+      U.toast(wait ? repostWaitText(wait.params?.min) : err.message, 'error');
+    }
+  }
+  async function topMine(id) {
+    try {
+      const r = await API.post(`/api/loads/${id}/boost`, {});
+      U.toast(t('toast_topped', { hours: Session.me?.growth?.boostHours ?? 24, credits: r.boostCredits ?? '∞' }), 'success');
+      loadMine(); reload({ silent: true });
+    } catch (err) { U.toast(err.code === 'no_credits' ? t('err_no_credits') : err.message, 'error'); }
+  }
+
   function renderMine() {
     $('my-loads-count').textContent = mine.length;
     const tbody = $('my-loads-tbody');
     if (!mine.length) { tbody.innerHTML = `<tr class="status-row"><td colspan="7" class="p-4 text-center text-slate-400 font-sans">${esc(t('my_loads_empty'))}</td></tr>`; return; }
     tbody.innerHTML = mine.map((l) => `<tr class="data-row hover:bg-slate-50 transition border-b border-slate-200">
-      <td class="cell-heading p-2.5 font-bold text-slate-900">${esc(l.originCity)} → ${esc(l.destCity)}</td>
+      <td class="cell-heading p-2.5 font-bold text-slate-900">${l.top ? `<span class="top-badge">${esc(t('badge_top'))}</span>` : ''}${esc(l.originCity)} → ${esc(l.destCity)}</td>
       <td data-label="${esc(t('th_pickup_delivery'))}" class="p-2.5 text-slate-600">${esc(l.pickupDate)} <span class="text-slate-400">/</span> ${esc(l.deliveryDate || '--')}</td>
       <td data-label="${esc(t('th_type_weight'))}" class="p-2.5"><span class="bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">${esc(l.equip)}</span> ${esc(l.weightT)}t</td>
       <td data-label="${esc(t('th_distance'))}" class="p-2.5 text-slate-600">${esc(l.distanceKm.toLocaleString())} km</td>
       <td data-label="${esc(t('th_rate'))}" class="p-2.5 font-bold text-emerald-600${l.rateUsd > 0 ? '' : ' rate-neg'}">${esc(rateText(l.rateUsd))}</td>
       <td data-label="${esc(t('lbl_commodity_short'))}" class="p-2.5 text-slate-700 truncate max-w-[150px]" title="${esc(l.commodity)}">${esc(l.commodity)}</td>
-      <td class="p-2.5 text-center"><div class="flex items-center justify-center space-x-1">
+      <td class="p-2.5 text-center"><div class="flex flex-wrap items-center justify-center gap-1">
         ${expiryHours() ? `<button type="button" data-action="renew" data-id="${l.id}" class="flex-1 md:flex-none justify-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-2 py-1.5 md:py-1 rounded text-[10px] border border-emerald-200 flex items-center space-x-1 transition"><i data-lucide="refresh-cw" class="w-3 h-3"></i><span>${esc(t('btn_renew'))}</span></button>` : ''}
+        <button type="button" data-action="repost" data-id="${l.id}" title="${esc(t('btn_repost_title'))}" class="flex-1 md:flex-none justify-center bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold px-2 py-1.5 md:py-1 rounded text-[10px] border border-sky-200 flex items-center space-x-1 transition"><i data-lucide="send" class="w-3 h-3"></i><span>${esc(t('btn_repost'))}</span></button>
+        <button type="button" data-action="top" data-id="${l.id}" title="${esc(t('btn_top_title'))}" class="flex-1 md:flex-none justify-center bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold px-2 py-1.5 md:py-1 rounded text-[10px] border border-amber-200 flex items-center space-x-1 transition"><i data-lucide="star" class="w-3 h-3"></i><span>${esc(t('btn_top'))}</span></button>
         <button type="button" data-action="edit" data-id="${l.id}" class="flex-1 md:flex-none justify-center bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2 py-1.5 md:py-1 rounded text-[10px] border border-blue-200 flex items-center space-x-1 transition"><i data-lucide="edit-2" class="w-3 h-3"></i><span>${esc(t('btn_edit'))}</span></button>
         <button type="button" data-action="remove" data-id="${l.id}" class="flex-1 md:flex-none justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2 py-1.5 md:py-1 rounded text-[10px] border border-rose-200 flex items-center space-x-1 transition"><i data-lucide="trash-2" class="w-3 h-3"></i><span>${esc(t('btn_remove'))}</span></button>
       </div></td>
@@ -737,6 +763,7 @@ const Loads = (() => {
       if (!b) return;
       const id = Number(b.dataset.id);
       if (b.dataset.action === 'edit') openEdit(id); else if (b.dataset.action === 'remove') removeMine(id); else if (b.dataset.action === 'renew') renewMine(id);
+      else if (b.dataset.action === 'repost') repostMine(id); else if (b.dataset.action === 'top') topMine(id);
     });
     $('edit-load-form').addEventListener('submit', submitEdit);
     $('edit-cancel').addEventListener('click', closeEdit);

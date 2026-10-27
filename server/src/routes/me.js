@@ -4,6 +4,7 @@ import { badRequest, conflict, forbidden, validationError } from '../lib/errors.
 import { detail } from '../lib/validation.js';
 import { publicInfo, stateOf, trialEndFor } from '../lib/subscription.js';
 import { publicExpiry } from '../lib/expiry.js';
+import { growthSummary, loadExtras, publicExtras, referrerId } from '../lib/growth.js';
 import { hashPin, signSession, verifyPin } from '../lib/pin.js';
 import { loginLabel } from '../lib/identity.js';
 import { publish } from '../events.js';
@@ -27,6 +28,9 @@ export default async function meRoutes(app, { pool, config }) {
       subscription: m ? { enabled: settings.enabled, ...stateOf(m, settings), ...publicInfo(settings) } : null,
       loadExpiry: publicExpiry(await app.loadExpiry()),   // loads leave the board by themselves after this many hours
       ownerContact: config.ownerEmails[0] ?? null,
+      // invite code + friends invited + TOP credits + verified badge, and the prices / pay links for extras when the owner sells them
+      growth: m ? await growthSummary(pool, m, config) : null,
+      extras: m ? publicExtras(await loadExtras(pool), m.id) : { enabled: false },
     };
   });
 
@@ -51,13 +55,13 @@ export default async function meRoutes(app, { pool, config }) {
     }
     const row = await withTx(pool, async (db) => {
       const { rows: [created] } = await db.query(
-        `INSERT INTO members (email, firebase_uid, company, contact_name, phone, telegram, contact_email, status, pin_hash, pin_changed_at, login_phone, works_with_company, trial_ends_at, telegram_user_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'approved', $8, CASE WHEN $8::text IS NULL THEN NULL ELSE now() END, $9, $10, $11, $12)
+        `INSERT INTO members (email, firebase_uid, company, contact_name, phone, telegram, contact_email, status, pin_hash, pin_changed_at, login_phone, works_with_company, trial_ends_at, telegram_user_id, persona, referred_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'approved', $8, CASE WHEN $8::text IS NULL THEN NULL ELSE now() END, $9, $10, $11, $12, $13, $14)
          ON CONFLICT (email) DO NOTHING
          RETURNING *`,
         [req.user.email, byTelegram ? null : req.user.uid, body.company || body.contactName, body.contactName, phone, body.telegram,
           req.user.loginEmail ? '' : body.contactEmail, pinHash, bySms ? req.user.phone : null, Boolean(body.company), trialEndFor(await app.subscriptionSettings()),
-          byTelegram ? req.user.telegramUserId : null],
+          byTelegram ? req.user.telegramUserId : null, body.persona ?? null, await referrerId(db, body.ref)],
       );
       if (created) {
         await publish(db, { entity: 'members', op: 'insert', id: created.id });
@@ -145,6 +149,7 @@ export default async function meRoutes(app, { pool, config }) {
     const map = {
       company: 'company', contactName: 'contact_name', phone: 'phone', telegram: 'telegram', contactEmail: 'contact_email',
       location: 'location', tirCarnet: 'tir_carnet', fleet: 'fleet', routes: 'routes', worksWithCompany: 'works_with_company',
+      persona: 'persona',
     };
     // Everyone is an individual (the "company" shown is their own name) until they say they work with a company. Naming a
     // company switches it on; clearing it, or switching it off, goes back to the name. The owner keeps the platform's name.
