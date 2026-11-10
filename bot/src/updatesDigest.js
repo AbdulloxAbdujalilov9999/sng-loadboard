@@ -1,18 +1,23 @@
 // The push half of the Updates feature (bot.js's sendUpdates is the on-demand half, same
 // t('updates_text') string): sends current load/truck counts to every signed-up Telegram user at
-// 08:00/12:00/16:00/20:00 local server time - no overnight pings. Only the bot process with
+// 08:00/12:00/16:00/20:00 Tashkent time - no overnight pings. The server's clock runs on UTC, so the
+// slots are worked out in UTC+5 (Uzbekistan has no daylight saving), not in server-local hours.
+// Nothing is sent while the board is empty: "0 loads, 0 trucks" four times a day only tells people
+// the board is dead. Only the bot process with
 // BOT_SEND_UPDATES_DIGEST set runs this (sngonebot - see bot/src/config.js), same one-process-does-it
 // pattern as saved-search alerts (broadcaster.js). No cron dependency: setTimeout aligned to the next
 // slot, same shape as server/src/lib/expiry.js's sweeper.
 import { t } from './i18n.js';
 
-const SLOTS = [8, 12, 16, 20]; // hours, local server time
+const SLOTS = [8, 12, 16, 20]; // hours, Tashkent time
+const TZ_OFFSET_H = 5; // Asia/Tashkent, UTC+5 all year
 
 export function msUntilNextSlot(now = new Date()) {
   const next = new Date(now);
-  next.setSeconds(0, 0);
-  next.setMinutes(0);
-  while (!SLOTS.includes(next.getHours()) || next <= now) next.setTime(next.getTime() + 3600_000);
+  next.setUTCSeconds(0, 0);
+  next.setUTCMinutes(0);
+  const localHour = (d) => (d.getUTCHours() + TZ_OFFSET_H) % 24;
+  while (!SLOTS.includes(localHour(next)) || next <= now) next.setTime(next.getTime() + 3600_000);
   return next.getTime() - now.getTime();
 }
 
@@ -42,6 +47,7 @@ export function startUpdatesDigest({ bot, apiClient, tokens, store, config, log 
       log.warn?.(`updates digest: could not fetch stats: ${err.message}`);
       return;
     }
+    if (!stats.loads && !stats.trucks) return;
     for (const id of userIds) {
       const lang = (await store.getLanguage?.(id)) ?? config.broadcastLang;
       const text = t(lang, 'updates_text', { loads: stats.loads, trucks: stats.trucks });
